@@ -14,8 +14,14 @@ func (a *Acquisition) Logcat() error {
 
 	out, err := a.ADB.Shell("logcat", "-d", "-b", "all", "\"*:V\"")
 	if err != nil {
-		return fmt.Errorf("Failed to run `adb shell logcat`: %v\n", err)
+		return fmt.Errorf("failed to run `adb shell logcat`: %v", err)
 	}
+	a.saveOutput("logcat.txt", out)
 
-	return a.saveOutput("logcat.txt", out)
+    // Also get logcat information from before reboot
+	out, err = a.ADB.Shell("logcat", "-L", "-b", "all", "\"*:V\"")
+	if err != nil {
+		return fmt.Errorf("failed to run `adb shell logcat -L`: %v", err)
+	}
+	return a.saveOutput("logcat_old.txt", out)
 }
