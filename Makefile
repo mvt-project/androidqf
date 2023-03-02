@@ -11,9 +11,14 @@ PLATFORMTOOLS_DARWIN  = platform-tools-latest-darwin.zip
 PLATFORMTOOLS_LINUX   = platform-tools-latest-linux.zip
 PLATFORMTOOLS_FOLDER  = /tmp/platform-tools
 
-lint:
-	@echo "[lint] Running linter on codebase"
-	@golint ./...
+check:
+	@echo "[lint] Running go vet"
+	go vet ./...
+	@echo "[lint] Running staticheck on codebase"
+	@staticcheck ./...
+
+fmt:
+	got fmt ./...
 
 deps:
 	@echo "[deps] Installing dependencies..."

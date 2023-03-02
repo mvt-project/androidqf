@@ -18,6 +18,7 @@ import (
 	"github.com/satori/go.uuid"
 )
 
+// Acquisition is the main object containing all phone information
 type Acquisition struct {
 	UUID        string    `json:"uuid"`
 	ADB         *adb.ADB  `json:"-"`

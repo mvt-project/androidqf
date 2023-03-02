@@ -18,7 +18,7 @@ func (a *Acquisition) Logcat() error {
 	}
 	a.saveOutput("logcat.txt", out)
 
-    // Also get logcat information from before reboot
+	// Also get logcat information from before reboot
 	out, err = a.ADB.Shell("logcat", "-L", "-b", "all", "\"*:V\"")
 	if err != nil {
 		return fmt.Errorf("failed to run `adb shell logcat -L`: %v", err)

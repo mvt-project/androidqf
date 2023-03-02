@@ -41,7 +41,7 @@ func main() {
 	var acq *acquisition.Acquisition
 	var err error
 
-	for true {
+	for {
 		acq, err = acquisition.New()
 		if err == nil {
 			break
