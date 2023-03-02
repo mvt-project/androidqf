@@ -8,7 +8,6 @@ package acquisition
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,7 +39,7 @@ func (a *Acquisition) StoreSecurely() error {
 
 	fmt.Println("Encrypting the compressed archive. This might take a while...")
 
-	publicKey, err := ioutil.ReadFile(keyFilePath)
+	publicKey, err := os.ReadFile(keyFilePath)
 	if err != nil {
 		return err
 	}

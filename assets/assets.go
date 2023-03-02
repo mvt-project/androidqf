@@ -6,7 +6,7 @@
 package assets
 
 import (
-	"io/ioutil"
+    "os"
 	"path/filepath"
 
 	saveRuntime "github.com/botherder/go-savetime/runtime"
@@ -23,7 +23,7 @@ func DeployAssets() error {
 
 	for _, asset := range getAssets() {
 		assetPath := filepath.Join(cwd, asset.Name)
-		err := ioutil.WriteFile(assetPath, asset.Data, 0755)
+		err := os.WriteFile(assetPath, asset.Data, 0755)
 		if err != nil {
 			return err
 		}

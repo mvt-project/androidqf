@@ -8,7 +8,6 @@ package acquisition
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -119,7 +118,7 @@ func (a *Acquisition) StoreInfo() error {
 
 	infoPath := filepath.Join(a.StoragePath, "acquisition.json")
 
-	err = ioutil.WriteFile(infoPath, info, 0644)
+	err = os.WriteFile(infoPath, info, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write acquisition details to file: %v",
 			err)

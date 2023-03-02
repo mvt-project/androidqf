@@ -12,6 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
+    "github.com/botherder/androidqf/utils"
+    "github.com/botherder/androidqf/adb"
+    "github.com/botherder/go-savetime/hashes"
 	"github.com/i582/cfmt/cmd/cfmt"
 	"github.com/manifoldco/promptui"
 )
@@ -20,13 +23,10 @@ const (
 	apkAll       = "All"
 	apkNotSystem = "Only non-system packages"
 	apkNone      = "Do not download any"
+    apkRemoveTrusted = "Yes"
+    apkKeepAll   = "No"
 )
 
-type File struct {
-	Path      string `json:"path"`
-	LocalName string `json:"local_name"`
-	SHA256    string `json:"sha256"`
-}
 
 func (a *Acquisition) getPathToLocalCopy(packageName, filePath string) string {
 	fileName := ""
@@ -49,7 +49,11 @@ func (a *Acquisition) getPathToLocalCopy(packageName, filePath string) string {
 }
 
 func (a *Acquisition) DownloadAPKs() error {
-	fmt.Println("Collecting information on installed apps. This might take a while...")
+    var downloadOption string
+    var keepOption string
+    var err error
+	fmt.Println("Downloading copies of installed apps. This might take a while...")
+
 
 	packages, err := a.ADB.GetPackages()
 	if err != nil {
@@ -64,40 +68,90 @@ func (a *Acquisition) DownloadAPKs() error {
 		Label: "Download",
 		Items: []string{apkAll, apkNotSystem, apkNone},
 	}
-	_, downloadOption, err := promptAll.Run()
+	_, downloadOption, err = promptAll.Run()
+	if err != nil {
+		return fmt.Errorf("failed to make selection for download option: %v",
+			err)
+	}
+    if downloadOption == apkNone {
+        return nil
+    }
+
+	fmt.Println("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
+	promptAll = promptui.Select{
+		Label: "Remove",
+		Items: []string{apkRemoveTrusted, apkKeepAll},
+	}
+	_, keepOption, err = promptAll.Run()
 	if err != nil {
 		return fmt.Errorf("failed to make selection for download option: %v",
 			err)
 	}
 
-	// If the user decides to not download any APK, then we skip this.
+
 	// Otherwise we walk through the list of package, pull the files, and hash them.
-	if downloadOption != apkNone {
-		for _, p := range packages {
-			// If we the user did not request to download all packages and if
-			// the package is marked as system, we skip it.
-			if downloadOption != apkAll && p.System {
-				continue
-			}
+    for i, p := range packages {
+        //cfmt.Printf("Found Android package: {{%s}}::cyan|bold\n", p.Name)
 
-			cfmt.Printf("Found Android package: {{%s}}::cyan|bold\n", p.Name)
+        pFilePaths, err := a.ADB.GetPackagePaths(p.Name)
+        if err != nil {
+            continue
+        }
+        for _, pFilePath := range pFilePaths {
+            localPath := a.getPathToLocalCopy(p.Name, pFilePath)
 
-			for _, packageFile := range p.Files {
-				localPath := a.getPathToLocalCopy(p.Name, packageFile.Path)
+            out, err := a.ADB.Pull(pFilePath, localPath)
+            if err != nil {
+                file := adb.PackageFile{
+                    Path:      pFilePath,
+                    LocalName: "",
+                    SHA256:    "",
+                        SHA1:      "",
+                        MD5:       "",
+                        Error:     out,
+                    }
+                packages[i].Files = append(packages[i].Files, file)
+                continue
+            }
 
-				out, err := a.ADB.Pull(packageFile.Path, localPath)
-				if err != nil {
-					cfmt.Printf("{{ERROR:}}::red|bold Failed to download {{%s}}::cyan|underline: {{%s}}::italic\n",
-						packageFile.Path, out)
+            // cfmt.Printf("Downloaded {{%s}}::cyan|underline to {{%s}}::magenta|underline\n",
+            //    packageFile.Path, localPath)
 
-					continue
-				}
+            sha256, _ := hashes.FileSHA256(localPath)
+            sha1, _ := hashes.FileSHA1(localPath)
+            md5, _ := hashes.FileMD5(localPath)
+            verified, cert, err := utils.VerifyCertificate(localPath)
+            var file adb.PackageFile
+            file.Path = pFilePath
+            file.LocalName = filepath.Base(localPath)
+            file.SHA256 = sha256
+            file.SHA1 = sha1
+            file.MD5 = md5
+            if err != nil {
+                file.CertificateError = err.Error()
+                file.VerifiedCertificate = false
+            } else {
+                file.CertificateError = ""
+                file.Certificate = *cert
+                file.VerifiedCertificate = verified
+                if utils.IsTrusted(*cert) {
+                    file.TrustedCertificate = true
+                    // Remove the APK
+                    if keepOption == apkRemoveTrusted {
+                        os.Remove(localPath)
+                    }
+                } else {
+                    // remove system apps if asked for it
+                    if (p.System) && (downloadOption != apkNotSystem) {
+                        os.Remove(localPath)
+                    }
+                    file.TrustedCertificate = false
+                }
+            }
 
-				cfmt.Printf("Downloaded {{%s}}::cyan|underline to {{%s}}::magenta|underline\n",
-					packageFile.Path, localPath)
-			}
-		}
-	}
+            packages[i].Files = append(packages[i].Files, file)
+        }
+    }
 
 	// Store the results into a JSON file.
 	packagesJSONPath := filepath.Join(a.StoragePath, "packages.json")
