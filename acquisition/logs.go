@@ -25,7 +25,10 @@ func (a *Acquisition) Logs() error {
 	}
 
 	for _, logFolder := range []string{"/data/anr/", "/data/log/"} {
-		files := a.ADB.ListFiles(logFolder)
+		files, err := a.ADB.ListFiles(logFolder, true)
+		if err != nil {
+			continue
+		}
 		if len(files) == 0 {
 			continue
 		}

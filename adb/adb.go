@@ -6,6 +6,7 @@
 package adb
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -72,20 +73,30 @@ func (a *ADB) Backup(arg string) error {
 }
 
 // List files in a folder using ls, returns array of strings.
-func (a *ADB) ListFiles(remotePath string) []string {
+func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	var remoteFiles []string
-
-	out, _ := a.Shell("find", remotePath, "2>", "/dev/null")
-	if out == "" {
-		return []string{}
-	}
-
-	for _, file := range strings.Split(out, "\n") {
-		if strings.HasPrefix(file, "find:") {
-			continue
+	if recursive {
+		out, _ := a.Shell("find", remotePath, "2>", "/dev/null")
+		if out != "" {
+			tmpFiles := strings.Split(out, "\n")
+			for _, file := range tmpFiles {
+				// Remove errors
+				if !strings.HasPrefix(file, "find:") {
+					remoteFiles = append(remoteFiles, file)
+				}
+			}
 		}
-		remoteFiles = append(remoteFiles, file)
+	} else {
+		out, err := a.Shell("ls", remotePath)
+		if err != nil {
+			return remoteFiles, err
+		}
+		if strings.HasPrefix(out, "ls:") {
+			// Error
+			return remoteFiles, errors.New(out)
+		}
+		remoteFiles = strings.Split(out, "\n")
 	}
 
-	return remoteFiles
+	return remoteFiles, nil
 }

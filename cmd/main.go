@@ -91,6 +91,16 @@ func main() {
 		printError("Failed to download APKs", err)
 	}
 
+	err = acq.GetFiles()
+	if err != nil {
+		printError("Failed to get a list of files", err)
+	}
+
+	err = acq.GetTmpFolder()
+	if err != nil {
+		printError("Failed to get files in tmp folder", err)
+	}
+
 	acq.Complete()
 
 	err = acq.StoreSecurely()

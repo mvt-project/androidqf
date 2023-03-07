@@ -228,37 +228,37 @@ func ValidCertificates() []string {
 		"b92bbf1ab6a058ebbf783b5b5e5c2f280cb3028d", // Wireguard
 		"4b5d0914b118f51f30634a1523f96e020ab24fd2", // Brave
 		"ae0b86995f174533b423067837beba13d922fbb0", // UberEats
-        "576db8854fa20797176d395532a61c759bdc01d0", // N26
-        "0f741a926503c8a827fc1cd0188118e3f5f0d2a4", // Wickr
-        "5bd7696ae4f97ec28623dd980c58e8a60fe6b8bd", // Bank of Ireland
-        "b07fc6aeccd21fcbd40543c85112cafe099ba56f", // Discord
-        "4e74e80b74fd562bf219860bd2fab10ee3c3e701", // Huawei
-        "09f72e9ecc2be8d7f8c0e4e681ac35bca51a3702", // Huawei
-        "81fa16e36f766837f0ea8b7f548d77ab9c704a46", // Huawei
-        "4ad6018df2eda1af8eaa966bdb81008e7d1020a0", // Huawei
-        "83c085601d826495e12eb839dc3f595f306584c3", // Huawei
-        "301ef8635847f1e3ba585db5388c00496146956d", // Huawei
-        "578ef3e87540a95893085d96c18d191be4daddce", // Huawei
-        "e346cffd7a014659ebaeaf56b7b55d470d02d976", // Huawei
-        "6dbd2504c150821ecaf545fcc4fe675130c6f479", // Huawei
-        "f9a978ce9aef71bc647ecabb66068502aca0bbf9", // Huawei
-        "a03ed7d38b9a42586d20f6540d08ed09ed55db61", // Huawei
-        "06c160797a3dd3fe22d3ec945e5bda07537a953a", // Huawei
-        "20c35773d662d86aa42cedf707238922e27ad866", // Huawei
-        "1cdd04f1e4a732bb0352fdfaee26d2315526df85", // Huawei
-        "6e24eb2d31cd36f42c5ca15e4e995f23095bdb95", // Huawei
-        "ade757e42199681686df66ca0f7245fdc8f98d91", // Huawei
-        "4b48b2c256218f9b3f4ee9ea89187bf5ecf9fcda", // Huawei
-        "7cc1ced6bd00eb94c3c9a7ce91da928ad1136476", // Huawei
-        "c95f5f4ccfbdc316b0015771c84cdf10dbfbc194", // Huawei
-        "01b9cdc617511ab5afde10b5f4f6ad824f9049f5", // Huawei
-        "b228f105d3b08735f240829ed86e8cd0da9208b1", // Huawei
-        "ce55901a3d7c1686a7c7cc54520e3a2565a54f1e", // Huawei
-        "552d06084c03e8a9580c6d0772d4b8ad21c53b20", // Huawei
-        "b81339d245a4f132845b6c0a91b2f08fb7df5ef9", // Disney
-        "a024f959a429f1798f57976c57463d7deae3ea32", // Huawei
-        "b79145d79f8f14c26c68ecbb278d56ae4365b161", // OnePlus
-        "cfeb888c0785ded885121c301bbcfaa505a0fe4c", // OnePlus
+		"576db8854fa20797176d395532a61c759bdc01d0", // N26
+		"0f741a926503c8a827fc1cd0188118e3f5f0d2a4", // Wickr
+		"5bd7696ae4f97ec28623dd980c58e8a60fe6b8bd", // Bank of Ireland
+		"b07fc6aeccd21fcbd40543c85112cafe099ba56f", // Discord
+		"4e74e80b74fd562bf219860bd2fab10ee3c3e701", // Huawei
+		"09f72e9ecc2be8d7f8c0e4e681ac35bca51a3702", // Huawei
+		"81fa16e36f766837f0ea8b7f548d77ab9c704a46", // Huawei
+		"4ad6018df2eda1af8eaa966bdb81008e7d1020a0", // Huawei
+		"83c085601d826495e12eb839dc3f595f306584c3", // Huawei
+		"301ef8635847f1e3ba585db5388c00496146956d", // Huawei
+		"578ef3e87540a95893085d96c18d191be4daddce", // Huawei
+		"e346cffd7a014659ebaeaf56b7b55d470d02d976", // Huawei
+		"6dbd2504c150821ecaf545fcc4fe675130c6f479", // Huawei
+		"f9a978ce9aef71bc647ecabb66068502aca0bbf9", // Huawei
+		"a03ed7d38b9a42586d20f6540d08ed09ed55db61", // Huawei
+		"06c160797a3dd3fe22d3ec945e5bda07537a953a", // Huawei
+		"20c35773d662d86aa42cedf707238922e27ad866", // Huawei
+		"1cdd04f1e4a732bb0352fdfaee26d2315526df85", // Huawei
+		"6e24eb2d31cd36f42c5ca15e4e995f23095bdb95", // Huawei
+		"ade757e42199681686df66ca0f7245fdc8f98d91", // Huawei
+		"4b48b2c256218f9b3f4ee9ea89187bf5ecf9fcda", // Huawei
+		"7cc1ced6bd00eb94c3c9a7ce91da928ad1136476", // Huawei
+		"c95f5f4ccfbdc316b0015771c84cdf10dbfbc194", // Huawei
+		"01b9cdc617511ab5afde10b5f4f6ad824f9049f5", // Huawei
+		"b228f105d3b08735f240829ed86e8cd0da9208b1", // Huawei
+		"ce55901a3d7c1686a7c7cc54520e3a2565a54f1e", // Huawei
+		"552d06084c03e8a9580c6d0772d4b8ad21c53b20", // Huawei
+		"b81339d245a4f132845b6c0a91b2f08fb7df5ef9", // Disney
+		"a024f959a429f1798f57976c57463d7deae3ea32", // Huawei
+		"b79145d79f8f14c26c68ecbb278d56ae4365b161", // OnePlus
+		"cfeb888c0785ded885121c301bbcfaa505a0fe4c", // OnePlus
 	}
 	return certs
 }

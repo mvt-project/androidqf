@@ -6,7 +6,7 @@
 package assets
 
 import (
-    "os"
+	"os"
 	"path/filepath"
 
 	saveRuntime "github.com/botherder/go-savetime/runtime"

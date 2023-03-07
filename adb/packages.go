@@ -7,24 +7,24 @@ package adb
 
 import (
 	"fmt"
+	"github.com/avast/apkverifier"
 	"reflect"
+	"strconv"
 	"strings"
-    "strconv"
-    "github.com/avast/apkverifier"
 )
 
 type PackageFile struct {
-	Path      string `json:"path"`
-	LocalName string `json:"local_name"`
-	MD5       string `json:"md5"`
-	SHA1      string `json:"sha1"`
-	SHA256    string `json:"sha256"`
-	SHA512    string `json:"sha512"`
-    Error               string               `json:"error"`
-    VerifiedCertificate bool                 `json:"verified_certificate"`
-    Certificate         apkverifier.CertInfo `json:"certificate"`
-    CertificateError    string               `json:"certificate_error"`
-    TrustedCertificate  bool                 `json:"trusted_certificate"`
+	Path                string               `json:"path"`
+	LocalName           string               `json:"local_name"`
+	MD5                 string               `json:"md5"`
+	SHA1                string               `json:"sha1"`
+	SHA256              string               `json:"sha256"`
+	SHA512              string               `json:"sha512"`
+	Error               string               `json:"error"`
+	VerifiedCertificate bool                 `json:"verified_certificate"`
+	Certificate         apkverifier.CertInfo `json:"certificate"`
+	CertificateError    string               `json:"certificate_error"`
+	TrustedCertificate  bool                 `json:"trusted_certificate"`
 }
 
 type Package struct {
@@ -37,35 +37,34 @@ type Package struct {
 	ThirdParty bool          `json:"third_party"`
 }
 
-
 // GetPackages returns the list of installed package names.
 func (a *ADB) GetPackages() ([]Package, error) {
-    withInstaller := true
+	withInstaller := true
 	out, err := a.Shell("pm", "list", "packages", "-U", "-u", "-i")
 
-    if err != nil {
-        // Some phones do not support -i option
-        out, err = a.Shell("pm", "list", "packages", "-U", "-u")
-        if err != nil {
-            return []Package{}, fmt.Errorf("failed to launch `pm list packages` command: %v",
-                err)
-        }
-        withInstaller = false
-    }
+	if err != nil {
+		// Some phones do not support -i option
+		out, err = a.Shell("pm", "list", "packages", "-U", "-u")
+		if err != nil {
+			return []Package{}, fmt.Errorf("failed to launch `pm list packages` command: %v",
+				err)
+		}
+		withInstaller = false
+	}
 
 	packages := []Package{}
-    var installer string
-    var uid int
+	var installer string
+	var uid int
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Fields(line)
 		packageName := strings.TrimPrefix(strings.TrimSpace(fields[0]), "package:")
-        if withInstaller {
-        installer = strings.TrimPrefix(strings.TrimSpace(fields[1]), "installer=")
-            uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[2]), "uid:"))
-        } else {
-            uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[1]), "uid:"))
-            installer = ""
-        }
+		if withInstaller {
+			installer = strings.TrimPrefix(strings.TrimSpace(fields[1]), "installer=")
+			uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[2]), "uid:"))
+		} else {
+			uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[1]), "uid:"))
+			installer = ""
+		}
 
 		if packageName == "" {
 			continue
@@ -74,11 +73,11 @@ func (a *ADB) GetPackages() ([]Package, error) {
 		newPackage := Package{
 			Name:       packageName,
 			Installer:  installer,
-            UID:        uid,
+			UID:        uid,
 			Disabled:   false,
 			System:     false,
 			ThirdParty: false,
-            Files:      []PackageFile{},
+			Files:      []PackageFile{},
 		}
 
 		packages = append(packages, newPackage)
@@ -125,21 +124,21 @@ func (a *ADB) GetPackages() ([]Package, error) {
 // GetPackagePaths returns a list of file paths associated with the provided
 // package name.
 func (a *ADB) GetPackagePaths(packageName string) ([]string, error) {
-    out, err := a.Shell("pm", "path", packageName)
-    if err != nil {
-        return []string{}, fmt.Errorf("failed to launch `pm path` command: %v",
-            err)
-    }
+	out, err := a.Shell("pm", "path", packageName)
+	if err != nil {
+		return []string{}, fmt.Errorf("failed to launch `pm path` command: %v",
+			err)
+	}
 
-    packagePaths := []string{}
-    for _, line := range strings.Split(out, "\n") {
-        packagePath := strings.TrimPrefix(strings.TrimSpace(line), "package:")
-        if packagePath == "" {
-            continue
-        }
+	packagePaths := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		packagePath := strings.TrimPrefix(strings.TrimSpace(line), "package:")
+		if packagePath == "" {
+			continue
+		}
 
-        packagePaths = append(packagePaths, packagePath)
-    }
+		packagePaths = append(packagePaths, packagePath)
+	}
 
-    return packagePaths, nil
+	return packagePaths, nil
 }
