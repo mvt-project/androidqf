@@ -1,18 +1,18 @@
 # androidqf
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/botherder/androidqf)](https://goreportcard.com/report/github.com/botherder/androidqf)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mvt/androidqf)](https://goreportcard.com/report/github.com/mvt/androidqf)
 
-androidqf (Android Quick Forensics) is a portable tool to simplify the acquisition of relevant forensic data from Android devices. It is the successor of [Snoopdroid](https://github.com/botherder/snoopdroid), re-written in Go and leveraging official adb binaries.
+androidqf (Android Quick Forensics) is a portable tool to simplify the acquisition of relevant forensic data from Android devices. It is the successor of [Snoopdroid](https://github.com/mvt/snoopdroid), re-written in Go and leveraging official adb binaries. androidqf was originally developed by [Claudio Guarnieri](https://github.com/botherder/) and is now maintained by [Amnesty International's Security Lab](https://amnesty.tech/).
 
-androidqf is intended to provide a simple and portable cross-platform utility to quickly acquire data from Android devices. It is similar in functionality to [mvt-android](https://github.com/mvt-project/mvt). However, contrary to MVT, androidqf is designed to be easily run by non-tech savvy users as well.
+androidqf is intended to provide a simple and portable cross-platform utility to quickly acquire data from Android devices. It is similar in functionality to [mvt-android](https://github.com/mvt-project/mvt). However, contrary to MVT, androidqf is designed to be easily run by non-tech savvy users as well. Data extracted by androidqf can be analyzed with [MVT](https://github.com/mvt-project/mvt).
 
-[Download androidqf](https://github.com/botherder/androidqf/releases/latest)
+[Download androidqf](https://github.com/mvt/androidqf/releases/latest)
 
 ![](androidqf.png)
 
 ## Build
 
-Executable binaries for Linux, Windows and Mac should be available in the [latest release](https://github.com/botherder/androidqf/releases/latest). In case you have issues running the binary you might want to build it by yourself.
+Executable binaries for Linux, Windows and Mac should be available in the [latest release](https://github.com/mvt/androidqf/releases/latest). In case you have issues running the binary you might want to build it by yourself.
 
 In order to build androidqf you will need Go 1.15+ installed. You will also need to install `make`. When ready you can clone the repository and run any of the following commands, for your platform of choice:
 
@@ -32,13 +32,17 @@ Now androidqf should be executing and creating an acquisition folder at the same
 
 The following data can be extracted:
 
-1. A list of all packages installed and related distribution files.
-2. (Optional) Copy of all installed APKs or of only those not marked as system apps.
-3. The output of the `dumpsys` shell command, providing diagnostic information about the device.
-4. The output of the `getprop` shell command, providing build information and configuration parameters.
-5. All system settings.
-6. The output of the `ps` shell command, providing a list of all running processes.
-7. (Optional) A backup of SMS and MMS messages.
+1. (Optional) A full backup or backup of SMS and MMS messages.
+2. The output of the getprop shell command, providing build information and configuration parameters.
+3. All system settings.
+4. The output of the ps shell command, providing a list of all running processes.
+5. The list of system's services.
+6. A copy of all the logs from the system.
+7. The output of the dumpsys shell command, providing diagnostic information about the device.
+8. A list of all packages installed and related distribution files.
+9. (Optional) Copy of all installed APKs or of only those not marked as system apps.
+10. A list of files on the system.
+11. A copy of the files available in temp folders.
 
 ## Encryption & Potential Threats
 
