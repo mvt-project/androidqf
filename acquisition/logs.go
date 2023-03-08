@@ -24,7 +24,7 @@ func (a *Acquisition) Logs() error {
 		"/sys/fs/pstore/console-ramoops",
 	}
 
-	for _, logFolder := range []string{"/data/anr/", "/data/log/"} {
+	for _, logFolder := range []string{"/data/anr/", "/data/log/", "/sdcard/log"} {
 		files, err := a.ADB.ListFiles(logFolder, true)
 		if err != nil {
 			continue
