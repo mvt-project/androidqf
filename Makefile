@@ -84,6 +84,28 @@ linux:
 
 	@echo "[builder] Done!"
 
+download:
+	@if [ ! -f /tmp/$(PLATFORMTOOLS_WINDOWS) ]; then \
+		echo "Downloading Windows Android Platform Tools..."; \
+		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_WINDOWS) -O /tmp/$(PLATFORMTOOLS_WINDOWS); \
+	fi
+
+	@rm -rf $(PLATFORMTOOLS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_WINDOWS)
+	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)
+	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinUsbApi.dll $(ASSETS_FOLDER)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb.exe $(ASSETS_FOLDER)
+
+	@if [ ! -f /tmp/$(PLATFORMTOOLS_DARWIN) ]; then \
+		echo "Downloading Darwin Android Platform Tools..."; \
+		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_DARWIN) -O /tmp/$(PLATFORMTOOLS_DARWIN); \
+	fi
+
+	@rm -rf $(PLATFORMTOOLS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+
+
 clean:
 	rm -rf $(BUILD_FOLDER)
 	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll
