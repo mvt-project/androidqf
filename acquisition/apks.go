@@ -47,6 +47,23 @@ func (a *Acquisition) getPathToLocalCopy(packageName, filePath string) string {
 	return localPath
 }
 
+func (a *Acquisition) savePackageJson(packages []adb.Package) error {
+	packagesJSONPath := filepath.Join(a.StoragePath, "packages.json")
+	packagesJSON, err := os.Create(packagesJSONPath)
+	if err != nil {
+		return fmt.Errorf("failed to save list of installed packages to file: %v",
+			err)
+	}
+	defer packagesJSON.Close()
+
+	buf, _ := json.MarshalIndent(packages, "", "    ")
+
+	packagesJSON.WriteString(string(buf[:]))
+	packagesJSON.Sync()
+
+	return nil
+}
+
 func (a *Acquisition) DownloadAPKs() error {
 	var downloadOption string
 	var keepOption string
@@ -72,7 +89,7 @@ func (a *Acquisition) DownloadAPKs() error {
 			err)
 	}
 	if downloadOption == apkNone {
-		return nil
+		return a.savePackageJson(packages)
 	}
 
 	fmt.Println("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
@@ -151,18 +168,5 @@ func (a *Acquisition) DownloadAPKs() error {
 	}
 
 	// Store the results into a JSON file.
-	packagesJSONPath := filepath.Join(a.StoragePath, "packages.json")
-	packagesJSON, err := os.Create(packagesJSONPath)
-	if err != nil {
-		return fmt.Errorf("failed to save list of installed packages to file: %v",
-			err)
-	}
-	defer packagesJSON.Close()
-
-	buf, _ := json.MarshalIndent(packages, "", "    ")
-
-	packagesJSON.WriteString(string(buf[:]))
-	packagesJSON.Sync()
-
-	return nil
+	return a.savePackageJson(packages)
 }
