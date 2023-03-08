@@ -41,6 +41,7 @@ func main() {
 	var acq *acquisition.Acquisition
 	var err error
 
+	// Initialization
 	for {
 		acq, err = acquisition.New()
 		if err == nil {
@@ -56,7 +57,12 @@ func main() {
 		printError("Impossible to initialise the acquisition", err)
 		return
 	}
+	fn, err := acq.InitLog()
+	if err == nil {
+		defer fn()
+	}
 
+	// Start acquisitions
 	cfmt.Printf("Started new acquisition {{%s}}::magenta|underline\n",
 		acq.UUID)
 
@@ -101,12 +107,10 @@ func main() {
 	if err != nil {
 		printError("Failed to get output of dumpsys", err)
 	}
-
 	err = acq.GetFiles()
 	if err != nil {
 		printError("Failed to get a list of files", err)
 	}
-
 	err = acq.GetTmpFolder()
 	if err != nil {
 		printError("Failed to get files in tmp folder", err)

@@ -8,6 +8,8 @@ package acquisition
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -143,4 +145,35 @@ func (a *Acquisition) StoreInfo() error {
 	}
 
 	return nil
+}
+
+func (a *Acquisition) InitLog() (func(), error) {
+	logPath := filepath.Join(a.StoragePath, "command.log")
+	f, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		return nil, err
+	}
+	out := os.Stdout
+	mw := io.MultiWriter(out, f)
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	os.Stderr = w
+	log.SetOutput(mw)
+
+	exit := make(chan bool)
+
+	go func() {
+		// copy all reads from pipe to multiwriter, which writes to stdout and file
+		_, _ = io.Copy(mw, r)
+		// when r or w is closed copy will finish and true will be sent to channel
+		exit <- true
+	}()
+
+	// function to be deferred in main until program exits
+	return func() {
+		_ = w.Close()
+		<-exit
+		// close file after all writes have finished
+		_ = f.Close()
+	}, nil
 }
