@@ -31,3 +31,18 @@ func DeployAssets() error {
 
 	return nil
 }
+
+// Remove assets from the local disk
+func CleanAssets() error {
+	cwd := saveRuntime.GetExecutableDirectory()
+
+	for _, asset := range getAssets() {
+		assetPath := filepath.Join(cwd, asset.Name)
+		err := os.Remove(assetPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

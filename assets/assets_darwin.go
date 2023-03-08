@@ -12,8 +12,16 @@ import (
 //go:embed "adb"
 var adbData []byte
 
+//go:embed collector_arm6
+var collectorArm6 []byte
+
+//go:embed collector_arm7
+var collectorArm7 []byte
+
 func getAssets() []Asset {
 	return []Asset{
 		{Name: "adb", Data: adbData},
+		{Name: "collector_arm6", Data: collectorArm6},
+		{Name: "collector_arm7", Data: collectorArm7},
 	}
 }

@@ -14,17 +14,16 @@ import (
 )
 
 func (a *ADB) findExe() error {
-	adbPath, err := exec.LookPath("adb")
-	if err == nil {
-		a.ExePath = adbPath
-		return nil
-	}
-
-	err = assets.DeployAssets()
+	err := assets.DeployAssets()
 	if err != nil {
 		return err
 	}
 
-	a.ExePath = filepath.Join(saveRuntime.GetExecutableDirectory(), "adb")
+	adbPath, err := exec.LookPath("adb")
+	if err == nil {
+		a.ExePath = adbPath
+	} else {
+		a.ExePath = filepath.Join(saveRuntime.GetExecutableDirectory(), "adb")
+	}
 	return nil
 }

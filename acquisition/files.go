@@ -13,30 +13,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/botherder/androidqf/adb"
 	"github.com/botherder/go-savetime/slice"
 )
 
-type FileInfo struct {
-	Path         string `json:"path"`
-	Size         int64  `json:"size"`
-	Mode         string `json:"mode"`
-	UserId       uint32 `json:"user_id"`
-	UserName     string `json:"user_name"`
-	GroupId      uint32 `json:"group_id"`
-	GroupName    string `json:"group_name"`
-	ChangeTime   int64  `json:"changed_time"`
-	ModifiedTime int64  `json:"modified_time"`
-	AccessTime   int64  `json:"access_time"`
-	Error        string `json:"error"`
-	Context      string `json:"context"`
-	SHA1         string `json:"sha1"`
-	SHA256       string `json:"sha256"`
-	SHA512       string `json:"sha512"`
-	MD5          string `json:"md5"`
-}
-
-func (a *Acquisition) FindFullCommand(path string) ([]FileInfo, error) {
-	var results []FileInfo
+func (a *Acquisition) FindFullCommand(path string) ([]adb.FileInfo, error) {
+	var results []adb.FileInfo
 	out, err := a.ADB.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "-printf", "'%T@ %m %s %u %g %p\n'", "2>", "/dev/null")
 
 	if err == nil {
@@ -44,7 +26,7 @@ func (a *Acquisition) FindFullCommand(path string) ([]FileInfo, error) {
 	}
 
 	for _, line := range strings.Split(out, "\n") {
-		var new_file FileInfo
+		var new_file adb.FileInfo
 		s := strings.Fields(line)
 		if len(s) == 0 {
 			continue
@@ -68,8 +50,8 @@ func (a *Acquisition) FindFullCommand(path string) ([]FileInfo, error) {
 	return results, nil
 }
 
-func (a *Acquisition) FindLimitedCommand(path string) ([]FileInfo, error) {
-	var results []FileInfo
+func (a *Acquisition) FindLimitedCommand(path string) ([]adb.FileInfo, error) {
+	var results []adb.FileInfo
 	out, err := a.ADB.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "2>", "/dev/null")
 
 	if err != nil {
@@ -77,7 +59,7 @@ func (a *Acquisition) FindLimitedCommand(path string) ([]FileInfo, error) {
 	}
 
 	for _, line := range strings.Split(out, "\n") {
-		var new_file FileInfo
+		var new_file adb.FileInfo
 		new_file.Path = line
 		results = append(results, new_file)
 	}
@@ -88,53 +70,37 @@ func (a *Acquisition) FindLimitedCommand(path string) ([]FileInfo, error) {
 func (a *Acquisition) GetFiles() error {
 	fmt.Println("Extracting list of files... This might take a while...")
 	var fileFounds []string
-	var fileDetails []FileInfo
-	var method string
+	var fileDetails []adb.FileInfo
 
-	out, _ := a.ADB.Shell("find '/' -maxdepth 1 -printf '%T@ %m %s %u %g %p\n' 2> /dev/null")
-	if out == "" {
-		method = "findsimple"
-	} else {
-		if len(out) == 0 {
+	method := "collector"
+	if a.Collector == nil {
+		out, _ := a.ADB.Shell("find '/' -maxdepth 1 -printf '%T@ %m %s %u %g %p\n' 2> /dev/null")
+		if out == "" {
 			method = "findsimple"
 		} else {
-			method = "findfull"
-		}
-	}
-
-	folders := [13]string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",
-		"/cust/", "/product/", "/apex/", "/data/local/tmp/", "/data/media/0/",
-		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/"}
-
-	for _, folder := range folders {
-		var out []FileInfo
-		var err error
-		if method == "findfull" {
-			out, err = a.FindFullCommand(folder)
-		} else {
-			out, err = a.FindLimitedCommand(folder)
-		}
-
-		if err == nil {
-			for _, s := range out {
-				if !slice.Contains(fileFounds, s.Path) {
-					fileFounds = append(fileFounds, s.Path)
-					fileDetails = append(fileDetails, s)
-				}
+			if len(out) == 0 {
+				method = "findsimple"
+			} else {
+				method = "findfull"
 			}
 		}
 	}
 
-	other_folders := [2]string{"/", "/data/data/"}
+	folders := [15]string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",
+		"/cust/", "/product/", "/apex/", "/data/local/tmp/", "/data/media/0/",
+		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/", "/", "/data/data/"}
 
-	for _, folder := range other_folders {
-		var out []FileInfo
+	for _, folder := range folders {
+		var out []adb.FileInfo
 		var err error
-		if method == "findfull" {
+		if method == "collector" {
+			out, err = a.Collector.Find(folder)
+		} else if method == "findfull" {
 			out, err = a.FindFullCommand(folder)
 		} else {
 			out, err = a.FindLimitedCommand(folder)
 		}
+
 		if err == nil {
 			for _, s := range out {
 				if !slice.Contains(fileFounds, s.Path) {

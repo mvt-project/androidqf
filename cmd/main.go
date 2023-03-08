@@ -51,12 +51,23 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
+	err = acq.Initialize()
+	if err != nil {
+		printError("Impossible to initialise the acquisition", err)
+		return
+	}
+
 	cfmt.Printf("Started new acquisition {{%s}}::magenta|underline\n",
 		acq.UUID)
 
+	// Start with acquisitions that require user interaction
 	err = acq.Backup()
 	if err != nil {
 		printError("Failed to create backup", err)
+	}
+	err = acq.DownloadAPKs()
+	if err != nil {
+		printError("Failed to download APKs", err)
 	}
 	err = acq.GetProp()
 	if err != nil {
@@ -89,10 +100,6 @@ func main() {
 	err = acq.DumpSys()
 	if err != nil {
 		printError("Failed to get output of dumpsys", err)
-	}
-	err = acq.DownloadAPKs()
-	if err != nil {
-		printError("Failed to download APKs", err)
 	}
 
 	err = acq.GetFiles()

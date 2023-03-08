@@ -19,3 +19,6 @@ android-collector/build/
 build/
 
 assets/adb
+assets/AdbWinApi.dll
+assets/AdbWinUsbApi.dll
+assets/adb.exe

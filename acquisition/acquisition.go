@@ -13,19 +13,21 @@ import (
 	"time"
 
 	"github.com/botherder/androidqf/adb"
+	"github.com/botherder/androidqf/assets"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/satori/go.uuid"
 )
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
-	UUID        string    `json:"uuid"`
-	ADB         *adb.ADB  `json:"-"`
-	StoragePath string    `json:"storage_path"`
-	APKSPath    string    `json:"apks_path"`
-	LogsPath    string    `json:"logs_path"`
-	Started     time.Time `json:"started"`
-	Completed   time.Time `json:"completed"`
+	UUID        string         `json:"uuid"`
+	ADB         *adb.ADB       `json:"-"`
+	StoragePath string         `json:"storage_path"`
+	APKSPath    string         `json:"apks_path"`
+	LogsPath    string         `json:"logs_path"`
+	Started     time.Time      `json:"started"`
+	Completed   time.Time      `json:"completed"`
+	Collector   *adb.Collector `json:"collector"`
 }
 
 // New returns a new Acquisition instance.
@@ -40,16 +42,32 @@ func New() (*Acquisition, error) {
 		return nil, fmt.Errorf("failed to initialize adb: %v", err)
 	}
 
-	err = acq.createFolders()
+	return &acq, nil
+}
+
+func (a *Acquisition) Initialize() error {
+	coll, err := a.ADB.GetCollector()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+		return fmt.Errorf("failed to upload collector: %v", err)
+	}
+	a.Collector = coll
+
+	err = a.createFolders()
+	if err != nil {
+		return fmt.Errorf("failed to create acquisition folder: %v", err)
 	}
 
-	return &acq, nil
+	return nil
 }
 
 func (a *Acquisition) Complete() {
 	a.Completed = time.Now().UTC()
+
+	if a.Collector != nil {
+		a.Collector.Clean()
+	}
+
+	assets.CleanAssets()
 }
 
 func (a *Acquisition) initADB() error {

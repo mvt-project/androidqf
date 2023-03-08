@@ -18,10 +18,18 @@ var adbWinApiData []byte
 //go:embed "AdbWinUsbApi.dll"
 var adbWinUsbApiData []byte
 
+//go:embed collector_arm6
+var collectorArm6 []byte
+
+//go:embed collector_arm7
+var collectorArm7 []byte
+
 func getAssets() []Asset {
 	return []Asset{
 		{Name: "adb.exe", Data: adbData},
 		{Name: "AdbWinApi.dll", Data: adbWinApiData},
 		{Name: "AdbWinUsbApi.dll", Data: adbWinUsbApiData},
+		{Name: "collector_arm6", Data: collectorArm6},
+		{Name: "collector_arm7", Data: collectorArm7},
 	}
 }

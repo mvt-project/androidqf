@@ -66,10 +66,33 @@ func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 	return string(out), nil
 }
 
+// Push a file on the phone
+func (a *ADB) Push(localPath, remotePath string) (string, error) {
+	out, err := exec.Command(a.ExePath, "push", localPath, remotePath).Output()
+	if err != nil {
+		return string(out), err
+	}
+
+	return string(out), nil
+}
+
 // Backup generates a backup of the specified app, or of all.
 func (a *ADB) Backup(arg string) error {
-	cmd := exec.Command(a.ExePath, "backup", arg)
+	cmd := exec.Command(a.ExePath, "backup", "-nocompress", arg)
 	return cmd.Run()
+}
+
+// check if file exists
+func (a *ADB) FileExists(path string) (bool, error) {
+	out, err := a.Shell("[", "-f", path, "] || echo 1")
+	if err != nil {
+		return false, err
+	}
+	if out == "1" {
+		return false, nil
+	}
+	return true, nil
+
 }
 
 // List files in a folder using ls, returns array of strings.
