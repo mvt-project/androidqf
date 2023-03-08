@@ -70,6 +70,10 @@ func main() {
 	if err != nil {
 		printError("Failed to get list of running processes", err)
 	}
+	err = acq.GetEnv()
+	if err != nil {
+		printError("Failed to get list of environment variables", err)
+	}
 	err = acq.Services()
 	if err != nil {
 		printError("Failed to get list of running services", err)
