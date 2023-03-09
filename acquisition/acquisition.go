@@ -6,6 +6,7 @@
 package acquisition
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/botherder/androidqf/adb"
 	"github.com/botherder/androidqf/assets"
+	"github.com/botherder/go-savetime/hashes"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/satori/go.uuid"
 )
@@ -123,6 +125,43 @@ func (a *Acquisition) saveOutput(fileName, output string) error {
 	}
 
 	file.Sync()
+
+	return nil
+}
+
+func (a *Acquisition) HashFiles() error {
+	fmt.Println("Generating list of files hashes...")
+
+	csvFile, err := os.Create(filepath.Join(a.StoragePath, "hashes.csv"))
+	if err != nil {
+		return err
+	}
+	defer csvFile.Close()
+
+	csvWriter := csv.NewWriter(csvFile)
+	defer csvWriter.Flush()
+
+	_ = filepath.Walk(a.StoragePath, func(filePath string, fileInfo os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if fileInfo.IsDir() {
+			return nil
+		}
+
+		sha256, err := hashes.FileSHA256(filePath)
+		if err != nil {
+			return err
+		}
+
+		err = csvWriter.Write([]string{filePath, sha256})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 
 	return nil
 }

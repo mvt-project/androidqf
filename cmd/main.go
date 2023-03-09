@@ -115,6 +115,11 @@ func main() {
 	if err != nil {
 		printError("Failed to get files in tmp folder", err)
 	}
+	err = acq.HashFiles()
+	if err != nil {
+		printError("Failed to generate list of file hashes", err)
+		return
+	}
 
 	acq.Complete()
 
