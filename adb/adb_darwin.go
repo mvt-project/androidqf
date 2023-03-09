@@ -14,7 +14,7 @@ import (
 )
 
 func (a *ADB) findExe() error {
-	err = assets.DeployAssets()
+	err := assets.DeployAssets()
 	if err != nil {
 		return err
 	}
