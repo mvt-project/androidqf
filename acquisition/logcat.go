@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) Logcat() error {
-	fmt.Println("Collecting logcat...")
+	log.Info("Collecting logcat...")
 
 	out, err := a.ADB.Shell("logcat", "-d", "-b", "all", "\"*:V\"")
 	if err != nil {
@@ -21,7 +22,9 @@ func (a *Acquisition) Logcat() error {
 	// Also get logcat information from before reboot
 	out, err = a.ADB.Shell("logcat", "-L", "-b", "all", "\"*:V\"")
 	if err != nil {
-		return fmt.Errorf("failed to run `adb shell logcat -L`: %v", err)
+		// logcat -L isn't always supported
+		log.Debugf("failed to run `adb shell logcat -L`: %v", err)
+		return nil
 	}
 	return a.saveOutput("logcat_old.txt", out)
 }

@@ -8,6 +8,7 @@ package adb
 import (
 	"fmt"
 	"github.com/avast/apkverifier"
+	"github.com/mvt/androidqf/log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -91,7 +92,7 @@ func (a *ADB) GetPackages() ([]Package, error) {
 	for _, cmd := range cmds {
 		out, err = a.Shell("pm", "list", "packages", cmd["arg"])
 		if err != nil && out == "" {
-			fmt.Printf("Failed to get packages filtered by `%s`: %v: %s\n",
+			log.Infof("Failed to get packages filtered by `%s`: %v: %s\n",
 				cmd["arg"], err, out)
 			continue
 		}

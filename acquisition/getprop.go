@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) GetProp() error {
-	fmt.Println("Collecting device properties...")
+	log.Info("Collecting device properties...")
 
 	out, err := a.ADB.Shell("getprop")
 	if err != nil {

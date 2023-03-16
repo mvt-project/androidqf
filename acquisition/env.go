@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) GetEnv() error {
-	fmt.Println("Collecting environment...")
+	log.Info("Collecting environment...")
 
 	out, err := a.ADB.Shell("env")
 	if err != nil {

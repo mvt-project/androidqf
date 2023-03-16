@@ -6,14 +6,17 @@
 package adb
 
 import (
+	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/botherder/androidqf/assets"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
+	"github.com/mvt/androidqf/assets"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *ADB) findExe() error {
+	// TODO: only deploy assets when needed
 	err := assets.DeployAssets()
 	if err != nil {
 		return err
@@ -22,9 +25,19 @@ func (a *ADB) findExe() error {
 	adbPath, err := exec.LookPath("adb.exe")
 	if err == nil {
 		a.ExePath = adbPath
-		return nil
 	} else {
-		a.ExePath = filepath.Join(saveRuntime.GetExecutableDirectory(), "adb.exe")
+		// Get path of the current directory
+		ex, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		// Need full path to bypass go 1.19 restrictions about local path
+		a.ExePath = filepath.Join(filepath.Dir(ex), "adb.exe")
+		_, err = os.Stat(a.ExePath)
+		if err != nil {
+			log.Debugf("ADB doesn't exist at %s", a.ExePath)
+			return errors.New("Impossible to find ADB")
+		}
 	}
 	return nil
 }

@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) Processes() error {
-	fmt.Println("Collecting list of running processes...")
+	log.Info("Collecting list of running processes...")
 
 	out, err := a.ADB.Shell("ps -A")
 	if err != nil {

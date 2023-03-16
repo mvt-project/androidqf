@@ -15,6 +15,7 @@ import (
 	"filippo.io/age"
 	"github.com/botherder/go-savetime/files"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) StoreSecurely() error {
@@ -25,19 +26,19 @@ func (a *Acquisition) StoreSecurely() error {
 		return nil
 	}
 
-	fmt.Println("You provided an age public key, storing the acquisition securely.")
+	log.Info("You provided an age public key, storing the acquisition securely.")
 
 	zipFileName := fmt.Sprintf("%s.zip", a.UUID)
 	zipFilePath := filepath.Join(cwd, zipFileName)
 
-	fmt.Println("Compressing the acquisition folder. This might take a while...")
+	log.Info("Compressing the acquisition folder. This might take a while...")
 
 	err := files.Zip(a.StoragePath, zipFilePath)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Encrypting the compressed archive. This might take a while...")
+	log.Info("Encrypting the compressed archive. This might take a while...")
 
 	publicKey, err := os.ReadFile(keyFilePath)
 	if err != nil {
@@ -78,7 +79,7 @@ func (a *Acquisition) StoreSecurely() error {
 		return fmt.Errorf("failed to close encrypted file: %v", err)
 	}
 
-	fmt.Println("Acquisition successfully encrypted at ", encFilePath)
+	log.Infof("Acquisition successfully encrypted at %s", encFilePath)
 
 	// TODO: we should securely wipe the files.
 	zipFile.Close()

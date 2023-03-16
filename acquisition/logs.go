@@ -6,16 +6,16 @@
 package acquisition
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/botherder/go-savetime/text"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) Logs() error {
-	fmt.Println("Collecting system logs...")
+	log.Info("Collecting system logs...")
 
 	logFiles := []string{
 		"/data/system/uiderrors.txt",
@@ -42,14 +42,14 @@ func (a *Acquisition) Logs() error {
 
 		err := os.MkdirAll(localDir, 0755)
 		if err != nil {
-			fmt.Printf("Failed to create folders for logs %s: %v\n", localDir, err)
+			log.Errorf("Failed to create folders for logs %s: %v", localDir, err)
 			continue
 		}
 
 		out, err := a.ADB.Pull(logFile, localPath)
 		if err != nil {
 			if !text.ContainsNoCase(out, "Permission denied") {
-				fmt.Printf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+				log.Errorf("Failed to pull log file %s: %s", logFile, strings.TrimSpace(out))
 			}
 			continue
 		}

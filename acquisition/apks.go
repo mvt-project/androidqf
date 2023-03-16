@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/botherder/androidqf/adb"
-	"github.com/botherder/androidqf/utils"
 	"github.com/botherder/go-savetime/hashes"
-	"github.com/i582/cfmt/cmd/cfmt"
 	"github.com/manifoldco/promptui"
+	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/log"
+	"github.com/mvt/androidqf/utils"
 )
 
 const (
@@ -68,15 +68,14 @@ func (a *Acquisition) DownloadAPKs() error {
 	var downloadOption string
 	var keepOption string
 	var err error
-	fmt.Println("Downloading copies of installed apps. This might take a while...")
+	log.Info("Downloading copies of installed apps. This might take a while...")
 
 	packages, err := a.ADB.GetPackages()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
 	}
 
-	cfmt.Printf("Found a total of {{%d}}::cyan|bold installed packages\n",
-		len(packages))
+	log.Infof("Found a total of %d installed packages", len(packages))
 
 	fmt.Println("Would you like to download copies of all apps or only non-system ones?")
 	promptAll := promptui.Select{
@@ -89,6 +88,7 @@ func (a *Acquisition) DownloadAPKs() error {
 			err)
 	}
 	if downloadOption == apkNone {
+		log.Debug("No APK download was chosen by the user, only saving package information")
 		return a.savePackageJson(packages)
 	}
 
@@ -105,7 +105,7 @@ func (a *Acquisition) DownloadAPKs() error {
 
 	// Otherwise we walk through the list of package, pull the files, and hash them.
 	for i, p := range packages {
-		//cfmt.Printf("Found Android package: {{%s}}::cyan|bold\n", p.Name)
+		log.Debugf("Found Android package: %s", p.Name)
 
 		pFilePaths, err := a.ADB.GetPackagePaths(p.Name)
 		if err != nil {
@@ -128,9 +128,7 @@ func (a *Acquisition) DownloadAPKs() error {
 				continue
 			}
 
-			// cfmt.Printf("Downloaded {{%s}}::cyan|underline to {{%s}}::magenta|underline\n",
-			//    packageFile.Path, localPath)
-
+			log.Debugf("Downloaded %s to %s", pFilePath, localPath)
 			sha256, _ := hashes.FileSHA256(localPath)
 			sha1, _ := hashes.FileSHA1(localPath)
 			md5, _ := hashes.FileMD5(localPath)
@@ -151,6 +149,7 @@ func (a *Acquisition) DownloadAPKs() error {
 				if utils.IsTrusted(*cert) {
 					file.TrustedCertificate = true
 					// Remove the APK
+					// FIXME: log?
 					if keepOption == apkRemoveTrusted {
 						os.Remove(localPath)
 					}

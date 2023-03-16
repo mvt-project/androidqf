@@ -7,13 +7,15 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) DumpSys() error {
-	fmt.Println("Collecting device diagnostic information. This might take a while...")
+	log.Info("Collecting device diagnostic information. This might take a while...")
 
 	out, err := a.ADB.Shell("dumpsys")
 	if err != nil {
+		log.Debugf("Dump sys failed/ %v", err)
 		return fmt.Errorf("failed to run `adb shell dumpsys`: %v", err)
 	}
 

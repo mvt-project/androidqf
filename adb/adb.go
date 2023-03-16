@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/mvt/androidqf/log"
 )
 
 type ADB struct {
@@ -24,6 +26,7 @@ func New() (*ADB, error) {
 		return nil, fmt.Errorf("failed to find a usable adb executable: %v",
 			err)
 	}
+	log.Debugf("ADB found at path: %s", adb.ExePath)
 
 	return &adb, nil
 }

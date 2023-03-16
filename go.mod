@@ -1,4 +1,4 @@
-module github.com/botherder/androidqf
+module github.com/mvt/androidqf
 
 go 1.20
 

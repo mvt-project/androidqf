@@ -10,8 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/i582/cfmt/cmd/cfmt"
 	"github.com/manifoldco/promptui"
+	"github.com/mvt/androidqf/log"
 )
 
 const (
@@ -42,8 +42,7 @@ func (a *Acquisition) Backup() error {
 		return nil
 	}
 
-	cfmt.Printf("Generating a backup with argument {{%s}}::bold. Please check the device to authorize the backup...\n",
-		arg)
+	log.Infof("Generating a backup with argument %s. Please check the device to authorize the backup...\n", arg)
 
 	err = a.ADB.Backup(arg)
 	if err != nil {
@@ -63,8 +62,7 @@ func (a *Acquisition) Backup() error {
 		return err
 	}
 
-	cfmt.Printf("Backup completed and stored at {{%s}}::magenta|underline\n",
-		backupPath)
+	log.Infof("Backup completed and stored at %s", backupPath)
 
 	return nil
 }

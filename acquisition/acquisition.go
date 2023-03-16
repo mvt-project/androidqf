@@ -9,16 +9,15 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/botherder/androidqf/adb"
-	"github.com/botherder/androidqf/assets"
 	"github.com/botherder/go-savetime/hashes"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
+	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/assets"
+	"github.com/mvt/androidqf/log"
 	"github.com/satori/go.uuid"
 )
 
@@ -43,6 +42,7 @@ func New() (*Acquisition, error) {
 
 	err := acq.initADB()
 	if err != nil {
+		log.Debugf("failed to initialize adb: %v", err)
 		return nil, fmt.Errorf("failed to initialize adb: %v", err)
 	}
 
@@ -52,14 +52,20 @@ func New() (*Acquisition, error) {
 func (a *Acquisition) Initialize() error {
 	coll, err := a.ADB.GetCollector()
 	if err != nil {
+		log.Debugf("failed to upload collector: %v", err)
 		return fmt.Errorf("failed to upload collector: %v", err)
 	}
 	a.Collector = coll
 
 	err = a.createFolders()
 	if err != nil {
+		log.Debugf("failed to create acquisition folder: %v", err)
 		return fmt.Errorf("failed to create acquisition folder: %v", err)
 	}
+
+	// Init logging file
+	logPath := filepath.Join(a.StoragePath, "command.log")
+	log.EnableFileLog(log.DEBUG, logPath)
 
 	return nil
 }
@@ -78,11 +84,13 @@ func (a *Acquisition) initADB() error {
 	var err error
 	a.ADB, err = adb.New()
 	if err != nil {
+		log.Debugf("failed to initialize adb: %v", err)
 		return fmt.Errorf("failed to initialize adb: %v", err)
 	}
 
 	_, err = a.ADB.GetState()
 	if err != nil {
+		log.Debugf("failed to get adb state: %v", err)
 		return fmt.Errorf("failed to get adb state (are you sure a device is connected?): %v",
 			err)
 	}
@@ -130,7 +138,7 @@ func (a *Acquisition) saveOutput(fileName, output string) error {
 }
 
 func (a *Acquisition) HashFiles() error {
-	fmt.Println("Generating list of files hashes...")
+	log.Info("Generating list of files hashes...")
 
 	csvFile, err := os.Create(filepath.Join(a.StoragePath, "hashes.csv"))
 	if err != nil {
@@ -167,7 +175,7 @@ func (a *Acquisition) HashFiles() error {
 }
 
 func (a *Acquisition) StoreInfo() error {
-	fmt.Println("Saving details about acquisition and device...")
+	log.Info("Saving details about acquisition and device...")
 
 	info, err := json.MarshalIndent(a, "", " ")
 	if err != nil {
@@ -184,35 +192,4 @@ func (a *Acquisition) StoreInfo() error {
 	}
 
 	return nil
-}
-
-func (a *Acquisition) InitLog() (func(), error) {
-	logPath := filepath.Join(a.StoragePath, "command.log")
-	f, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		return nil, err
-	}
-	out := os.Stdout
-	mw := io.MultiWriter(out, f)
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	os.Stderr = w
-	log.SetOutput(mw)
-
-	exit := make(chan bool)
-
-	go func() {
-		// copy all reads from pipe to multiwriter, which writes to stdout and file
-		_, _ = io.Copy(mw, r)
-		// when r or w is closed copy will finish and true will be sent to channel
-		exit <- true
-	}()
-
-	// function to be deferred in main until program exits
-	return func() {
-		_ = w.Close()
-		<-exit
-		// close file after all writes have finished
-		_ = f.Close()
-	}, nil
 }

@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) Services() error {
-	fmt.Println("Collecting list of services...")
+	log.Info("Collecting list of services...")
 
 	out, err := a.ADB.Shell("service list")
 	if err != nil {

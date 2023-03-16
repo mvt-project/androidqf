@@ -6,12 +6,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/botherder/androidqf/acquisition"
 	"github.com/i582/cfmt/cmd/cfmt"
+	"github.com/mvt/androidqf/acquisition"
+	"github.com/mvt/androidqf/log"
 )
 
 func init() {
@@ -32,14 +34,19 @@ func systemPause() {
 	os.Stdin.Read(make([]byte, 1))
 }
 
-func printError(desc string, err error) {
-	cfmt.Printf("{{ERROR:}}::red|bold %s: {{%s}}::italic\n",
-		desc, err.Error())
-}
-
 func main() {
 	var acq *acquisition.Acquisition
 	var err error
+
+	verbose := flag.Bool("verbose", false, "Verbose mode")
+	flag.Parse()
+
+	if *verbose {
+		log.SetLogLevel(log.DEBUG)
+	}
+
+	// TODO: add version information
+	log.Debug("Starting androidqf")
 
 	// Initialization
 	for {
@@ -48,76 +55,71 @@ func main() {
 			break
 		}
 
-		cfmt.Println("{{ERROR:}}::red|bold Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
+		log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 		time.Sleep(5 * time.Second)
 	}
 
 	err = acq.Initialize()
 	if err != nil {
-		printError("Impossible to initialise the acquisition", err)
+		log.ErrorExc("Impossible to initialise the acquisition", err)
 		return
-	}
-	fn, err := acq.InitLog()
-	if err == nil {
-		defer fn()
 	}
 
 	// Start acquisitions
-	cfmt.Printf("Started new acquisition {{%s}}::magenta|underline\n",
-		acq.UUID)
+	log.Info(fmt.Sprintf("Started new acquisition %s", acq.UUID))
 
 	// Start with acquisitions that require user interaction
 	err = acq.Backup()
 	if err != nil {
-		printError("Failed to create backup", err)
+		log.ErrorExc("Failed to create backup", err)
 	}
 	err = acq.DownloadAPKs()
 	if err != nil {
-		printError("Failed to download APKs", err)
+		log.ErrorExc("Failed to download APKs", err)
 	}
 	err = acq.GetProp()
 	if err != nil {
-		printError("Failed to get device properties", err)
+		log.ErrorExc("Failed to get device properties", err)
 	}
 	err = acq.Settings()
 	if err != nil {
-		printError("Failed to get device settings", err)
+		log.ErrorExc("Failed to get device settings", err)
 	}
 	err = acq.Processes()
 	if err != nil {
-		printError("Failed to get list of running processes", err)
+		log.ErrorExc("Failed to get list of running processes", err)
 	}
 	err = acq.GetEnv()
 	if err != nil {
-		printError("Failed to get list of environment variables", err)
+		log.ErrorExc("Failed to get list of environment variables", err)
 	}
 	err = acq.Services()
 	if err != nil {
-		printError("Failed to get list of running services", err)
+		log.ErrorExc("Failed to get list of running services", err)
 	}
 	err = acq.Logcat()
 	if err != nil {
-		printError("Failed to get logcat from device", err)
+		log.ErrorExc("Failed to get logcat from device", err)
 	}
 	err = acq.Logs()
 	if err != nil {
-		printError("Failed to download logs from device", err)
+		log.ErrorExc("Failed to download logs from device", err)
 	}
 	err = acq.DumpSys()
 	if err != nil {
-		printError("Failed to get output of dumpsys", err)
+		log.ErrorExc("Failed to get output of dumpsys", err)
 	}
 	err = acq.GetFiles()
 	if err != nil {
-		printError("Failed to get a list of files", err)
+		log.ErrorExc("Failed to get a list of files", err)
 	}
 	err = acq.GetTmpFolder()
 	if err != nil {
-		printError("Failed to get files in tmp folder", err)
+		log.ErrorExc("Failed to get files in tmp folder", err)
 	}
 	err = acq.HashFiles()
 	if err != nil {
-		printError("Failed to generate list of file hashes", err)
+		log.ErrorExc("Failed to generate list of file hashes", err)
 		return
 	}
 
@@ -125,11 +127,11 @@ func main() {
 
 	err = acq.StoreSecurely()
 	if err != nil {
-		printError("Something failed while encrypting the acquisition", err)
-		cfmt.Println("{{WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!}}::red|bold")
+		log.ErrorExc("Something failed while encrypting the acquisition", err)
+		log.Warning("WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!")
 	}
 
-	fmt.Println("Acquisition completed.")
+	log.Info("Acquisition completed.")
 
 	systemPause()
 }

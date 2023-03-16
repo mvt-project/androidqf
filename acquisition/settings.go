@@ -7,10 +7,11 @@ package acquisition
 
 import (
 	"fmt"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) Settings() error {
-	fmt.Println("Collecting device settings...")
+	log.Info("Collecting device settings...")
 
 	results := map[string]map[string]string{}
 	namespaces := []string{"system", "secure", "global"}
@@ -25,7 +26,7 @@ func (a *Acquisition) Settings() error {
 
 		err = a.saveOutput(fmt.Sprintf("settings_%s.txt", namespace), out)
 		if err != nil {
-			fmt.Println(err)
+			return fmt.Errorf("failed to save settings file %s ù %v", namespace, err)
 		}
 	}
 

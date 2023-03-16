@@ -13,8 +13,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/botherder/androidqf/adb"
 	"github.com/botherder/go-savetime/slice"
+	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/log"
 )
 
 func (a *Acquisition) FindFullCommand(path string) ([]adb.FileInfo, error) {
@@ -68,20 +69,24 @@ func (a *Acquisition) FindLimitedCommand(path string) ([]adb.FileInfo, error) {
 }
 
 func (a *Acquisition) GetFiles() error {
-	fmt.Println("Extracting list of files... This might take a while...")
+	log.Info("Extracting list of files... This might take a while...")
 	var fileFounds []string
 	var fileDetails []adb.FileInfo
 
 	method := "collector"
+	// FIXME: log failed collector install
 	if a.Collector == nil {
 		out, _ := a.ADB.Shell("find '/' -maxdepth 1 -printf '%T@ %m %s %u %g %p\n' 2> /dev/null")
 		if out == "" {
 			method = "findsimple"
+			log.Debug("Using simple find to collect list of files")
 		} else {
 			if len(out) == 0 {
 				method = "findsimple"
+				log.Debug("Using simple find to collect list of files")
 			} else {
 				method = "findfull"
+				log.Debug("Using find command to collect list of files")
 			}
 		}
 	}
@@ -126,6 +131,8 @@ func (a *Acquisition) GetFiles() error {
 }
 
 func (a *Acquisition) GetTmpFolder() error {
+	log.Info("collecting data from temp folder")
+	//FIXME: collect temp pat h from env variable
 	storageFolder := filepath.Join(a.StoragePath, "tmp")
 	if _, err := os.Stat(storageFolder); os.IsNotExist(err) {
 		os.Mkdir(storageFolder, 0700)
