@@ -93,9 +93,12 @@ func (a *Acquisition) GetFiles() error {
 		log.Debug("Using collector to collect list of files")
 	}
 
-	folders := [15]string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",
+	folders := []string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",
 		"/cust/", "/product/", "/apex/", "/data/local/tmp/", "/data/media/0/",
 		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/", "/", "/data/data/"}
+	if a.TmpDir != "/data/local/tmp/" {
+		folders = append(folders, a.TmpDir)
+	}
 
 	for _, folder := range folders {
 		var out []adb.FileInfo

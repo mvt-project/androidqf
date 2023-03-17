@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/botherder/go-savetime/hashes"
@@ -31,6 +32,8 @@ type Acquisition struct {
 	Started     time.Time      `json:"started"`
 	Completed   time.Time      `json:"completed"`
 	Collector   *adb.Collector `json:"collector"`
+	TmpDir      string         `json:"tmp_dir"`
+	Cpu         string         `json:"cpu"`
 }
 
 // New returns a new Acquisition instance.
@@ -49,7 +52,13 @@ func New() (*Acquisition, error) {
 }
 
 func (a *Acquisition) Initialize() error {
-	coll, err := a.ADB.GetCollector()
+	// Get system information first to get tmp folder
+	err := a.GetSystemInformation()
+	if err != nil {
+		return err
+	}
+
+	coll, err := a.ADB.GetCollector(a.TmpDir, a.Cpu)
 	if err != nil {
 		log.Debugf("failed to upload collector: %v", err)
 		return fmt.Errorf("failed to upload collector: %v", err)
@@ -94,6 +103,35 @@ func (a *Acquisition) initADB() error {
 			err)
 	}
 
+	return nil
+}
+
+func (a *Acquisition) GetSystemInformation() error {
+	// Get architecture information
+	out, err := a.ADB.Shell("getprop ro.product.cpu.abi")
+	if err != nil {
+		return err
+	}
+	a.Cpu = out
+	log.Debugf("CPU architecture: %s", a.Cpu)
+
+	// Get tmp folder
+	out, err = a.ADB.Shell("env")
+	if err != nil {
+		return fmt.Errorf("failed to run `adb shell env`: %v", err)
+	}
+	tmpFolder := ""
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "TMPDIR=") {
+			tmpFolder = strings.TrimPrefix(line, "TMPDIR=")
+		}
+	}
+	if tmpFolder == "" {
+		tmpFolder = "/data/local/tmp"
+	}
+	a.TmpDir = tmpFolder
+	log.Debugf("Found temp folder/ %s", tmpFolder)
 	return nil
 }
 

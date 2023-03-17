@@ -125,6 +125,7 @@ func main() {
 	}
 
 	acq.Complete()
+	acq.StoreInfo()
 
 	err = acq.StoreSecurely()
 	if err != nil {

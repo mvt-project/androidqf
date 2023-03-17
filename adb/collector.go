@@ -17,9 +17,10 @@ import (
 )
 
 type Collector struct {
-	ExePath   string
-	Installed bool
-	Adb       *ADB
+	ExePath      string
+	Installed    bool
+	Adb          *ADB
+	Architecture string
 }
 
 type FileInfo struct {
@@ -61,8 +62,8 @@ type ProcessInfo struct {
 }
 
 // Returns a new Collector instance.
-func (a *ADB) GetCollector() (*Collector, error) {
-	c := Collector{ExePath: "/data/local/tmp/collector", Adb: a}
+func (a *ADB) GetCollector(tmpDir string, arch string) (*Collector, error) {
+	c := Collector{ExePath: filepath.Join(tmpDir, "collector"), Adb: a, Architecture: arch}
 
 	err := c.Install()
 	if err != nil {
@@ -95,25 +96,16 @@ func (c *Collector) Install() error {
 			return err
 		}
 	}
-	out, err := c.Adb.Shell("getprop ro.product.cpu.abi")
-	if err != nil {
-		return err
+	if !strings.HasPrefix(c.Architecture, "armeabi-v") && !strings.HasPrefix(c.Architecture, "armeabi-v7") && !strings.HasPrefix(c.Architecture, "arm64-v8") {
+		return fmt.Errorf("unsupported architecture: %s", c.Architecture)
 	}
-	var asset string
-	if strings.HasPrefix(out, "armeabi-v6") {
-		asset = "collector_arm6"
-	} else if strings.HasPrefix(out, "armeabi-v7") || strings.HasPrefix(out, "arm64-v8") {
-		asset = "collector_arm7"
-	} else {
-		return fmt.Errorf("unsupported architecture: %s", out)
-	}
-	collectorPath := filepath.Join(saveRuntime.GetExecutableDirectory(), asset)
+	collectorPath := filepath.Join(saveRuntime.GetExecutableDirectory(), "collector_arm6")
 	if _, err := os.Stat(collectorPath); err != nil {
 		// Somehow the file doesn't exist
 		return errors.New("couldn't find the collector binary")
 	}
 
-	_, err = c.Adb.Push(collectorPath, c.ExePath)
+	_, err := c.Adb.Push(collectorPath, c.ExePath)
 	if err != nil {
 		return err
 	}
