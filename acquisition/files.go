@@ -89,6 +89,8 @@ func (a *Acquisition) GetFiles() error {
 				log.Debug("Using find command to collect list of files")
 			}
 		}
+	} else {
+		log.Debug("Using collector to collect list of files")
 	}
 
 	folders := [15]string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",

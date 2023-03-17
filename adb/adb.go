@@ -35,11 +35,14 @@ func New() (*ADB, error) {
 // It is used to check whether a device is connected. If it is not, adb
 // will exit with status 1.
 func (a *ADB) GetState() (string, error) {
+	log.Debug("Starting get-state")
 	out, err := exec.Command(a.ExePath, "get-state").Output()
 	if err != nil {
+		log.Debug("get-state failed")
 		return "", err
 	}
 
+	log.Debug("get-state ok")
 	return strings.TrimSpace(string(out)), nil
 }
 

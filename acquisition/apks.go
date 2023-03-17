@@ -149,7 +149,8 @@ func (a *Acquisition) DownloadAPKs() error {
 				if utils.IsTrusted(*cert) {
 					file.TrustedCertificate = true
 					// Remove the APK
-					// FIXME: log?
+					log.Debugf("Trusted APK removed: %s - %s",
+						file.LocalName, file.SHA256)
 					if keepOption == apkRemoveTrusted {
 						os.Remove(localPath)
 					}

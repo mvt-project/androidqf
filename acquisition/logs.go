@@ -22,18 +22,9 @@ func (a *Acquisition) Logs() error {
 		"/proc/kmsg",
 		"/proc/last_kmsg",
 		"/sys/fs/pstore/console-ramoops",
-	}
-
-	for _, logFolder := range []string{"/data/anr/", "/data/log/", "/sdcard/log"} {
-		files, err := a.ADB.ListFiles(logFolder, true)
-		if err != nil {
-			continue
-		}
-		if len(files) == 0 {
-			continue
-		}
-
-		logFiles = append(logFiles, files...)
+		"/data/anr/",
+		"/data/log/",
+		"/sdcard/log",
 	}
 
 	for _, logFile := range logFiles {
@@ -50,8 +41,9 @@ func (a *Acquisition) Logs() error {
 		if err != nil {
 			if !text.ContainsNoCase(out, "Permission denied") {
 				log.Errorf("Failed to pull log file %s: %s", logFile, strings.TrimSpace(out))
+			} else {
+				log.Debugf("Permission denied to access %s: %s", logFiles, strings.TrimSpace(out))
 			}
-			continue
 		}
 	}
 

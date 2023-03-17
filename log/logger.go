@@ -93,11 +93,11 @@ func (log *Logger) out(level LEVEL, format string, v ...any) {
 		var msg string
 		if level >= log.FileLogLevel {
 			if format == "" {
-				msg = fmt.Sprintln(v...)
+				msg = fmt.Sprint(v...)
 			} else {
 				msg = fmt.Sprintf(format, v...)
 			}
-			fmt.Fprintf(log.fd, "%s [%s] %s", time.Now().Format(time.RFC3339), level.String(), msg)
+			fmt.Fprintf(log.fd, "%s [%s] %s\n", time.Now().Format(time.RFC3339), level.String(), msg)
 		}
 	}
 }
