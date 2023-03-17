@@ -17,6 +17,10 @@ check:
 	@echo "[lint] Running staticheck on codebase"
 	@staticcheck ./...
 
+vuln:
+	@echo "Running go vuln check"
+	@govulncheck ./...
+
 fmt:
 	go fmt ./...
 

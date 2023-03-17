@@ -54,13 +54,14 @@ func main() {
 		if err == nil {
 			break
 		}
-
+		log.Debug(err)
 		log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 		time.Sleep(5 * time.Second)
 	}
 
 	err = acq.Initialize()
 	if err != nil {
+		log.Debug(err)
 		log.ErrorExc("Impossible to initialise the acquisition", err)
 		return
 	}

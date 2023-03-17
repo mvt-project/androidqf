@@ -134,7 +134,7 @@ func (a *Acquisition) GetFiles() error {
 
 func (a *Acquisition) GetTmpFolder() error {
 	log.Info("collecting data from temp folder")
-	//FIXME: collect temp pat h from env variable
+	//FIXME: collect temp path from env variable
 	storageFolder := filepath.Join(a.StoragePath, "tmp")
 	if _, err := os.Stat(storageFolder); os.IsNotExist(err) {
 		os.Mkdir(storageFolder, 0700)

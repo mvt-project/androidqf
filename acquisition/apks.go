@@ -75,7 +75,7 @@ func (a *Acquisition) DownloadAPKs() error {
 		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
 	}
 
-	log.Infof("Found a total of %d installed packages", len(packages))
+	log.Debugf("Found a total of %d installed packages", len(packages))
 
 	fmt.Println("Would you like to download copies of all apps or only non-system ones?")
 	promptAll := promptui.Select{

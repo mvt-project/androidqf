@@ -41,6 +41,25 @@ type FileInfo struct {
 	MD5          string `json:"md5"`
 }
 
+type ProcessInfo struct {
+	Pid              uint32   `json:"pid"`
+	Uid              uint32   `json:"uid"`
+	Ppid             uint32   `json:"ppid"`
+	Pgroup           uint32   `json:"pgroup"`
+	Psid             uint32   `json:"psid"`
+	Filename         string   `json:"filename"`
+	Priority         uint32   `json:"priority"`
+	State            string   `json:"state"`
+	UserTime         uint32   `json:"user_time"`
+	KernelTime       uint32   `json:"kernel_time"`
+	Path             string   `json:"path"`
+	Context          string   `json:"context"`
+	PreviousContext  string   `json:"previous_context"`
+	CommandLine      []string `json:"command_line"`
+	Environment      []string `json:"env"`
+	WorkingDirectory string   `json:"cwd"`
+}
+
 // Returns a new Collector instance.
 func (a *ADB) GetCollector() (*Collector, error) {
 	c := Collector{ExePath: "/data/local/tmp/collector", Adb: a}
@@ -145,6 +164,25 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 		if err == nil {
 			results = append(results, file)
 		}
+	}
+
+	return results, nil
+}
+
+func (c *Collector) Processes() ([]ProcessInfo, error) {
+	var results []ProcessInfo
+
+	if c.isInstalled() {
+		c.Install()
+	}
+
+	out, err := c.Adb.Shell(c.ExePath, "ps")
+	if err != nil {
+		return results, err
+	}
+	err = json.Unmarshal([]byte(out), &results)
+	if err != nil {
+		return results, err
 	}
 
 	return results, nil

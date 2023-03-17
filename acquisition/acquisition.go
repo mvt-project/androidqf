@@ -42,7 +42,6 @@ func New() (*Acquisition, error) {
 
 	err := acq.initADB()
 	if err != nil {
-		log.Debugf("failed to initialize adb: %v", err)
 		return nil, fmt.Errorf("failed to initialize adb: %v", err)
 	}
 
