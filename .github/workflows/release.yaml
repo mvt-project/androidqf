@@ -13,6 +13,8 @@ jobs:
     - uses: actions/checkout@v2
     - run: echo $(go env GOPATH)/bin >> $GITHUB_PATH
 
+    - name: Build collector
+      run: make collector
     - name: Build Windows binary
       run: make windows
     - name: Build Linux binary
