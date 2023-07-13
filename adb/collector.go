@@ -1,7 +1,7 @@
 // androidqf - Android Quick Forensics
 // Copyright (c) 2021 Claudio Guarnieri.
 // Use of this software is governed by the MVT License 1.1 that can be found at
-//   https://license.mvt.re/1.1/
+//	 https://license.mvt.re/1.1/
 
 package adb
 
@@ -12,53 +12,54 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"github.com/mvt/androidqf/log"
 
-	saveRuntime "github.com/botherder/go-savetime/runtime"
+	"github.com/mvt/androidqf/assets"
 )
 
 type Collector struct {
-	ExePath      string
-	Installed    bool
-	Adb          *ADB
+	ExePath			string
+	Installed		bool
+	Adb					*ADB
 	Architecture string
 }
 
 type FileInfo struct {
-	Path         string `json:"path"`
-	Size         int64  `json:"size"`
-	Mode         string `json:"mode"`
-	UserId       uint32 `json:"user_id"`
-	UserName     string `json:"user_name"`
-	GroupId      uint32 `json:"group_id"`
-	GroupName    string `json:"group_name"`
-	ChangeTime   int64  `json:"changed_time"`
-	ModifiedTime int64  `json:"modified_time"`
-	AccessTime   int64  `json:"access_time"`
-	Error        string `json:"error"`
-	Context      string `json:"context"`
-	SHA1         string `json:"sha1"`
-	SHA256       string `json:"sha256"`
-	SHA512       string `json:"sha512"`
-	MD5          string `json:"md5"`
+	Path				 string `json:"path"`
+	Size				 int64	`json:"size"`
+	Mode				 string `json:"mode"`
+	UserId			 uint32 `json:"user_id"`
+	UserName		 string `json:"user_name"`
+	GroupId			uint32 `json:"group_id"`
+	GroupName		string `json:"group_name"`
+	ChangeTime	 int64	`json:"changed_time"`
+	ModifiedTime int64	`json:"modified_time"`
+	AccessTime	 int64	`json:"access_time"`
+	Error				string `json:"error"`
+	Context			string `json:"context"`
+	SHA1				 string `json:"sha1"`
+	SHA256			 string `json:"sha256"`
+	SHA512			 string `json:"sha512"`
+	MD5					string `json:"md5"`
 }
 
 type ProcessInfo struct {
-	Pid              uint32   `json:"pid"`
-	Uid              uint32   `json:"uid"`
-	Ppid             uint32   `json:"ppid"`
-	Pgroup           uint32   `json:"pgroup"`
-	Psid             uint32   `json:"psid"`
-	Filename         string   `json:"filename"`
-	Priority         uint32   `json:"priority"`
-	State            string   `json:"state"`
-	UserTime         uint32   `json:"user_time"`
-	KernelTime       uint32   `json:"kernel_time"`
-	Path             string   `json:"path"`
-	Context          string   `json:"context"`
-	PreviousContext  string   `json:"previous_context"`
-	CommandLine      []string `json:"command_line"`
-	Environment      []string `json:"env"`
-	WorkingDirectory string   `json:"cwd"`
+	Pid							uint32	 `json:"pid"`
+	Uid							uint32	 `json:"uid"`
+	Ppid						 uint32	 `json:"ppid"`
+	Pgroup					 uint32	 `json:"pgroup"`
+	Psid						 uint32	 `json:"psid"`
+	Filename				 string	 `json:"filename"`
+	Priority				 uint32	 `json:"priority"`
+	State						string	 `json:"state"`
+	UserTime				 uint32	 `json:"user_time"`
+	KernelTime			 uint32	 `json:"kernel_time"`
+	Path						 string	 `json:"path"`
+	Context					string	 `json:"context"`
+	PreviousContext	string	 `json:"previous_context"`
+	CommandLine			[]string `json:"command_line"`
+	Environment			[]string `json:"env"`
+	WorkingDirectory string	 `json:"cwd"`
 }
 
 // Returns a new Collector instance.
@@ -96,16 +97,39 @@ func (c *Collector) Install() error {
 			return err
 		}
 	}
-	if !strings.HasPrefix(c.Architecture, "armeabi-v") && !strings.HasPrefix(c.Architecture, "armeabi-v7") && !strings.HasPrefix(c.Architecture, "arm64-v8") {
-		return fmt.Errorf("unsupported architecture: %s", c.Architecture)
+
+	collectorName := ""
+	switch {
+		case strings.HasPrefix(c.Architecture, "armeabi-v"):
+			collectorName = "collector_arm6"
+		case strings.HasPrefix(c.Architecture, "armeabi-v7"):
+			collectorName = "collector_arm7"
+		case strings.HasPrefix(c.Architecture, "arm64-v8"):
+			collectorName = "collector_arm64"
+		default:
+			return fmt.Errorf("unsupported architecture for collector: %s", c.Architecture)
 	}
-	collectorPath := filepath.Join(saveRuntime.GetExecutableDirectory(), "collector_arm6")
-	if _, err := os.Stat(collectorPath); err != nil {
+
+	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
+	collectorBinary, err := assets.Collector.ReadFile(collectorName);
+	if err != nil {
 		// Somehow the file doesn't exist
 		return errors.New("couldn't find the collector binary")
 	}
 
-	_, err := c.Adb.Push(collectorPath, c.ExePath)
+	collectorTemp, _ := os.CreateTemp("", "collector_");
+	if err != nil {
+		return err
+	}
+	defer os.Remove(collectorTemp.Name())
+
+	// Write collector binary out to temporary path
+	if _, err := collectorTemp.Write(collectorBinary); err != nil {
+		collectorTemp.Close()
+		return err
+	}
+
+	_, err = c.Adb.Push(collectorTemp.Name(), c.ExePath)
 	if err != nil {
 		return err
 	}

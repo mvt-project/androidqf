@@ -15,10 +15,11 @@ fmt:
 build:
 	env GOOS=linux GOARCH=arm GOARM=7 go build -o $(BUILD_FOLDER)/collector_arm7
 	env GOOS=linux GOARCH=arm GOARM=6 go build -o $(BUILD_FOLDER)/collector_arm6
-	env GOOS=linux GOARCH=amd64 go build -o $(BUILD_FOLDER)/collector_x86
+	env GOOS=linux GOARCH=amd64 go build -o $(BUILD_FOLDER)/collector_amd64
+	env GOOS=linux GOARCH=arm64 go build -o $(BUILD_FOLDER)/collector_arm64
 
 clean:
-	rm -rf $BUILD_FOLDER
+	rm -rf $(BUILD_FOLDER)
 
 test: build
 	adb shell "rm -rf /data/local/tmp/collector"

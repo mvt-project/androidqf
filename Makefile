@@ -30,6 +30,14 @@ deps:
 	go mod tidy
 	@echo "[deps] Dependencies installed."
 
+collector:
+	@mkdir -p $(BUILD_FOLDER)
+	@echo "Building Android collector..."
+	cd android-collector && $(MAKE)
+	@echo "Finished building collector."
+	@echo "Copying collector binaries to assets folder."
+	cp android-collector/build/collector_* $(ASSETS_FOLDER)
+
 windows:
 	@mkdir -p $(BUILD_FOLDER)
 
@@ -109,7 +117,9 @@ download:
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
 
+all: collector windows darwin linux
 
 clean:
 	rm -rf $(BUILD_FOLDER)
-	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll
+	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll rm -f $(ASSETS_FOLDER)/collector_*
+	cd android-collector && $(MAKE) clean

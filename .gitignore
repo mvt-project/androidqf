@@ -22,3 +22,4 @@ assets/adb
 assets/AdbWinApi.dll
 assets/AdbWinUsbApi.dll
 assets/adb.exe
+assets/collector_*

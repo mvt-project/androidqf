@@ -8,9 +8,14 @@ package assets
 import (
 	"os"
 	"path/filepath"
+	"embed"
 
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 )
+
+
+//go:embed collector_*
+var Collector embed.FS
 
 type Asset struct {
 	Name string
