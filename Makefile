@@ -5,6 +5,9 @@ FLAGS_LINUX   = GOOS=linux
 FLAGS_DARWIN  = GOOS=darwin
 FLAGS_WINDOWS = GOOS=windows GOARCH=amd64 CC=i686-w64-mingw32-gcc CGO_ENABLED=1
 
+# Set if binaries should be compressed with UPX. Zero disables UPX
+UPX_COMPRESS ?= "0"
+
 PLATFORMTOOLS_URL     = https://dl.google.com/android/repository/
 PLATFORMTOOLS_WINDOWS = platform-tools-latest-windows.zip
 PLATFORMTOOLS_DARWIN  = platform-tools-latest-darwin.zip
@@ -33,7 +36,7 @@ deps:
 collector:
 	@mkdir -p $(BUILD_FOLDER)
 	@echo "Building Android collector..."
-	cd android-collector && $(MAKE)
+	cd android-collector && UPX_COMPRESS=$(UPX_COMPRESS) $(MAKE)
 	@echo "Finished building collector."
 	@echo "Copying collector binaries to assets folder."
 	cp android-collector/build/collector_* $(ASSETS_FOLDER)
