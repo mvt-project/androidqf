@@ -101,9 +101,9 @@ func (c *Collector) Install() error {
 	collectorName := ""
 	switch {
 		case strings.HasPrefix(c.Architecture, "armeabi-v"):
-			collectorName = "collector_arm6"
+			collectorName = "collector_arm"
 		case strings.HasPrefix(c.Architecture, "armeabi-v7"):
-			collectorName = "collector_arm7"
+			collectorName = "collector_arm"
 		case strings.HasPrefix(c.Architecture, "arm64-v8"):
 			collectorName = "collector_arm64"
 		default:

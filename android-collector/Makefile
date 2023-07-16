@@ -17,15 +17,15 @@ fmt:
 
 build_arm:
 	env GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" -o $(BUILD_FOLDER)/collector_arm
-	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_arm; fi
+	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_arm; fi # UPX_COMPRESS
 
 build_arm64:
 	env GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o $(BUILD_FOLDER)/collector_arm64
-	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_arm64; fi
+	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_arm64; fi # UPX_COMPRESS
 
 build_amd64:
 	env GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o $(BUILD_FOLDER)/collector_amd64
-	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_amd64; fi
+	if [[ $(UPX_COMPRESS) -gt 0 ]]; then upx -$(UPX_COMPRESS) $(BUILD_FOLDER)/collector_amd64; fi # UPX_COMPRESS
 
 build: build_arm build_arm64 build_amd64
 
