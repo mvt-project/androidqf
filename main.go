@@ -13,7 +13,9 @@ import (
 
 	"github.com/i582/cfmt/cmd/cfmt"
 	"github.com/mvt/androidqf/acquisition"
+	"github.com/mvt/androidqf/adb"
 	"github.com/mvt/androidqf/log"
+	"github.com/mvt/androidqf/modules"
 )
 
 func init() {
@@ -35,22 +37,25 @@ func systemPause() {
 }
 
 func main() {
-	var acq *acquisition.Acquisition
 	var err error
 
+	// Configure vrebose mode
 	verbose := flag.Bool("verbose", false, "Verbose mode")
 	flag.Parse()
-
 	if *verbose {
 		log.SetLogLevel(log.DEBUG)
 	}
 
 	// TODO: add version information
 	log.Debug("Starting androidqf")
+	adb.Client, err = adb.New()
+	if err != nil {
+		log.Fatal("Impossible to initialize adb")
+	}
 
 	// Initialization
 	for {
-		acq, err = acquisition.New()
+		_, err = adb.Client.GetState()
 		if err == nil {
 			break
 		}
@@ -59,70 +64,38 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
-	err = acq.Initialize()
+	acq, err := acquisition.New()
 	if err != nil {
 		log.Debug(err)
-		log.ErrorExc("Impossible to initialise the acquisition", err)
-		return
+		log.FatalExc("Impossible to initialise the acquisition", err)
 	}
 
 	// Start acquisitions
 	log.Info(fmt.Sprintf("Started new acquisition %s", acq.UUID))
 
-	// Start with acquisitions that require user interaction
-	err = acq.Backup()
-	if err != nil {
-		log.ErrorExc("Failed to create backup", err)
+	mods := modules.List()
+	for _, mod := range mods {
+		err = mod.InitStorage(acq.StoragePath)
+		if err != nil {
+			log.Infof(
+				"ERROR: failed to initialize storage for module %s: %v",
+				mod.Name(),
+				err,
+			)
+			continue
+		}
+
+		err = mod.Run(acq)
+		if err != nil {
+			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
+		}
 	}
-	err = acq.DownloadAPKs()
-	if err != nil {
-		log.ErrorExc("Failed to download APKs", err)
-	}
-	err = acq.GetProp()
-	if err != nil {
-		log.ErrorExc("Failed to get device properties", err)
-	}
-	err = acq.Settings()
-	if err != nil {
-		log.ErrorExc("Failed to get device settings", err)
-	}
-	err = acq.Processes()
-	if err != nil {
-		log.ErrorExc("Failed to get list of running processes", err)
-	}
-	err = acq.GetEnv()
-	if err != nil {
-		log.ErrorExc("Failed to get list of environment variables", err)
-	}
-	err = acq.Services()
-	if err != nil {
-		log.ErrorExc("Failed to get list of running services", err)
-	}
-	err = acq.Logcat()
-	if err != nil {
-		log.ErrorExc("Failed to get logcat from device", err)
-	}
-	err = acq.Logs()
-	if err != nil {
-		log.ErrorExc("Failed to download logs from device", err)
-	}
-	err = acq.DumpSys()
-	if err != nil {
-		log.ErrorExc("Failed to get output of dumpsys", err)
-	}
-	err = acq.GetFiles()
-	if err != nil {
-		log.ErrorExc("Failed to get a list of files", err)
-	}
-	err = acq.GetTmpFolder()
-	if err != nil {
-		log.ErrorExc("Failed to get files in tmp folder", err)
-	}
-	err = acq.HashFiles()
-	if err != nil {
-		log.ErrorExc("Failed to generate list of file hashes", err)
-		return
-	}
+
+    err = acq.HashFiles()
+    if err != nil {
+        log.ErrorExc("Failed to generate list of file hashes", err)
+        return
+    }
 
 	acq.Complete()
 	acq.StoreInfo()

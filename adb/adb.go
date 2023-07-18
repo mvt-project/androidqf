@@ -18,6 +18,8 @@ type ADB struct {
 	ExePath string
 }
 
+var Client *ADB
+
 // New returns a new ADB instance.
 func New() (*ADB, error) {
 	adb := ADB{}

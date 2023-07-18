@@ -38,6 +38,29 @@ type Package struct {
 	ThirdParty bool          `json:"third_party"`
 }
 
+func (a *ADB) getPackageFiles(packageName string) []PackageFile {
+	out, err := a.Shell("pm", "path", packageName)
+	if err != nil {
+		fmt.Printf("Failed to get file paths for package %s: %v: %s\n", packageName, err, out)
+		return []PackageFile{}
+	}
+
+	packageFiles := []PackageFile{}
+	for _, line := range strings.Split(out, "\n") {
+		packagePath := strings.TrimPrefix(strings.TrimSpace(line), "package:")
+		if packagePath == "" {
+			continue
+		}
+
+		packageFile := PackageFile{
+			Path: packagePath,
+		}
+		packageFiles = append(packageFiles, packageFile)
+	}
+
+	return packageFiles
+}
+
 // GetPackages returns the list of installed package names.
 func (a *ADB) GetPackages() ([]Package, error) {
 	withInstaller := true
@@ -78,7 +101,7 @@ func (a *ADB) GetPackages() ([]Package, error) {
 			Disabled:   false,
 			System:     false,
 			ThirdParty: false,
-			Files:      []PackageFile{},
+			Files:      a.getPackageFiles(packageName),
 		}
 
 		packages = append(packages, newPackage)

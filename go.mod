@@ -14,9 +14,13 @@ require (
 require (
 	github.com/avast/apkparser v0.0.0-20221012080151-bfc57d4d0502 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
+	github.com/fatih/color v1.15.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gookit/color v1.3.2 // indirect
 	github.com/klauspost/compress v1.15.12 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.17 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
