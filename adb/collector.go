@@ -9,10 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mvt/androidqf/log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/mvt/androidqf/log"
 
 	"github.com/mvt/androidqf/assets"
 )

@@ -46,8 +46,8 @@ func (l *Logcat) Run(acq *acquisition.Acquisition) error {
 	// logcat from before reboot
 	out, err = adb.Client.Shell("logcat", "-L", "-b", "all", "\"*:V\"")
 	if err != nil {
-        // Often fails, totally normal
-        return nil
+		// Often fails, totally normal
+		return nil
 	}
 
 	return saveCommandOutput(filepath.Join(l.StoragePath, "logcat_old.txt"), out)

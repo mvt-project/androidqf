@@ -52,7 +52,6 @@ func (a *ADB) GetState() (string, error) {
 func (a *ADB) Shell(cmd ...string) (string, error) {
 	fullCmd := append([]string{"shell"}, cmd...)
 	out, err := exec.Command(a.ExePath, fullCmd...).Output()
-
 	if err != nil {
 		if out == nil {
 			return "", err
@@ -100,7 +99,6 @@ func (a *ADB) FileExists(path string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
-
 }
 
 // List files in a folder using ls, returns array of strings.

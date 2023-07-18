@@ -7,11 +7,12 @@ package adb
 
 import (
 	"fmt"
-	"github.com/avast/apkverifier"
-	"github.com/mvt/androidqf/log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/avast/apkverifier"
+	"github.com/mvt/androidqf/log"
 )
 
 type PackageFile struct {
@@ -65,7 +66,6 @@ func (a *ADB) getPackageFiles(packageName string) []PackageFile {
 func (a *ADB) GetPackages() ([]Package, error) {
 	withInstaller := true
 	out, err := a.Shell("pm", "list", "packages", "-U", "-u", "-i")
-
 	if err != nil {
 		// Some phones do not support -i option
 		out, err = a.Shell("pm", "list", "packages", "-U", "-u")

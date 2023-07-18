@@ -49,7 +49,6 @@ func (a *Acquisition) FindFullCommand(path string) ([]adb.FileInfo, error) {
 func (a *Acquisition) FindLimitedCommand(path string) ([]adb.FileInfo, error) {
 	var results []adb.FileInfo
 	out, err := adb.Client.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "2>", "/dev/null")
-
 	if err != nil {
 		return results, err
 	}

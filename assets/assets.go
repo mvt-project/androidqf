@@ -27,7 +27,7 @@ func DeployAssets() error {
 
 	for _, asset := range getAssets() {
 		assetPath := filepath.Join(cwd, asset.Name)
-		err := os.WriteFile(assetPath, asset.Data, 0755)
+		err := os.WriteFile(assetPath, asset.Data, 0o755)
 		if err != nil {
 			return err
 		}

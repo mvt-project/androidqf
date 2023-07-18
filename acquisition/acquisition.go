@@ -123,23 +123,6 @@ func (a *Acquisition) GetSystemInformation() error {
 	return nil
 }
 
-func (a *Acquisition) saveOutput(fileName, output string) error {
-	file, err := os.Create(filepath.Join(a.StoragePath, fileName))
-	if err != nil {
-		return fmt.Errorf("failed to create %s file: %v", fileName, err)
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(output)
-	if err != nil {
-		return fmt.Errorf("failed to write output to %s: %v", fileName, err)
-	}
-
-	file.Sync()
-
-	return nil
-}
-
 func (a *Acquisition) HashFiles() error {
 	log.Info("Generating list of files hashes...")
 
@@ -188,7 +171,7 @@ func (a *Acquisition) StoreInfo() error {
 
 	infoPath := filepath.Join(a.StoragePath, "acquisition.json")
 
-	err = os.WriteFile(infoPath, info, 0644)
+	err = os.WriteFile(infoPath, info, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write acquisition details to file: %v",
 			err)

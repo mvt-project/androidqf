@@ -55,9 +55,11 @@ func (f *Files) Run(acq *acquisition.Acquisition) error {
 		log.Debug("Using collector to collect list of files")
 	}
 
-	folders := []string{"/sdcard/", "/system/", "/system_ext/", "/vendor/",
+	folders := []string{
+		"/sdcard/", "/system/", "/system_ext/", "/vendor/",
 		"/cust/", "/product/", "/apex/", "/data/local/tmp/", "/data/media/0/",
-		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/", "/", "/data/data/"}
+		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/", "/", "/data/data/",
+	}
 	if acq.TmpDir != "/data/local/tmp/" {
 		folders = append(folders, acq.TmpDir)
 	}

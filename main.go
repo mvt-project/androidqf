@@ -91,11 +91,11 @@ func main() {
 		}
 	}
 
-    err = acq.HashFiles()
-    if err != nil {
-        log.ErrorExc("Failed to generate list of file hashes", err)
-        return
-    }
+	err = acq.HashFiles()
+	if err != nil {
+		log.ErrorExc("Failed to generate list of file hashes", err)
+		return
+	}
 
 	acq.Complete()
 	acq.StoreInfo()
