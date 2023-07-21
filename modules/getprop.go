@@ -10,6 +10,7 @@ import (
 
 	"github.com/mvt/androidqf/acquisition"
 	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/log"
 )
 
 type GetProp struct {
@@ -30,7 +31,7 @@ func (g *GetProp) InitStorage(storagePath string) error {
 }
 
 func (g *GetProp) Run(acq *acquisition.Acquisition) error {
-	fmt.Println("Collecting device properties...")
+	log.Info("Collecting device properties...")
 
 	out, err := adb.Client.Shell("getprop")
 	if err != nil {

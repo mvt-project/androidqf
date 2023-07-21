@@ -10,6 +10,7 @@ import (
 
 	"github.com/mvt/androidqf/acquisition"
 	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/log"
 )
 
 type Dumpsys struct {
@@ -30,7 +31,7 @@ func (d *Dumpsys) InitStorage(storagePath string) error {
 }
 
 func (d *Dumpsys) Run(acq *acquisition.Acquisition) error {
-	fmt.Println("Collecting device diagnostic information. This might take a while...")
+	log.Info("Collecting device diagnostic information. This might take a while...")
 
 	out, err := adb.Client.Shell("dumpsys")
 	if err != nil {

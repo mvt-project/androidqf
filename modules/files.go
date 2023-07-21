@@ -31,25 +31,19 @@ func (f *Files) InitStorage(storagePath string) error {
 }
 
 func (f *Files) Run(acq *acquisition.Acquisition) error {
-	log.Info("Extracting list of files... This might take a while...")
+	log.Info("Collecting list of files... This might take a while...")
 	var fileFounds []string
 	var fileDetails []adb.FileInfo
 
 	method := "collector"
-	// FIXME: log failed collector install
 	if acq.Collector == nil {
 		out, _ := adb.Client.Shell("find '/' -maxdepth 1 -printf '%T@ %m %s %u %g %p\n' 2> /dev/null")
-		if out == "" {
+		if (out == "") || (len(out) == 0) {
 			method = "findsimple"
 			log.Debug("Using simple find to collect list of files")
 		} else {
-			if len(out) == 0 {
-				method = "findsimple"
-				log.Debug("Using simple find to collect list of files")
-			} else {
-				method = "findfull"
-				log.Debug("Using find command to collect list of files")
-			}
+			method = "findfull"
+			log.Debug("Using find command to collect list of files")
 		}
 	} else {
 		log.Debug("Using collector to collect list of files")
@@ -60,6 +54,7 @@ func (f *Files) Run(acq *acquisition.Acquisition) error {
 		"/cust/", "/product/", "/apex/", "/data/local/tmp/", "/data/media/0/",
 		"/data/misc/radio/", "/data/vendor/secradio/", "/data/log/", "/tmp/", "/", "/data/data/",
 	}
+	// If tmp folder different from standard tmp, add it to the list
 	if acq.TmpDir != "/data/local/tmp/" {
 		folders = append(folders, acq.TmpDir)
 	}
@@ -84,8 +79,6 @@ func (f *Files) Run(acq *acquisition.Acquisition) error {
 			}
 		}
 	}
-
-	// TODO: get Tmp folder
 
 	return saveCommandOutputJson(filepath.Join(f.StoragePath, "files.json"), &fileDetails)
 }

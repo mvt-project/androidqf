@@ -5,15 +5,11 @@
 package modules
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/botherder/go-savetime/hashes"
-	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/mvt/androidqf/acquisition"
 	"github.com/mvt/androidqf/adb"
@@ -87,9 +83,9 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
 	}
 
-	fmt.Printf(
-		"Found a total of %s installed packages\n",
-		color.CyanString(strconv.Itoa(len(packages))),
+	log.Infof(
+		"Found a total of %d installed packages",
+		len(packages),
 	)
 
 	fmt.Println("Would you like to download copies of all apps or only non-system ones?")
@@ -102,20 +98,22 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 		return fmt.Errorf("failed to make selection for download option: %v", err)
 	}
 
-	fmt.Println("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
-	promptAll := promptui.Select{
-		Label: "Remove",
-		Items: []string{apkRemoveTrusted, apkKeepAll},
-	}
-	_, keepOption, err := promptAll.Run()
-	if err != nil {
-		return fmt.Errorf("failed to make selection for download option: %v",
-			err)
-	}
-
 	// If the user decides to not download any APK, then we skip this.
 	// Otherwise we walk through the list of package, pull the files, and hash them.
 	if download != apkNone {
+
+		// Ask if the user want to remove trusted packages
+		fmt.Println("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
+		promptAll := promptui.Select{
+			Label: "Remove",
+			Items: []string{apkRemoveTrusted, apkKeepAll},
+		}
+		_, keepOption, err := promptAll.Run()
+		if err != nil {
+			return fmt.Errorf("failed to make selection for download option: %v",
+				err)
+		}
+
 		for _, pack := range packages {
 			// If we the user did not request to download all packages and if
 			// the package is marked as system, we skip it.
@@ -123,7 +121,7 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 				continue
 			}
 
-			log.Infof("Found Android package: %s\n", pack.Name)
+			log.Debugf("Found Android package: %s", pack.Name)
 
 			for _, packageFile := range pack.Files {
 				localPath := p.getPathToLocalCopy(pack.Name, packageFile.Path)
@@ -137,46 +135,46 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 
 				log.Debugf("Downloaded %s to %s\n", packageFile.Path, localPath)
 
-				// Hash the package file
-				packageFile.SHA256, _ = hashes.FileSHA256(localPath)
-				packageFile.SHA1, _ = hashes.FileSHA1(localPath)
-				packageFile.MD5, _ = hashes.FileMD5(localPath)
-
 				// Check the certificate
 				verified, cert, err := utils.VerifyCertificate(localPath)
-				if err != nil {
+				if cert == nil {
+					// Couldn't extract certificate
+					fmt.Println("Couldn't parse certificate")
 					packageFile.CertificateError = err.Error()
 					packageFile.VerifiedCertificate = false
 				} else {
-					packageFile.CertificateError = ""
-					packageFile.Certificate = *cert
-					packageFile.VerifiedCertificate = verified
-					if utils.IsTrusted(*cert) {
-						packageFile.TrustedCertificate = true
-						if keepOption == apkRemoveTrusted {
-							log.Debugf("Trusted APK removed: %s - %s",
-								localPath, packageFile.SHA256)
-							os.Remove(localPath)
-						}
+					packageFile.Certificate.Md5 = cert.Md5
+					packageFile.Certificate.Sha1 = cert.Sha1
+					packageFile.Certificate.Sha256 = cert.Sha256
+					packageFile.Certificate.ValidFrom = cert.ValidFrom
+					packageFile.Certificate.ValidTo = cert.ValidTo
+					packageFile.Certificate.Issuer = cert.Issuer
+					packageFile.Certificate.Subject = cert.Subject
+					packageFile.Certificate.SignatureAlgorithm = cert.SignatureAlgorithm
+					packageFile.Certificate.SerialNumber = cert.SerialNumber
+					fmt.Println(packageFile.Certificate)
+					if err != nil {
+						// Extracted certificate but couldn't verify it
+						packageFile.CertificateError = err.Error()
+						packageFile.VerifiedCertificate = false
 					} else {
-						packageFile.TrustedCertificate = false
+						packageFile.CertificateError = ""
+						packageFile.VerifiedCertificate = verified
+						if utils.IsTrusted(*cert) {
+							packageFile.TrustedCertificate = true
+							if keepOption == apkRemoveTrusted {
+								log.Debugf("Trusted APK removed: %s - %s",
+									localPath, packageFile.SHA256)
+								os.Remove(localPath)
+							}
+						} else {
+							packageFile.TrustedCertificate = false
+						}
 					}
 				}
 			}
 		}
 	}
 
-	resultsPath := filepath.Join(p.StoragePath, "packages.json")
-	results, err := os.Create(resultsPath)
-	if err != nil {
-		return fmt.Errorf("failed to save list of installed packages to file: %v", err)
-	}
-	defer results.Close()
-
-	buf, _ := json.MarshalIndent(packages, "", "    ")
-
-	results.WriteString(string(buf[:]))
-	results.Sync()
-
-	return nil
+	return saveCommandOutputJson(filepath.Join(p.StoragePath, "packages.json"), &packages)
 }

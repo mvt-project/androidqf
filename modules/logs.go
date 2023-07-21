@@ -70,14 +70,14 @@ func (l *Logs) Run(acq *acquisition.Acquisition) error {
 
 		err := os.MkdirAll(localDir, 0o755)
 		if err != nil {
-			fmt.Printf("Failed to create folders for logs %s: %v\n", localDir, err)
+			log.Errorf("Failed to create folders for logs %s: %v\n", localDir, err)
 			continue
 		}
 
 		out, err := adb.Client.Pull(logFile, localPath)
 		if err != nil {
 			if !text.ContainsNoCase(out, "Permission denied") {
-				fmt.Printf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+				log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
 			}
 			continue
 		}

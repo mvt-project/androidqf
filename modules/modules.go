@@ -20,6 +20,8 @@ type Module interface {
 
 func List() []Module {
 	return []Module{
+		NewBackup(),
+		NewPackages(),
 		NewGetProp(),
 		NewDumpsys(),
 		NewProcesses(),
@@ -29,14 +31,12 @@ func List() []Module {
 		NewEnvironment(),
 		NewLogcat(),
 		NewLogs(),
-		NewPackages(),
-		NewBackup(),
 		NewTemp(),
 	}
 }
 
 func saveCommandOutputJson(filePath string, data any) error {
-	jsonData, err := json.Marshal(&data)
+	jsonData, err := json.MarshalIndent(&data, "", "    ")
 	if err != nil {
 		return fmt.Errorf("failed to convert JSON: %v", err)
 	}

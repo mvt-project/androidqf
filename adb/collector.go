@@ -147,7 +147,11 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 	var results []FileInfo
 	var file FileInfo
 	if !c.isInstalled() {
-		c.Install()
+		err := c.Install()
+		if err != nil {
+			log.Debugf("Impossible to install collector: %w", err)
+			return results, err
+		}
 	}
 
 	out, err := c.Adb.Shell(c.ExePath, "find", path)
@@ -169,7 +173,11 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 	var results []FileInfo
 	var file FileInfo
 	if !c.isInstalled() {
-		c.Install()
+		err := c.Install()
+		if err != nil {
+			log.Debugf("Impossible to install collector: %w", err)
+			return results, err
+		}
 	}
 
 	out, err := c.Adb.Shell(c.ExePath, "find", "-H", path)
@@ -190,7 +198,11 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 	var results []ProcessInfo
 
 	if c.isInstalled() {
-		c.Install()
+		err := c.Install()
+		if err != nil {
+			log.Debugf("Impossible to install collector: %w", err)
+			return results, err
+		}
 	}
 
 	out, err := c.Adb.Shell(c.ExePath, "ps")

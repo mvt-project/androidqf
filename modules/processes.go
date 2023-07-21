@@ -5,7 +5,6 @@
 package modules
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -46,10 +45,6 @@ func (p *Processes) Run(acq *acquisition.Acquisition) error {
 		if err != nil {
 			return err
 		}
-		jsonData, err := json.Marshal(&out)
-		if err != nil {
-			return fmt.Errorf("failed to convert JSON: %v", err)
-		}
-		return saveCommandOutput(filepath.Join(p.StoragePath, "processes.txt"), string(jsonData))
+		return saveCommandOutputJson(filepath.Join(p.StoragePath, "processes.txt"), &out)
 	}
 }

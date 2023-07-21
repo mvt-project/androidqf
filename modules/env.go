@@ -21,16 +21,16 @@ func NewEnvironment() *Environment {
 	return &Environment{}
 }
 
-func (g *Environment) Name() string {
+func (e *Environment) Name() string {
 	return "environment"
 }
 
-func (g *Environment) InitStorage(storagePath string) error {
-	g.StoragePath = storagePath
+func (e *Environment) InitStorage(storagePath string) error {
+	e.StoragePath = storagePath
 	return nil
 }
 
-func (g *Environment) Run(acq *acquisition.Acquisition) error {
+func (e *Environment) Run(acq *acquisition.Acquisition) error {
 	log.Info("Collecting environment...")
 
 	out, err := adb.Client.Shell("env")
@@ -38,5 +38,5 @@ func (g *Environment) Run(acq *acquisition.Acquisition) error {
 		return fmt.Errorf("failed to run `adb shell env`: %v", err)
 	}
 
-	return saveCommandOutput(filepath.Join(g.StoragePath, "env.txt"), out)
+	return saveCommandOutput(filepath.Join(e.StoragePath, "env.txt"), out)
 }

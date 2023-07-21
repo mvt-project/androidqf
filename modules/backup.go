@@ -1,6 +1,7 @@
+// androidqf - Android Quick Forensics
 // Copyright (c) 2021-2023 Claudio Guarnieri.
-// Use of this source code is governed by the MVT License 1.1
-// which can be found in the LICENSE file.
+// Use of this software is governed by the MVT License 1.1 that can be found at
+//   https://license.mvt.re/1.1/
 
 package modules
 
@@ -30,7 +31,7 @@ func NewBackup() *Backup {
 }
 
 func (b *Backup) Name() string {
-	return "logcat"
+	return "backup"
 }
 
 func (b *Backup) InitStorage(storagePath string) error {
@@ -66,11 +67,13 @@ func (b *Backup) Run(acq *acquisition.Acquisition) error {
 
 	err = adb.Client.Backup(arg)
 	if err != nil {
+		log.Debugf("Impossible to get backup: %w", err)
 		return err
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
+		log.Debugf("Impossible to get current directory: %w", err)
 		return err
 	}
 
@@ -82,7 +85,7 @@ func (b *Backup) Run(acq *acquisition.Acquisition) error {
 		return err
 	}
 
-	fmt.Println("Backup completed!")
+	log.Info("Backup completed!")
 
 	return nil
 }

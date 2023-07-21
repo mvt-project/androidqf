@@ -1,5 +1,5 @@
-BUILD_FOLDER  = $(shell pwd)/build
-ASSETS_FOLDER = $(shell pwd)/assets
+BUILD_FOLDER  = "$(shell pwd)/build"
+ASSETS_FOLDER = "$(shell pwd)/assets"
 
 FLAGS_LINUX   = GOOS=linux
 FLAGS_DARWIN  = GOOS=darwin
@@ -25,7 +25,7 @@ vuln:
 	@govulncheck ./...
 
 fmt:
-	go fmt ./...
+	gofumpt -l -w .
 
 deps:
 	@echo "[deps] Installing dependencies..."

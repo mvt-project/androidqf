@@ -44,7 +44,7 @@ func (s *Settings) Run(acq *acquisition.Acquisition) error {
 			out,
 		)
 		if err != nil {
-			fmt.Println(err)
+			log.Errorf("Impossible to save settings: %v", err)
 		}
 	}
 

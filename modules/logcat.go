@@ -47,6 +47,7 @@ func (l *Logcat) Run(acq *acquisition.Acquisition) error {
 	out, err = adb.Client.Shell("logcat", "-L", "-b", "all", "\"*:V\"")
 	if err != nil {
 		// Often fails, totally normal
+		log.Debugf("failed to run `adb shell logcat -L`: %v", err)
 		return nil
 	}
 

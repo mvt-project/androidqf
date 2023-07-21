@@ -42,18 +42,17 @@ func (t *Temp) InitStorage(storagePath string) error {
 func (t *Temp) Run(acq *acquisition.Acquisition) error {
 	log.Info("Collecting files in tmp folder...")
 
-	// FIXME: collect temp path from env variable
-	tmpFiles, err := adb.Client.ListFiles("/data/local/tmp/", true)
+	tmpFiles, err := adb.Client.ListFiles(acq.TmpDir, true)
 	if err != nil {
 		return fmt.Errorf("failed to list files in tmp: %v", err)
 	}
 
 	for _, file := range tmpFiles {
-		if file == "/data/local/tmp/" {
+		if file == acq.TmpDir {
 			continue
 		}
 		dest_path := filepath.Join(t.TempPath,
-			strings.TrimPrefix(file, "/data/local/tmp/"))
+			strings.TrimPrefix(file, acq.TmpDir))
 
 		adb.Client.Pull(file, dest_path)
 	}
