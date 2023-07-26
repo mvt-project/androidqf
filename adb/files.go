@@ -3,26 +3,24 @@
 // Use of this software is governed by the MVT License 1.1 that can be found at
 //   https://license.mvt.re/1.1/
 
-package acquisition
+package adb
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/mvt/androidqf/adb"
 )
 
-func (a *Acquisition) FindFullCommand(path string) ([]adb.FileInfo, error) {
-	var results []adb.FileInfo
-	out, err := adb.Client.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "-printf", "'%T@ %m %s %u %g %p\n'", "2>", "/dev/null")
+func (a *ADB) FindFullCommand(path string) ([]FileInfo, error) {
+	var results []FileInfo
+	out, err := a.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "-printf", "'%T@ %m %s %u %g %p\n'", "2>", "/dev/null")
 
 	if err == nil {
 		return results, err
 	}
 
 	for _, line := range strings.Split(out, "\n") {
-		var new_file adb.FileInfo
+		var new_file FileInfo
 		s := strings.Fields(line)
 		if len(s) == 0 {
 			continue
@@ -46,15 +44,15 @@ func (a *Acquisition) FindFullCommand(path string) ([]adb.FileInfo, error) {
 	return results, nil
 }
 
-func (a *Acquisition) FindLimitedCommand(path string) ([]adb.FileInfo, error) {
-	var results []adb.FileInfo
-	out, err := adb.Client.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "2>", "/dev/null")
+func (a *ADB) FindLimitedCommand(path string) ([]FileInfo, error) {
+	var results []FileInfo
+	out, err := a.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "2>", "/dev/null")
 	if err != nil {
 		return results, err
 	}
 
 	for _, line := range strings.Split(out, "\n") {
-		var new_file adb.FileInfo
+		var new_file FileInfo
 		new_file.Path = line
 		results = append(results, new_file)
 	}

@@ -42,7 +42,7 @@ type Package struct {
 func (a *ADB) getPackageFiles(packageName string) []PackageFile {
 	out, err := a.Shell("pm", "path", packageName)
 	if err != nil {
-		log.Errorf("Failed to get file paths for package %s: %v: %s\n", packageName, err, out)
+		log.Errorf("Failed to get file paths for package %s: %v: %s", packageName, err, out)
 		return []PackageFile{}
 	}
 

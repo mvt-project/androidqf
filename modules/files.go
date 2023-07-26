@@ -65,9 +65,9 @@ func (f *Files) Run(acq *acquisition.Acquisition) error {
 		if method == "collector" {
 			out, err = acq.Collector.Find(folder)
 		} else if method == "findfull" {
-			out, err = acq.FindFullCommand(folder)
+			out, err = adb.Client.FindFullCommand(folder)
 		} else {
-			out, err = acq.FindLimitedCommand(folder)
+			out, err = adb.Client.FindLimitedCommand(folder)
 		}
 
 		if err == nil {

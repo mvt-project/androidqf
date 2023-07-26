@@ -38,12 +38,29 @@ func systemPause() {
 
 func main() {
 	var err error
+	var verbose bool
+	var list_modules bool
+	var module string
 
-	// Configure vrebose mode
-	verbose := flag.Bool("verbose", false, "Verbose mode")
+	// Command line options
+	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
+	flag.BoolVar(&verbose, "v", false, "Verbose mode")
+	flag.BoolVar(&list_modules, "list", false, "List modules and exit")
+	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
+	flag.StringVar(&module, "module", "", "Only execute a specific module")
+	flag.StringVar(&module, "m", "", "Only execute a specific module")
 	flag.Parse()
-	if *verbose {
+	if verbose {
 		log.SetLogLevel(log.DEBUG)
+	}
+
+	if list_modules {
+		mods := modules.List()
+		log.Info("List of modules:")
+		for _, mod := range mods {
+			log.Infof("- %s", mod.Name())
+		}
+		os.Exit(0)
 	}
 
 	// TODO: add version information
@@ -75,6 +92,9 @@ func main() {
 
 	mods := modules.List()
 	for _, mod := range mods {
+		if (module != "") && (module != mod.Name()) {
+			continue
+		}
 		err = mod.InitStorage(acq.StoragePath)
 		if err != nil {
 			log.Infof(

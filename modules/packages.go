@@ -114,17 +114,18 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 				err)
 		}
 
-		for _, pack := range packages {
+		for ip := 0; ip < len(packages); ip++ {
 			// If we the user did not request to download all packages and if
 			// the package is marked as system, we skip it.
-			if download != apkAll && pack.System {
+			if download != apkAll && packages[ip].System {
 				continue
 			}
 
-			log.Debugf("Found Android package: %s", pack.Name)
+			log.Debugf("Found Android package: %s", packages[ip].Name)
 
-			for _, packageFile := range pack.Files {
-				localPath := p.getPathToLocalCopy(pack.Name, packageFile.Path)
+			for ipf := 0; ipf < len(packages[ip].Files); ipf++ {
+				packageFile := &packages[ip].Files[ipf]
+				localPath := p.getPathToLocalCopy(packages[ip].Name, packageFile.Path)
 
 				out, err := adb.Client.Pull(packageFile.Path, localPath)
 				if err != nil {
@@ -133,30 +134,21 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 					continue
 				}
 
-				log.Debugf("Downloaded %s to %s\n", packageFile.Path, localPath)
+				log.Debugf("Downloaded %s to %s", packageFile.Path, localPath)
 
 				// Check the certificate
 				verified, cert, err := utils.VerifyCertificate(localPath)
 				if cert == nil {
 					// Couldn't extract certificate
-					fmt.Println("Couldn't parse certificate")
+					log.Debugf("Couldn't parse certificate for app %s", localPath)
 					packageFile.CertificateError = err.Error()
 					packageFile.VerifiedCertificate = false
 				} else {
-					packageFile.Certificate.Md5 = cert.Md5
-					packageFile.Certificate.Sha1 = cert.Sha1
-					packageFile.Certificate.Sha256 = cert.Sha256
-					packageFile.Certificate.ValidFrom = cert.ValidFrom
-					packageFile.Certificate.ValidTo = cert.ValidTo
-					packageFile.Certificate.Issuer = cert.Issuer
-					packageFile.Certificate.Subject = cert.Subject
-					packageFile.Certificate.SignatureAlgorithm = cert.SignatureAlgorithm
-					packageFile.Certificate.SerialNumber = cert.SerialNumber
-					fmt.Println(packageFile.Certificate)
+					packageFile.Certificate = *cert
+					packageFile.VerifiedCertificate = false
 					if err != nil {
 						// Extracted certificate but couldn't verify it
 						packageFile.CertificateError = err.Error()
-						packageFile.VerifiedCertificate = false
 					} else {
 						packageFile.CertificateError = ""
 						packageFile.VerifiedCertificate = verified
@@ -167,8 +159,6 @@ func (p *Packages) Run(acq *acquisition.Acquisition) error {
 									localPath, packageFile.SHA256)
 								os.Remove(localPath)
 							}
-						} else {
-							packageFile.TrustedCertificate = false
 						}
 					}
 				}
