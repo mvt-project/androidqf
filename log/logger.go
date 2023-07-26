@@ -24,6 +24,7 @@ const (
 	WARNING
 	ERROR
 	CRITICAL
+	FATAL
 )
 
 type Logger struct {
@@ -114,6 +115,8 @@ func (l LEVEL) String() string {
 		return "ERROR"
 	case CRITICAL:
 		return "CRITICAL"
+	case FATAL:
+		return "FATAL"
 	}
 	return ""
 }
@@ -131,7 +134,7 @@ func EnableFileLog(level LEVEL, filePath string) error {
 		return errors.New("invalid file path")
 	}
 
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return err
 	}
@@ -188,4 +191,19 @@ func Critical(v ...any) {
 
 func Criticalf(format string, v ...any) {
 	log.out(CRITICAL, format, v...)
+}
+
+func Fatal(v ...any) {
+	log.out(FATAL, "", v...)
+	os.Exit(1)
+}
+
+func Fatalf(format string, v ...any) {
+	log.out(FATAL, format, v...)
+	os.Exit(1)
+}
+
+func FatalExc(desc string, err error) {
+	log.out(FATAL, "FATAL: %s: %s\n", desc, err.Error())
+	os.Exit(1)
 }

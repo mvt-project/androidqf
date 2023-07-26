@@ -15,20 +15,17 @@ import (
 	"time"
 
 	"github.com/botherder/go-savetime/hashes"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
+	rt "github.com/botherder/go-savetime/runtime"
+	"github.com/google/uuid"
 	"github.com/mvt/androidqf/adb"
 	"github.com/mvt/androidqf/assets"
 	"github.com/mvt/androidqf/log"
-	"github.com/satori/go.uuid"
 )
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
 	UUID        string         `json:"uuid"`
-	ADB         *adb.ADB       `json:"-"`
 	StoragePath string         `json:"storage_path"`
-	APKSPath    string         `json:"apks_path"`
-	LogsPath    string         `json:"logs_path"`
 	Started     time.Time      `json:"started"`
 	Completed   time.Time      `json:"completed"`
 	Collector   *adb.Collector `json:"collector"`
@@ -38,44 +35,35 @@ type Acquisition struct {
 
 // New returns a new Acquisition instance.
 func New() (*Acquisition, error) {
-	acq := Acquisition{}
-	uuidBytes := uuid.NewV4()
-	acq.UUID = uuidBytes.String()
-	acq.Started = time.Now().UTC()
-
-	err := acq.initADB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize adb: %v", err)
+	acq := Acquisition{
+		UUID:    uuid.New().String(),
+		Started: time.Now().UTC(),
 	}
 
-	return &acq, nil
-}
+	acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
+	err := os.Mkdir(acq.StoragePath, 0o755)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+	}
 
-func (a *Acquisition) Initialize() error {
 	// Get system information first to get tmp folder
-	err := a.GetSystemInformation()
+	err = acq.GetSystemInformation()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	coll, err := a.ADB.GetCollector(a.TmpDir, a.Cpu)
+	coll, err := adb.Client.GetCollector(acq.TmpDir, acq.Cpu)
 	if err != nil {
 		log.Debugf("failed to upload collector: %v", err)
-		return fmt.Errorf("failed to upload collector: %v", err)
+		return nil, fmt.Errorf("failed to upload collector: %v", err)
 	}
-	a.Collector = coll
-
-	err = a.createFolders()
-	if err != nil {
-		log.Debugf("failed to create acquisition folder: %v", err)
-		return fmt.Errorf("failed to create acquisition folder: %v", err)
-	}
+	acq.Collector = coll
 
 	// Init logging file
-	logPath := filepath.Join(a.StoragePath, "command.log")
+	logPath := filepath.Join(acq.StoragePath, "command.log")
 	log.EnableFileLog(log.DEBUG, logPath)
 
-	return nil
+	return &acq, nil
 }
 
 func (a *Acquisition) Complete() {
@@ -88,7 +76,7 @@ func (a *Acquisition) Complete() {
 	assets.CleanAssets()
 }
 
-func (a *Acquisition) initADB() error {
+/*func (a *Acquisition) initADB() error {
 	var err error
 	a.ADB, err = adb.New()
 	if err != nil {
@@ -104,11 +92,11 @@ func (a *Acquisition) initADB() error {
 	}
 
 	return nil
-}
+}*/
 
 func (a *Acquisition) GetSystemInformation() error {
 	// Get architecture information
-	out, err := a.ADB.Shell("getprop ro.product.cpu.abi")
+	out, err := adb.Client.Shell("getprop ro.product.cpu.abi")
 	if err != nil {
 		return err
 	}
@@ -116,7 +104,7 @@ func (a *Acquisition) GetSystemInformation() error {
 	log.Debugf("CPU architecture: %s", a.Cpu)
 
 	// Get tmp folder
-	out, err = a.ADB.Shell("env")
+	out, err = adb.Client.Shell("env")
 	if err != nil {
 		return fmt.Errorf("failed to run `adb shell env`: %v", err)
 	}
@@ -132,45 +120,6 @@ func (a *Acquisition) GetSystemInformation() error {
 	}
 	a.TmpDir = tmpFolder
 	log.Debugf("Found temp folder/ %s", tmpFolder)
-	return nil
-}
-
-func (a *Acquisition) createFolders() error {
-	a.StoragePath = filepath.Join(saveRuntime.GetExecutableDirectory(), a.UUID)
-	err := os.Mkdir(a.StoragePath, 0755)
-	if err != nil {
-		return err
-	}
-
-	a.APKSPath = filepath.Join(a.StoragePath, "apks")
-	err = os.Mkdir(a.APKSPath, 0755)
-	if err != nil {
-		return err
-	}
-
-	a.LogsPath = filepath.Join(a.StoragePath, "logs")
-	err = os.Mkdir(a.LogsPath, 0755)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *Acquisition) saveOutput(fileName, output string) error {
-	file, err := os.Create(filepath.Join(a.StoragePath, fileName))
-	if err != nil {
-		return fmt.Errorf("failed to create %s file: %v", fileName, err)
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(output)
-	if err != nil {
-		return fmt.Errorf("failed to write output to %s: %v", fileName, err)
-	}
-
-	file.Sync()
-
 	return nil
 }
 
@@ -222,7 +171,7 @@ func (a *Acquisition) StoreInfo() error {
 
 	infoPath := filepath.Join(a.StoragePath, "acquisition.json")
 
-	err = os.WriteFile(infoPath, info, 0644)
+	err = os.WriteFile(infoPath, info, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write acquisition details to file: %v",
 			err)

@@ -7,11 +7,12 @@ package adb
 
 import (
 	"fmt"
-	"github.com/avast/apkverifier"
-	"github.com/mvt/androidqf/log"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/avast/apkverifier"
+	"github.com/mvt/androidqf/log"
 )
 
 type PackageFile struct {
@@ -38,11 +39,53 @@ type Package struct {
 	ThirdParty bool          `json:"third_party"`
 }
 
+func (a *ADB) getPackageFiles(packageName string) []PackageFile {
+	out, err := a.Shell("pm", "path", packageName)
+	if err != nil {
+		log.Errorf("Failed to get file paths for package %s: %v: %s", packageName, err, out)
+		return []PackageFile{}
+	}
+
+	packageFiles := []PackageFile{}
+	for _, line := range strings.Split(out, "\n") {
+		packagePath := strings.TrimPrefix(strings.TrimSpace(line), "package:")
+		if packagePath == "" {
+			continue
+		}
+
+		packageFile := PackageFile{
+			Path: packagePath,
+		}
+
+		// Not sure if this is useful or not considering packages may
+		// be downloaded later on
+		md5Out, err := a.Shell("md5sum", packagePath)
+		if err == nil {
+			packageFile.MD5 = strings.SplitN(md5Out, " ", 2)[0]
+		}
+		sha1Out, err := a.Shell("sha1sum", packagePath)
+		if err == nil {
+			packageFile.SHA1 = strings.SplitN(sha1Out, " ", 2)[0]
+		}
+		sha256Out, err := a.Shell("sha256sum", packagePath)
+		if err == nil {
+			packageFile.SHA256 = strings.SplitN(sha256Out, " ", 2)[0]
+		}
+		sha512Out, err := a.Shell("sha512sum", packagePath)
+		if err == nil {
+			packageFile.SHA512 = strings.SplitN(sha512Out, " ", 2)[0]
+		}
+
+		packageFiles = append(packageFiles, packageFile)
+	}
+
+	return packageFiles
+}
+
 // GetPackages returns the list of installed package names.
 func (a *ADB) GetPackages() ([]Package, error) {
 	withInstaller := true
 	out, err := a.Shell("pm", "list", "packages", "-U", "-u", "-i")
-
 	if err != nil {
 		// Some phones do not support -i option
 		out, err = a.Shell("pm", "list", "packages", "-U", "-u")
@@ -78,7 +121,7 @@ func (a *ADB) GetPackages() ([]Package, error) {
 			Disabled:   false,
 			System:     false,
 			ThirdParty: false,
-			Files:      []PackageFile{},
+			Files:      a.getPackageFiles(packageName),
 		}
 
 		packages = append(packages, newPackage)
