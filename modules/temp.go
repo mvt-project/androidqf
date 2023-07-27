@@ -42,6 +42,7 @@ func (t *Temp) InitStorage(storagePath string) error {
 func (t *Temp) Run(acq *acquisition.Acquisition) error {
 	log.Info("Collecting files in tmp folder...")
 
+	// TODO: Also check default tmp folders
 	tmpFiles, err := adb.Client.ListFiles(acq.TmpDir, true)
 	if err != nil {
 		return fmt.Errorf("failed to list files in tmp: %v", err)

@@ -1,0 +1,42 @@
+// Copyright (c) 2021-2023 Claudio Guarnieri.
+// Use of this source code is governed by the MVT License 1.1
+// which can be found in the LICENSE file.
+
+package modules
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/mvt/androidqf/acquisition"
+	"github.com/mvt/androidqf/adb"
+	"github.com/mvt/androidqf/log"
+)
+
+type SELinux struct {
+	StoragePath string
+}
+
+func NewSELinux() *SELinux {
+	return &SELinux{}
+}
+
+func (s *SELinux) Name() string {
+	return "selinux"
+}
+
+func (s *SELinux) InitStorage(storagePath string) error {
+	s.StoragePath = storagePath
+	return nil
+}
+
+func (s *SELinux) Run(acq *acquisition.Acquisition) error {
+	log.Info("Collecting SELinux status...")
+
+	out, err := adb.Client.Shell("getenforce")
+	if err != nil {
+		return fmt.Errorf("failed to run `adb shell getenforce`: %v", err)
+	}
+
+	return saveCommandOutput(filepath.Join(s.StoragePath, "selinux.txt"), out)
+}
