@@ -30,6 +30,7 @@ func List() []Module {
 		NewSettings(),
 		NewSELinux(),
 		NewEnvironment(),
+		NewRootBinaries(),
 		NewLogcat(),
 		NewLogs(),
 		NewTemp(),
