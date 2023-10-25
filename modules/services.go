@@ -30,7 +30,7 @@ func (s *Services) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (s *Services) Run(acq *acquisition.Acquisition) error {
+func (s *Services) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting list of services...")
 
 	out, err := adb.Client.Shell("service list")

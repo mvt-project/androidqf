@@ -30,7 +30,7 @@ func (p *Processes) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (p *Processes) Run(acq *acquisition.Acquisition) error {
+func (p *Processes) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting list of running processes...")
 
 	if acq.Collector == nil {

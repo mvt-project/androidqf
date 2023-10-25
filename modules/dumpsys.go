@@ -30,7 +30,7 @@ func (d *Dumpsys) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (d *Dumpsys) Run(acq *acquisition.Acquisition) error {
+func (d *Dumpsys) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting device diagnostic information. This might take a while...")
 
 	out, err := adb.Client.Shell("dumpsys")

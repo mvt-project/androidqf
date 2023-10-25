@@ -30,7 +30,7 @@ func (s *SELinux) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (s *SELinux) Run(acq *acquisition.Acquisition) error {
+func (s *SELinux) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting SELinux status...")
 
 	out, err := adb.Client.Shell("getenforce")

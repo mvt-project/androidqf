@@ -30,7 +30,7 @@ func (s *Settings) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (s *Settings) Run(acq *acquisition.Acquisition) error {
+func (s *Settings) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting device settings...")
 
 	for _, namespace := range []string{"system", "secure", "global"} {

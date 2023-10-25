@@ -39,7 +39,7 @@ func (b *Backup) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (b *Backup) Run(acq *acquisition.Acquisition) error {
+func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Would you like to take a backup of the device?")
 	promptBackup := promptui.Select{
 		Label: "Backup",

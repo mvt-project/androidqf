@@ -31,7 +31,7 @@ func (r *RootBinaries) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (r *RootBinaries) Run(acq *acquisition.Acquisition) error {
+func (r *RootBinaries) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Checking for traces of rooting")
 	root_binaries := []string{
 		"su",

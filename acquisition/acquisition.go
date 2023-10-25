@@ -54,8 +54,8 @@ func New() (*Acquisition, error) {
 
 	coll, err := adb.Client.GetCollector(acq.TmpDir, acq.Cpu)
 	if err != nil {
+		// Collector install failed, will use find instead
 		log.Debugf("failed to upload collector: %v", err)
-		return nil, fmt.Errorf("failed to upload collector: %v", err)
 	}
 	acq.Collector = coll
 

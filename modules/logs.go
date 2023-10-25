@@ -40,7 +40,7 @@ func (l *Logs) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (l *Logs) Run(acq *acquisition.Acquisition) error {
+func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting system logs...")
 
 	logFiles := []string{
@@ -62,11 +62,14 @@ func (l *Logs) Run(acq *acquisition.Acquisition) error {
 		}
 
 		logFiles = append(logFiles, files...)
+		log.Debugf("Files in %s: %s", logFolder, files)
 	}
 
 	for _, logFile := range logFiles {
 		localPath := filepath.Join(l.LogsPath, logFile)
 		localDir, _ := filepath.Split(localPath)
+		log.Debugf("From: %s", logFile)
+		log.Debugf("To: %s", localPath)
 
 		err := os.MkdirAll(localDir, 0o755)
 		if err != nil {

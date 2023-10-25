@@ -39,7 +39,7 @@ func (t *Temp) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (t *Temp) Run(acq *acquisition.Acquisition) error {
+func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting files in tmp folder...")
 
 	// TODO: Also check default tmp folders

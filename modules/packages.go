@@ -75,10 +75,10 @@ func (p *Packages) getPathToLocalCopy(packageName, filePath string) string {
 	return localPath
 }
 
-func (p *Packages) Run(acq *acquisition.Acquisition) error {
+func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting information on installed apps. This might take a while...")
 
-	packages, err := adb.Client.GetPackages()
+	packages, err := adb.Client.GetPackages(fast)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
 	}

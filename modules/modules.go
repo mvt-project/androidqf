@@ -15,7 +15,7 @@ import (
 type Module interface {
 	Name() string
 	InitStorage(storagePath string) error
-	Run(acq *acquisition.Acquisition) error
+	Run(acq *acquisition.Acquisition, fast bool) error
 }
 
 func List() []Module {

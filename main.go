@@ -40,11 +40,14 @@ func main() {
 	var err error
 	var verbose bool
 	var list_modules bool
+	var fast bool
 	var module string
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
 	flag.BoolVar(&verbose, "v", false, "Verbose mode")
+	flag.BoolVar(&fast, "fast", false, "Fast mode")
+	flag.BoolVar(&verbose, "f", false, "Fast mode")
 	flag.BoolVar(&list_modules, "list", false, "List modules and exit")
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
@@ -105,7 +108,7 @@ func main() {
 			continue
 		}
 
-		err = mod.Run(acq)
+		err = mod.Run(acq, fast)
 		if err != nil {
 			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
 		}

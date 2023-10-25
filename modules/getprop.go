@@ -30,7 +30,7 @@ func (g *GetProp) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (g *GetProp) Run(acq *acquisition.Acquisition) error {
+func (g *GetProp) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting device properties...")
 
 	out, err := adb.Client.Shell("getprop")
