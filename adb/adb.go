@@ -30,6 +30,8 @@ func New() (*ADB, error) {
 	}
 	log.Debugf("ADB found at path: %s", adb.ExePath)
 
+	log.Debug("Killing existing ADB server if running")
+	adb.KillServer()
 	return &adb, nil
 }
 
@@ -128,4 +130,16 @@ func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	}
 
 	return remoteFiles, nil
+}
+
+func (a *ADB) KillServer() (string, error) {
+	log.Debug("Killing adb server")
+	out, err := exec.Command(a.ExePath, "kill-server").Output()
+	if err != nil {
+		log.Debug("kill-server failed")
+		return "", err
+	}
+
+	log.Debug("kill-server ok")
+	return strings.TrimSpace(string(out)), nil
 }
