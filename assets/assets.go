@@ -8,6 +8,7 @@ package assets
 import (
 	"embed"
 	"os"
+	"errors"
 	"path/filepath"
 
 	saveRuntime "github.com/botherder/go-savetime/runtime"
@@ -27,7 +28,19 @@ func DeployAssets() error {
 
 	for _, asset := range getAssets() {
 		assetPath := filepath.Join(cwd, asset.Name)
-		err := os.WriteFile(assetPath, asset.Data, 0o755)
+
+		assetFile, err := os.OpenFile(assetPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o755)
+		if err != nil {
+			// Asset file already exists. Do not try overwriting
+			if (errors.Is(err, os.ErrExist)) {
+				continue
+			} else {
+				return err
+			}
+		}
+		defer assetFile.Close()
+
+		_, err = assetFile.Write(asset.Data)
 		if err != nil {
 			return err
 		}
