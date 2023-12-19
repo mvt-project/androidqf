@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/log"
 )
 
 type ADB struct {

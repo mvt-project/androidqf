@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mvt/androidqf/acquisition"
+	"github.com/mvt-project/androidqf/acquisition"
 )
 
 type Module interface {

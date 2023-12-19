@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mvt/androidqf/acquisition"
-	"github.com/mvt/androidqf/adb"
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/acquisition"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/log"
 )
 
 type Temp struct {
