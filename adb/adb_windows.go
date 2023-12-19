@@ -11,8 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/mvt/androidqf/assets"
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/assets"
+	"github.com/mvt-project/androidqf/log"
 )
 
 func (a *ADB) findExe() error {

@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/botherder/go-savetime/text"
-	"github.com/mvt/androidqf/acquisition"
-	"github.com/mvt/androidqf/adb"
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/acquisition"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/log"
 )
 
 type Logs struct {

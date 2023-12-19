@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	saveRuntime "github.com/botherder/go-savetime/runtime"
-	"github.com/mvt/androidqf/assets"
+	"github.com/mvt-project/androidqf/assets"
 )
 
 func (a *ADB) findExe() error {

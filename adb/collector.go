@@ -13,9 +13,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/log"
 
-	"github.com/mvt/androidqf/assets"
+	"github.com/mvt-project/androidqf/assets"
 )
 
 type Collector struct {

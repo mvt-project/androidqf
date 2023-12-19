@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
-	"github.com/mvt/androidqf/acquisition"
-	"github.com/mvt/androidqf/adb"
-	"github.com/mvt/androidqf/log"
-	"github.com/mvt/androidqf/modules"
+	"github.com/mvt-project/androidqf/acquisition"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/log"
+	"github.com/mvt-project/androidqf/modules"
 )
 
 func init() {

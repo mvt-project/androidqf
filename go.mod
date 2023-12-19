@@ -1,4 +1,4 @@
-module github.com/mvt/androidqf
+module github.com/mvt-project/androidqf
 
 go 1.20
 

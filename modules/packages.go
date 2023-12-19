@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/manifoldco/promptui"
-	"github.com/mvt/androidqf/acquisition"
-	"github.com/mvt/androidqf/adb"
-	"github.com/mvt/androidqf/log"
-	"github.com/mvt/androidqf/utils"
+	"github.com/mvt-project/androidqf/acquisition"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/log"
+	"github.com/mvt-project/androidqf/utils"
 )
 
 const (

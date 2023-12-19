@@ -17,9 +17,9 @@ import (
 	"github.com/botherder/go-savetime/hashes"
 	rt "github.com/botherder/go-savetime/runtime"
 	"github.com/google/uuid"
-	"github.com/mvt/androidqf/adb"
-	"github.com/mvt/androidqf/assets"
-	"github.com/mvt/androidqf/log"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/assets"
+	"github.com/mvt-project/androidqf/log"
 )
 
 // Acquisition is the main object containing all phone information
