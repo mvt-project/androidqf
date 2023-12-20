@@ -73,6 +73,8 @@ func (a *Acquisition) Complete() {
 		a.Collector.Clean()
 	}
 
+	// Stop ADB server before trying to remove extracted assets
+	adb.Client.KillServer()
 	assets.CleanAssets()
 }
 
