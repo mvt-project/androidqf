@@ -1,9 +1,13 @@
 BUILD_FOLDER  = "$(shell pwd)/build"
 ASSETS_FOLDER = "$(shell pwd)/assets"
 
+VERSION := $(shell git describe --always --long --dirty)
+PACKAGE_PATH = github.com/mvt-project/androidqf
+
 FLAGS_LINUX   = GOOS=linux
 FLAGS_DARWIN  = GOOS=darwin
 FLAGS_WINDOWS = GOOS=windows GOARCH=amd64 CC=i686-w64-mingw32-gcc CGO_ENABLED=1
+LD_FLAGS = -s -w -X ${PACKAGE_PATH}/utils.Version=${VERSION}
 
 # Set if binaries should be compressed with UPX. Zero disables UPX
 UPX_COMPRESS ?= "0"
@@ -57,7 +61,7 @@ windows:
 
 	@echo "[builder] Building Windows binary for amd64"
 
-	$(FLAGS_WINDOWS) go build --ldflags '-s -w -extldflags "-static"' -o $(BUILD_FOLDER)/androidqf_windows_amd64.exe .
+	$(FLAGS_WINDOWS) go build --ldflags '$(LD_FLAGS) -extldflags "-static"' -o $(BUILD_FOLDER)/androidqf_windows_amd64.exe .
 
 	@echo "[builder] Done!"
 
@@ -75,8 +79,8 @@ darwin:
 
 	@echo "[builder] Building Darwin binary for amd64"
 
-	$(FLAGS_DARWIN) GOARCH=amd64 go build --ldflags '-s -w' -o $(BUILD_FOLDER)/androidqf_darwin_amd64 .
-	$(FLAGS_DARWIN) GOARCH=arm64 go build --ldflags '-s -w' -o $(BUILD_FOLDER)/androidqf_darwin_arm64 .
+	$(FLAGS_DARWIN) GOARCH=amd64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_darwin_amd64 .
+	$(FLAGS_DARWIN) GOARCH=arm64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_darwin_arm64 .
 
 	@echo "[builder] Done!"
 
@@ -94,8 +98,8 @@ linux:
 
 	@echo "[builder] Building Linux binary for amd64"
 
-	@$(FLAGS_LINUX) GOARCH=amd64 go build --ldflags '-s -w' -o $(BUILD_FOLDER)/androidqf_linux_amd64 .
-	@$(FLAGS_LINUX) GOARCH=arm64 go build --ldflags '-s -w' -o $(BUILD_FOLDER)/androidqf_linux_arm64 .
+	@$(FLAGS_LINUX) GOARCH=amd64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_linux_amd64 .
+	@$(FLAGS_LINUX) GOARCH=arm64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_linux_arm64 .
 
 	@echo "[builder] Done!"
 

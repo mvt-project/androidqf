@@ -16,6 +16,7 @@ import (
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/modules"
+	"github.com/mvt-project/androidqf/utils"
 )
 
 func init() {
@@ -39,6 +40,7 @@ func systemPause() {
 func main() {
 	var err error
 	var verbose bool
+	var version_flag bool
 	var list_modules bool
 	var fast bool
 	var module string
@@ -52,9 +54,16 @@ func main() {
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
 	flag.StringVar(&module, "m", "", "Only execute a specific module")
+	flag.BoolVar(&version_flag, "version", false, "Show version")
+
 	flag.Parse()
 	if verbose {
 		log.SetLogLevel(log.DEBUG)
+	}
+
+	if version_flag {
+		log.Infof("AndroidQF version: %s", utils.Version)
+		os.Exit(0)
 	}
 
 	if list_modules {
@@ -66,7 +75,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// TODO: add version information
 	log.Debug("Starting androidqf")
 	adb.Client, err = adb.New()
 	if err != nil {
