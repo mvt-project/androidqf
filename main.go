@@ -75,7 +75,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// TODO: add version information
 	log.Debug("Starting androidqf")
 	adb.Client, err = adb.New()
 	if err != nil {
