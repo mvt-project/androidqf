@@ -20,17 +20,19 @@ import (
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
+	"github.com/mvt-project/androidqf/utils"
 )
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
-	UUID        string         `json:"uuid"`
-	StoragePath string         `json:"storage_path"`
-	Started     time.Time      `json:"started"`
-	Completed   time.Time      `json:"completed"`
-	Collector   *adb.Collector `json:"collector"`
-	TmpDir      string         `json:"tmp_dir"`
-	Cpu         string         `json:"cpu"`
+	UUID        			string         `json:"uuid"`
+	AndroidQFVersion		string         `json:"androidqf_version"`
+	StoragePath 			string         `json:"storage_path"`
+	Started     			time.Time      `json:"started"`
+	Completed   			time.Time      `json:"completed"`
+	Collector   			*adb.Collector `json:"collector"`
+	TmpDir      			string         `json:"tmp_dir"`
+	Cpu         			string         `json:"cpu"`
 }
 
 // New returns a new Acquisition instance.
@@ -38,6 +40,7 @@ func New() (*Acquisition, error) {
 	acq := Acquisition{
 		UUID:    uuid.New().String(),
 		Started: time.Now().UTC(),
+		AndroidQFVersion: utils.Version,
 	}
 
 	acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
