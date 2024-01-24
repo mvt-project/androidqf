@@ -91,6 +91,13 @@ func (a *ADB) Backup(arg string) error {
 	return cmd.Run()
 }
 
+// Bugreport generates a bugreport of the the device
+func (a *ADB) Bugreport() error {
+	cmd := exec.Command(a.ExePath, "bugreport", "bugreport.zip")
+	err := cmd.Run()
+	return err
+}
+
 // check if file exists
 func (a *ADB) FileExists(path string) (bool, error) {
 	out, err := a.Shell("[", "-f", path, "] || echo 1")

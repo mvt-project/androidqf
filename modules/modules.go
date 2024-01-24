@@ -21,6 +21,7 @@ type Module interface {
 func List() []Module {
 	return []Module{
 		NewBackup(),
+		NewBugreport(),
 		NewPackages(),
 		NewGetProp(),
 		NewDumpsys(),
