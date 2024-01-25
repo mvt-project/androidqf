@@ -44,6 +44,7 @@ func main() {
 	var list_modules bool
 	var fast bool
 	var module string
+    var output_folder string
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
@@ -54,6 +55,8 @@ func main() {
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
 	flag.StringVar(&module, "m", "", "Only execute a specific module")
+    flag.StringVar(&output_folder, "output", "", "Output folder")
+    flag.StringVar(&output_folder, "o", "", "Output folder")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
 
 	flag.Parse()
@@ -92,14 +95,14 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
-	acq, err := acquisition.New()
+	acq, err := acquisition.New(output_folder)
 	if err != nil {
 		log.Debug(err)
 		log.FatalExc("Impossible to initialise the acquisition", err)
 	}
 
 	// Start acquisitions
-	log.Info(fmt.Sprintf("Started new acquisition %s", acq.UUID))
+	log.Info(fmt.Sprintf("Started new acquisition in %s", acq.StoragePath))
 
 	mods := modules.List()
 	for _, mod := range mods {

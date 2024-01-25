@@ -36,18 +36,30 @@ type Acquisition struct {
 }
 
 // New returns a new Acquisition instance.
-func New() (*Acquisition, error) {
+func New(path string) (*Acquisition, error) {
 	acq := Acquisition{
 		UUID:    uuid.New().String(),
 		Started: time.Now().UTC(),
 		AndroidQFVersion: utils.Version,
 	}
 
-	acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
-	err := os.Mkdir(acq.StoragePath, 0o755)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
-	}
+    if path == "" {
+        acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
+    } else {
+        acq.StoragePath = path
+    }
+    // Check if the path exist
+    stat, err := os.Stat(acq.StoragePath)
+    if os.IsNotExist(err) {
+        err := os.Mkdir(acq.StoragePath, 0o755)
+        if err != nil {
+            return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+        }
+    } else {
+        if !stat.IsDir() {
+            return nil, fmt.Errorf("path exist and is not a folder")
+        }
+    }
 
 	// Get system information first to get tmp folder
 	err = acq.GetSystemInformation()
