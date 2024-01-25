@@ -44,7 +44,8 @@ func main() {
 	var list_modules bool
 	var fast bool
 	var module string
-    var output_folder string
+	var output_folder string
+	var serial string
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
@@ -55,8 +56,10 @@ func main() {
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
 	flag.StringVar(&module, "m", "", "Only execute a specific module")
-    flag.StringVar(&output_folder, "output", "", "Output folder")
-    flag.StringVar(&output_folder, "o", "", "Output folder")
+	flag.StringVar(&output_folder, "output", "", "Output folder")
+	flag.StringVar(&output_folder, "o", "", "Output folder")
+	flag.StringVar(&serial, "serial", "", "Phone serial number")
+	flag.StringVar(&serial, "s", "", "Phone serial number")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
 
 	flag.Parse()
@@ -79,9 +82,9 @@ func main() {
 	}
 
 	log.Debug("Starting androidqf")
-	adb.Client, err = adb.New()
+	adb.Client, err = adb.New(serial)
 	if err != nil {
-		log.Fatal("Impossible to initialize adb")
+		log.Fatal("Impossible to initialize adb: ", err)
 	}
 
 	// Initialization

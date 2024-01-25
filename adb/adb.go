@@ -11,17 +11,19 @@ import (
 	"os/exec"
 	"strings"
 
+	saveSlice "github.com/botherder/go-savetime/slice"
 	"github.com/mvt-project/androidqf/log"
 )
 
 type ADB struct {
 	ExePath string
+	Serial  string
 }
 
 var Client *ADB
 
 // New returns a new ADB instance.
-func New() (*ADB, error) {
+func New(serial string) (*ADB, error) {
 	adb := ADB{}
 	err := adb.findExe()
 	if err != nil {
@@ -32,7 +34,67 @@ func New() (*ADB, error) {
 
 	log.Debug("Killing existing ADB server if running")
 	adb.KillServer()
+
+	// Managing devices
+	devices, err := adb.Devices()
+	if err != nil {
+		return nil, err
+	}
+
+	serial = strings.TrimSpace(serial)
+	if len(devices) == 0 {
+		return nil, fmt.Errorf("no devices connected to adb")
+	}
+	if serial != "" {
+		// Check that the serial match one of the devices
+		// Can be replace with the go package slices in 1.21
+		if !saveSlice.ContainsNoCase(devices, serial) {
+			// Serial is not an existing device
+			return nil, fmt.Errorf("serial %s not found in the device list", serial)
+		}
+		adb.Serial = serial
+	} else {
+		// Problem if multiple devices
+		if len(devices) > 1 {
+			return nil, fmt.Errorf("multiple devices connected, please provide a serial number")
+		}
+		adb.Serial = ""
+	}
+
 	return &adb, nil
+}
+
+// List existing devices
+func (a *ADB) Devices() ([]string, error) {
+	var devices []string
+	out, err := exec.Command(a.ExePath, "devices").Output()
+	if err != nil {
+		return devices, fmt.Errorf("failed to use the adb executable: %v",
+			err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, s := range lines[1:] {
+		dev := strings.Split(s, "\t")
+		if len(dev) == 2 {
+			devices = append(devices, strings.TrimSpace(dev[0]))
+		}
+	}
+
+	return devices, nil
+}
+
+// Run a command to the given phone using exec
+// Returns string and/or error
+func (a *ADB) Exec(args ...string) ([]byte, error) {
+	if a.Serial == "" {
+		return exec.Command(a.ExePath, args...).Output()
+	} else {
+		var params []string
+		params = append(params, "-s", a.Serial)
+		params = append(params, args...)
+		return exec.Command(a.ExePath, params...).Output()
+	}
 }
 
 // GetState returns the output of `adb get-state`.
@@ -40,7 +102,7 @@ func New() (*ADB, error) {
 // will exit with status 1.
 func (a *ADB) GetState() (string, error) {
 	log.Debug("Starting get-state")
-	out, err := exec.Command(a.ExePath, "get-state").Output()
+	out, err := a.Exec("get-state")
 	if err != nil {
 		log.Debug("get-state failed")
 		return "", err
@@ -53,7 +115,7 @@ func (a *ADB) GetState() (string, error) {
 // Shell executes a shell command through adb.
 func (a *ADB) Shell(cmd ...string) (string, error) {
 	fullCmd := append([]string{"shell"}, cmd...)
-	out, err := exec.Command(a.ExePath, fullCmd...).Output()
+	out, err := a.Exec(fullCmd...)
 	if err != nil {
 		if out == nil {
 			return "", err
@@ -67,7 +129,7 @@ func (a *ADB) Shell(cmd ...string) (string, error) {
 
 // Pull downloads a file from the device to a local path.
 func (a *ADB) Pull(remotePath, localPath string) (string, error) {
-	out, err := exec.Command(a.ExePath, "pull", remotePath, localPath).Output()
+	out, err := a.Exec("pull", remotePath, localPath)
 	if err != nil {
 		return string(out), err
 	}
@@ -77,7 +139,7 @@ func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 
 // Push a file on the phone
 func (a *ADB) Push(localPath, remotePath string) (string, error) {
-	out, err := exec.Command(a.ExePath, "push", localPath, remotePath).Output()
+	out, err := a.Exec("push", localPath, remotePath)
 	if err != nil {
 		return string(out), err
 	}
