@@ -58,9 +58,9 @@ func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {
 	if acq.TmpDir != "/data/local/tmp/" {
 		folders = append(folders, acq.TmpDir)
 	}
-    if acq.SdCard != "/sdcard/" {
+	if acq.SdCard != "/sdcard/" {
 		folders = append(folders, acq.SdCard)
-    }
+	}
 
 	for _, folder := range folders {
 		var out []adb.FileInfo

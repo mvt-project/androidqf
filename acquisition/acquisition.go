@@ -25,42 +25,42 @@ import (
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
-	UUID        			string         `json:"uuid"`
-	AndroidQFVersion		string         `json:"androidqf_version"`
-	StoragePath 			string         `json:"storage_path"`
-	Started     			time.Time      `json:"started"`
-	Completed   			time.Time      `json:"completed"`
-	Collector   			*adb.Collector `json:"collector"`
-	TmpDir      			string         `json:"tmp_dir"`
-    SdCard                  string         `json:"sdcard"`
-	Cpu         			string         `json:"cpu"`
+	UUID             string         `json:"uuid"`
+	AndroidQFVersion string         `json:"androidqf_version"`
+	StoragePath      string         `json:"storage_path"`
+	Started          time.Time      `json:"started"`
+	Completed        time.Time      `json:"completed"`
+	Collector        *adb.Collector `json:"collector"`
+	TmpDir           string         `json:"tmp_dir"`
+	SdCard           string         `json:"sdcard"`
+	Cpu              string         `json:"cpu"`
 }
 
 // New returns a new Acquisition instance.
 func New(path string) (*Acquisition, error) {
 	acq := Acquisition{
-		UUID:    uuid.New().String(),
-		Started: time.Now().UTC(),
+		UUID:             uuid.New().String(),
+		Started:          time.Now().UTC(),
 		AndroidQFVersion: utils.Version,
 	}
 
-    if path == "" {
-        acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
-    } else {
-        acq.StoragePath = path
-    }
-    // Check if the path exist
-    stat, err := os.Stat(acq.StoragePath)
-    if os.IsNotExist(err) {
-        err := os.Mkdir(acq.StoragePath, 0o755)
-        if err != nil {
-            return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
-        }
-    } else {
-        if !stat.IsDir() {
-            return nil, fmt.Errorf("path exist and is not a folder")
-        }
-    }
+	if path == "" {
+		acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
+	} else {
+		acq.StoragePath = path
+	}
+	// Check if the path exist
+	stat, err := os.Stat(acq.StoragePath)
+	if os.IsNotExist(err) {
+		err := os.Mkdir(acq.StoragePath, 0o755)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+		}
+	} else {
+		if !stat.IsDir() {
+			return nil, fmt.Errorf("path exist and is not a folder")
+		}
+	}
 
 	// Get system information first to get tmp folder
 	err = acq.GetSystemInformation()
@@ -109,25 +109,25 @@ func (a *Acquisition) GetSystemInformation() error {
 		return fmt.Errorf("failed to run `adb shell env`: %v", err)
 	}
 	a.TmpDir = "/data/local/tmp/"
-    a.SdCard = "/sdcard/"
+	a.SdCard = "/sdcard/"
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "TMPDIR=") {
 			a.TmpDir = strings.TrimPrefix(line, "TMPDIR=")
 		}
-        if strings.HasPrefix(line, "EXTERNAL_STORAGE=") {
-            a.SdCard = strings.TrimPrefix(line, "EXTERNAL_STORAGE=")
-        }
-    }
-    if !strings.HasSuffix(a.TmpDir, "/") {
-        a.TmpDir = a.TmpDir + "/"
-    }
-    if !strings.HasSuffix(a.SdCard, "/") {
-        a.SdCard = a.SdCard + "/"
-    }
+		if strings.HasPrefix(line, "EXTERNAL_STORAGE=") {
+			a.SdCard = strings.TrimPrefix(line, "EXTERNAL_STORAGE=")
+		}
+	}
+	if !strings.HasSuffix(a.TmpDir, "/") {
+		a.TmpDir = a.TmpDir + "/"
+	}
+	if !strings.HasSuffix(a.SdCard, "/") {
+		a.SdCard = a.SdCard + "/"
+	}
 
 	log.Debugf("Found temp folder at %s", a.TmpDir)
-    log.Debugf("Found sdcard at %s", a.SdCard)
+	log.Debugf("Found sdcard at %s", a.SdCard)
 	return nil
 }
 

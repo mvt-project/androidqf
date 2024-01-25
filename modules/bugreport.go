@@ -32,7 +32,6 @@ func (b *Bugreport) InitStorage(storagePath string) error {
 }
 
 func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
-
 	log.Info(
 		"Generating a bugreport for the device...",
 	)
