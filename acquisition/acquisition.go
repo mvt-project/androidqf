@@ -32,6 +32,7 @@ type Acquisition struct {
 	Completed   			time.Time      `json:"completed"`
 	Collector   			*adb.Collector `json:"collector"`
 	TmpDir      			string         `json:"tmp_dir"`
+    SdCard                  string         `json:"sdcard"`
 	Cpu         			string         `json:"cpu"`
 }
 
@@ -93,24 +94,6 @@ func (a *Acquisition) Complete() {
 	assets.CleanAssets()
 }
 
-/*func (a *Acquisition) initADB() error {
-	var err error
-	a.ADB, err = adb.New()
-	if err != nil {
-		log.Debugf("failed to initialize adb: %v", err)
-		return fmt.Errorf("failed to initialize adb: %v", err)
-	}
-
-	_, err = a.ADB.GetState()
-	if err != nil {
-		log.Debugf("failed to get adb state: %v", err)
-		return fmt.Errorf("failed to get adb state (are you sure a device is connected?): %v",
-			err)
-	}
-
-	return nil
-}*/
-
 func (a *Acquisition) GetSystemInformation() error {
 	// Get architecture information
 	out, err := adb.Client.Shell("getprop ro.product.cpu.abi")
@@ -125,18 +108,26 @@ func (a *Acquisition) GetSystemInformation() error {
 	if err != nil {
 		return fmt.Errorf("failed to run `adb shell env`: %v", err)
 	}
-	tmpFolder := ""
+	a.TmpDir = "/data/local/tmp/"
+    a.SdCard = "/sdcard/"
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "TMPDIR=") {
-			tmpFolder = strings.TrimPrefix(line, "TMPDIR=")
+			a.TmpDir = strings.TrimPrefix(line, "TMPDIR=")
 		}
-	}
-	if tmpFolder == "" {
-		tmpFolder = "/data/local/tmp"
-	}
-	a.TmpDir = tmpFolder
-	log.Debugf("Found temp folder/ %s", tmpFolder)
+        if strings.HasPrefix(line, "EXTERNAL_STORAGE=") {
+            a.SdCard = strings.TrimPrefix(line, "EXTERNAL_STORAGE=")
+        }
+    }
+    if !strings.HasSuffix(a.TmpDir, "/") {
+        a.TmpDir = a.TmpDir + "/"
+    }
+    if !strings.HasSuffix(a.SdCard, "/") {
+        a.SdCard = a.SdCard + "/"
+    }
+
+	log.Debugf("Found temp folder at %s", a.TmpDir)
+    log.Debugf("Found sdcard at %s", a.SdCard)
 	return nil
 }
 
