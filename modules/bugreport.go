@@ -57,7 +57,7 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 		return err
 	}
 
-	log.Info("Bugreport completed!")
+	log.Debug("Bugreport completed!")
 
 	return nil
 }
