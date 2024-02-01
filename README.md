@@ -2,9 +2,11 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/mvt-project/androidqf)](https://goreportcard.com/report/github.com/mvt-project/androidqf)
 
-androidqf (Android Quick Forensics) is a portable tool to simplify the acquisition of relevant forensic data from Android devices. It is the successor of [Snoopdroid](https://github.com/mvt/snoopdroid), re-written in Go and leveraging official adb binaries. androidqf was originally developed by [Claudio Guarnieri](https://github.com/botherder/) and is now maintained by [Amnesty International's Security Lab](https://amnesty.tech/).
+androidqf (Android Quick Forensics) is a portable tool to simplify the acquisition of relevant forensic data from Android devices.
 
 androidqf is intended to provide a simple and portable cross-platform utility to quickly acquire data from Android devices. It is similar in functionality to [mvt-android](https://github.com/mvt-project/mvt). However, contrary to MVT, androidqf is designed to be easily run by non-tech savvy users as well. Data extracted by androidqf can be analyzed with [MVT](https://github.com/mvt-project/mvt).
+
+> This repo is a fork of [androidqf](https://github.com/botherder/androidqf) maintained by [Amnesty International's Security Lab](https://securitylab.amnesty.org/). The androidqf tool was originally developed by [Claudio Guarnieri](https://github.com/botherder/).
 
 [Download androidqf](https://github.com/mvt-project/androidqf/releases/latest)
 
