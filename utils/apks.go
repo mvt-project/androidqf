@@ -248,42 +248,42 @@ func ValidCertificates() []string {
 		"b79145d79f8f14c26c68ecbb278d56ae4365b161", // OnePlus
 		"cfeb888c0785ded885121c301bbcfaa505a0fe4c", // OnePlus
 		"59fb63b71fce95746ceb1e1acb2c2e45e5ff1350", // Aegis
-        "4d35d46444e950e98e1b908489374d7dea0f9a85", // Bandcamp
-        "754185cd4cdfde598748b043048bfe59a17264c2", // BitWarden
-        "755bd4c655428aff2805d053df2a58a84cd378c8", // BoxCryptor
-        "84715a43003b4e109ad531da5f99dac0ab5bf88f", // Briar
-        "35b6eb5804395e071f16e741034b6f739d7069b9", // Bumble
-        "5de8eb4098d2e35a2c3951a169bf9e19a680e2d4", // Deezer
-        "4d8c4d3ada2546de51d59a1f3fa90484723bc669", // DeltaChat
-        "56a8fc4417e41e0eb0b24e8b17ee1f447d0381e5", // Duo Security
-        "c93e027b9f69ca7b401185594977bc64b8559919", // Element
-        "17ba15c1af55d925f98b99cea4375d4cdf4c174b", // Fairemail
-        "d26fa9b92b706ab6f186a52789d86a61a383269c", // Garmin
-        "7d5f1d2ace98a03b2c3a1a6b0dcb2b7f5d856f67", // Hinge
-        "0e9ddf68ed8a0ba71983a8ab96fb6ef722fd1f71", // Instagram
-        "0f1f3252cba1c94ddd6186dad5a035e96c6ee5e3", // K-9/Thunderbird
-        "31ca5b5ca339fed586d3d8c37a6a40ef72039615", // KeePassDX
-        "2253c720c7f3796d632bdce820d4f20d6de0bcf8", // Lookout Security
-        "55590f7251d34ae45159612ed02188ef09c145ac", // Lookout Security
-        "fbb0becdea8a445f3a4762659f207def66cc4cad", // Microsoft Teams
-        "920f4876a6a57b4a6a2f4ccaf65f7d29ce26ff2c", // Mozilla
-        "bdf192158fea2c0fac797a437f9f88b9d453d072", // Mozilla
-        "5ef5ae4028c98492e2b2ade34fff286605d5068f", // Mozilla
-        "1930fd34123c5493d7e54659548637d163678b69", // NY Times
-        "2542b48f9c8969e70a08d7a1b21b9a9912305456", // OK Cupid
-        "2272f63d7da7615b62cdf17ff646bc3a109b23e6", // Ooni
-        "fe902f50aa00c627d51048da76601110d52a70c8", // OpenVPN
-        "49a9ace0bfee7bb91506d7921f93a47808cb62ab", // OSMAnd
-        "20f01c74b8abd055a53d57ad039b01aa430154a6", // Perry Street Sw (scruff)
-        "03bdac0e8f864e074e84d706fc8c3f16860a22f6", // Plenty of Fish
-        "51d8e210264a999a2d0babe4b201eb85582ed050", // Jigsaw
-        "52f308e2848ebf1fea098a565d54a17b1ca9747d", // Revolut
-        "fbc6ddf01efcfc02280217094fdf97a2deb71431", // LEAP
-        "13c9e5900d437089b72324b0260f3b5a0b4e027b", // SoundCloud
-        "8ed1ab9e5b15fa967f30d6a3a9c17be0429ab01d", // Tella
-        "4a4271a5234894d8366b8bf4e2176688d11160fd", // Tidal
-        "609823baed399d9a97138d636550ebe82014cf2e", // Tinder
-        "a60ca98776fcbf2619abca20de05b1eea0480e83", // TunnelbearVPN
+		"4d35d46444e950e98e1b908489374d7dea0f9a85", // Bandcamp
+		"754185cd4cdfde598748b043048bfe59a17264c2", // BitWarden
+		"755bd4c655428aff2805d053df2a58a84cd378c8", // BoxCryptor
+		"84715a43003b4e109ad531da5f99dac0ab5bf88f", // Briar
+		"35b6eb5804395e071f16e741034b6f739d7069b9", // Bumble
+		"5de8eb4098d2e35a2c3951a169bf9e19a680e2d4", // Deezer
+		"4d8c4d3ada2546de51d59a1f3fa90484723bc669", // DeltaChat
+		"56a8fc4417e41e0eb0b24e8b17ee1f447d0381e5", // Duo Security
+		"c93e027b9f69ca7b401185594977bc64b8559919", // Element
+		"17ba15c1af55d925f98b99cea4375d4cdf4c174b", // Fairemail
+		"d26fa9b92b706ab6f186a52789d86a61a383269c", // Garmin
+		"7d5f1d2ace98a03b2c3a1a6b0dcb2b7f5d856f67", // Hinge
+		"0e9ddf68ed8a0ba71983a8ab96fb6ef722fd1f71", // Instagram
+		"0f1f3252cba1c94ddd6186dad5a035e96c6ee5e3", // K-9/Thunderbird
+		"31ca5b5ca339fed586d3d8c37a6a40ef72039615", // KeePassDX
+		"2253c720c7f3796d632bdce820d4f20d6de0bcf8", // Lookout Security
+		"55590f7251d34ae45159612ed02188ef09c145ac", // Lookout Security
+		"fbb0becdea8a445f3a4762659f207def66cc4cad", // Microsoft Teams
+		"920f4876a6a57b4a6a2f4ccaf65f7d29ce26ff2c", // Mozilla
+		"bdf192158fea2c0fac797a437f9f88b9d453d072", // Mozilla
+		"5ef5ae4028c98492e2b2ade34fff286605d5068f", // Mozilla
+		"1930fd34123c5493d7e54659548637d163678b69", // NY Times
+		"2542b48f9c8969e70a08d7a1b21b9a9912305456", // OK Cupid
+		"2272f63d7da7615b62cdf17ff646bc3a109b23e6", // Ooni
+		"fe902f50aa00c627d51048da76601110d52a70c8", // OpenVPN
+		"49a9ace0bfee7bb91506d7921f93a47808cb62ab", // OSMAnd
+		"20f01c74b8abd055a53d57ad039b01aa430154a6", // Perry Street Sw (scruff)
+		"03bdac0e8f864e074e84d706fc8c3f16860a22f6", // Plenty of Fish
+		"51d8e210264a999a2d0babe4b201eb85582ed050", // Jigsaw
+		"52f308e2848ebf1fea098a565d54a17b1ca9747d", // Revolut
+		"fbc6ddf01efcfc02280217094fdf97a2deb71431", // LEAP
+		"13c9e5900d437089b72324b0260f3b5a0b4e027b", // SoundCloud
+		"8ed1ab9e5b15fa967f30d6a3a9c17be0429ab01d", // Tella
+		"4a4271a5234894d8366b8bf4e2176688d11160fd", // Tidal
+		"609823baed399d9a97138d636550ebe82014cf2e", // Tinder
+		"a60ca98776fcbf2619abca20de05b1eea0480e83", // TunnelbearVPN
 	}
 	return certs
 }
