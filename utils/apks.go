@@ -93,17 +93,14 @@ func ValidCertificates() []string {
 		"836f4c878866ba3f4f2b70dc5a48f882512adb6f", // Transferwise
 		"836f4c878866ba3f4f2b70dc5a48f882512adb6f", // Pinterest
 		"b6a74dbcb894b0f73d8c485c72eb1247a8f027ca", // Strava
-		"29a4514c3b90b90cb6badc79614262195c6a5747", // Google
 		"6bace2778cc5c105b2a44250bdcfff5c4d5c403a", // Paypal
 		"d8e1ee3ff3a7f6ec46883c898032fe03c23eec20", // Protonmail
 		"a560a9d18f2400580016a80e65031ee9accc9942", // Google
 		"b8d8fd4418b35fc90666baee4a9b66e71bd167a4", // Google
-		"706271041202f80ce2ab09dd7c22959d2d92db0c", // Google
 		"1cf0e08999ac70dc96bc7fb8e1b2b063feb8e15d", // Audible
 		"28391bf2d8cf1c39d0133d7f8a989e7a17c62c11", // Google
 		"868d38d12ddf7d9926c6ab50ad2c294d53a7f6bd", // Azure
 		"363e09e9b74557cef8b80d2f020a0719e0f88a9d", // Lastpass
-		"b8d8fd4418b35fc90666baee4a9b66e71bd167a4", // Google
 		"1f387cb25e0069efca490ade28c060e09d37dd45", // Google
 		"af24b7f3eff9d97ae6d8a84664e0e98888636110", // Google
 		"29a4514c3b90b90cb6badc79614262195c6a5747", // Fitbit
@@ -134,15 +131,12 @@ func ValidCertificates() []string {
 		"afb0fed5eeaebdd86f56a97742f4b6b33ef59875", // Google
 		"9ca91f9e704d630ef67a23f52bf1577a92b9ca5d", // Google
 		"829124884e9eddf2efff682ea9722fbda18f877b", // Google
-		"5308e7b4ee7ffb2f46818d6020218c90a81d7408", // Google
 		"5c6af9a0f3e3380e8776390c784f43da755d713e", // Al Jazeera
 		"93cab1bf42c302c98fcc103c0bcd66599dfae3b0", // Periscope
 		"139f0f7a8f1ff2da40093a2447cbc6f762eee873", // CNN
 		"f677f8d7e4571946ccf65e0e80e22cb140d1db3b", // WordPress
 		"2627d80f7d3eda7abb13b67627fd2499b373f860", // WordReference
 		"d6a06039c0213121c631bae619f674005f29d638", // Google
-		"aad401921b75467698d4a4eced4604c7f7442af7", // Samsuing Billing
-		"9fa50d00b0f4bdaa5d8f371bea982fb598b7e697", // Google
 		"3024d8c57686c7305301658387fc0c722ddf7d5a", // BBC
 		"f1b31116760238c0cefd391cfb57572ab2da9f16", // TrainLine
 		"caeb0b8799edba54d60cc7bcf2c15d1a98560058", // Guardian
@@ -157,7 +151,6 @@ func ValidCertificates() []string {
 		"d4be19f45242827e5cd152e1c80c42e4ef4b7651", // Microsoft
 		"b2f6d2219c12efb01b76e87f87a9b94286ba2cc9", // Trello
 		"9c9fbe258a146be83a4a0f1cb64be96a13790324", // Booking
-		"4a296f252841c126e8266122863393e1a107600d", // Google
 		"3e23b17f805bd002689a2de47bc5eab9d0a172bc", // Huawei
 		"059e2480adf8c1c5b3d9ec007645ccfc442a23c5", // Huawei
 		"42119eb6dbb8f078848706adf6bb5f9aa0026956", // Cisco Webex
@@ -192,17 +185,14 @@ func ValidCertificates() []string {
 		"f93d964d329018041c572086ad7cf809d607bb70", // Google
 		"39774dd8e2e6dcb270f37679154c05e4bd3eae53", // Samsung
 		"0b08f9dd57739e518e0e9dd1d90a492eab704ad5", // Vodafone
-		"39774dd8e2e6dcb270f37679154c05e4bd3eae53", // Samsung
 		"fc0e3e8a6bf05fe50398fa54428aead3d56a70d0", // Huawei
 		"301ef8635847f1e3ba585db5388c00496146956d", // Huawei
 		"ad05459c96257e2de8c071308e5615876fad3a17", // Huawei
-		"fc0e3e8a6bf05fe50398fa54428aead3d56a70d0", // Huawei
 		"223afa7747e5b1f8c09deb9aa92a9aa55bf81e45", // Huawei
 		"b34a493a861844f93f174886a0f6440e5d79207b", // Huawei
 		"d13b97a3750a155ec66dd04c39afb69305dc64b5", // Huawei
 		"6e91a635a9813ccb7900bb02f1c9a10d11dff903", // Huawei
 		"b60b177956b81c1d635333e4688f02771cd9ebb3", // Amazon
-		"fc0e3e8a6bf05fe50398fa54428aead3d56a70d0", // Huawei
 		"636d73f83f9638cbf3e414b8459a45db638d3d5f", // Huawei
 		"50d3678a2f3340af4b9775251d1cdf6d246afd13", // Huawei
 		"c2a4e59ef0ab8081c671b28d89a8586647b5bf3e", // Slack
@@ -218,7 +208,6 @@ func ValidCertificates() []string {
 		"fba5874b60d6f6a11a02326c3b692230180043d2", // Vodafone
 		"e9b2a3d9164cabd71248d3ab5c32a5790773ea67", // WeTransfer
 		"02135851ea78c75afd65254a429bacdd39b94952", // Threema
-		"0b08f9dd57739e518e0e9dd1d90a492eab704ad5", // Vodafone
 		"1bcf3af30d77878256d4a56c97622df8bd6a2624", // Android
 		"74aa1702e714941be481e1f7ce4a8f779c19dcea", // NextCloud
 		"0ac1169ae6cead75264c725febd8e8d941f25e31", // Truecaller
@@ -237,7 +226,6 @@ func ValidCertificates() []string {
 		"81fa16e36f766837f0ea8b7f548d77ab9c704a46", // Huawei
 		"4ad6018df2eda1af8eaa966bdb81008e7d1020a0", // Huawei
 		"83c085601d826495e12eb839dc3f595f306584c3", // Huawei
-		"301ef8635847f1e3ba585db5388c00496146956d", // Huawei
 		"578ef3e87540a95893085d96c18d191be4daddce", // Huawei
 		"e346cffd7a014659ebaeaf56b7b55d470d02d976", // Huawei
 		"6dbd2504c150821ecaf545fcc4fe675130c6f479", // Huawei
@@ -259,6 +247,43 @@ func ValidCertificates() []string {
 		"a024f959a429f1798f57976c57463d7deae3ea32", // Huawei
 		"b79145d79f8f14c26c68ecbb278d56ae4365b161", // OnePlus
 		"cfeb888c0785ded885121c301bbcfaa505a0fe4c", // OnePlus
+		"59fb63b71fce95746ceb1e1acb2c2e45e5ff1350", // Aegis
+		"4d35d46444e950e98e1b908489374d7dea0f9a85", // Bandcamp
+		"754185cd4cdfde598748b043048bfe59a17264c2", // BitWarden
+		"755bd4c655428aff2805d053df2a58a84cd378c8", // BoxCryptor
+		"84715a43003b4e109ad531da5f99dac0ab5bf88f", // Briar
+		"35b6eb5804395e071f16e741034b6f739d7069b9", // Bumble
+		"5de8eb4098d2e35a2c3951a169bf9e19a680e2d4", // Deezer
+		"4d8c4d3ada2546de51d59a1f3fa90484723bc669", // DeltaChat
+		"56a8fc4417e41e0eb0b24e8b17ee1f447d0381e5", // Duo Security
+		"c93e027b9f69ca7b401185594977bc64b8559919", // Element
+		"17ba15c1af55d925f98b99cea4375d4cdf4c174b", // Fairemail
+		"d26fa9b92b706ab6f186a52789d86a61a383269c", // Garmin
+		"7d5f1d2ace98a03b2c3a1a6b0dcb2b7f5d856f67", // Hinge
+		"0e9ddf68ed8a0ba71983a8ab96fb6ef722fd1f71", // Instagram
+		"0f1f3252cba1c94ddd6186dad5a035e96c6ee5e3", // K-9/Thunderbird
+		"31ca5b5ca339fed586d3d8c37a6a40ef72039615", // KeePassDX
+		"2253c720c7f3796d632bdce820d4f20d6de0bcf8", // Lookout Security
+		"55590f7251d34ae45159612ed02188ef09c145ac", // Lookout Security
+		"fbb0becdea8a445f3a4762659f207def66cc4cad", // Microsoft Teams
+		"920f4876a6a57b4a6a2f4ccaf65f7d29ce26ff2c", // Mozilla
+		"bdf192158fea2c0fac797a437f9f88b9d453d072", // Mozilla
+		"5ef5ae4028c98492e2b2ade34fff286605d5068f", // Mozilla
+		"1930fd34123c5493d7e54659548637d163678b69", // NY Times
+		"2542b48f9c8969e70a08d7a1b21b9a9912305456", // OK Cupid
+		"2272f63d7da7615b62cdf17ff646bc3a109b23e6", // Ooni
+		"fe902f50aa00c627d51048da76601110d52a70c8", // OpenVPN
+		"49a9ace0bfee7bb91506d7921f93a47808cb62ab", // OSMAnd
+		"20f01c74b8abd055a53d57ad039b01aa430154a6", // Perry Street Sw (scruff)
+		"03bdac0e8f864e074e84d706fc8c3f16860a22f6", // Plenty of Fish
+		"51d8e210264a999a2d0babe4b201eb85582ed050", // Jigsaw
+		"52f308e2848ebf1fea098a565d54a17b1ca9747d", // Revolut
+		"fbc6ddf01efcfc02280217094fdf97a2deb71431", // LEAP
+		"13c9e5900d437089b72324b0260f3b5a0b4e027b", // SoundCloud
+		"8ed1ab9e5b15fa967f30d6a3a9c17be0429ab01d", // Tella
+		"4a4271a5234894d8366b8bf4e2176688d11160fd", // Tidal
+		"609823baed399d9a97138d636550ebe82014cf2e", // Tinder
+		"a60ca98776fcbf2619abca20de05b1eea0480e83", // TunnelbearVPN
 	}
 	return certs
 }
