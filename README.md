@@ -53,6 +53,7 @@ The following data can be extracted:
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
 | A list of files on the system. | | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
+| A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
 
 ### About optional data collection
 
