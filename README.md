@@ -40,17 +40,60 @@ Now androidqf should be executing and creating an acquisition folder at the same
 
 The following data can be extracted:
 
-1. (Optional) A full backup or backup of SMS and MMS messages.
-2. The output of the getprop shell command, providing build information and configuration parameters.
-3. All system settings.
-4. The output of the ps shell command, providing a list of all running processes.
-5. The list of system's services.
-6. A copy of all the logs from the system.
-7. The output of the dumpsys shell command, providing diagnostic information about the device.
-8. A list of all packages installed and related distribution files.
-9. (Optional) Copy of all installed APKs or of only those not marked as system apps.
-10. A list of files on the system.
-11. A copy of the files available in temp folders.
+| Data | Optional? | Output path(s) |
+|------|-----------|----------------|
+| A full backup or backup of SMS and MMS messages. | :white_check_mark: | `backup.ab` |
+| The output of the getprop shell command, providing build information and configuration parameters. | |  `getprop.txt` |
+| All system settings | | `settings_*.txt` |
+| The output of the ps shell command, providing a list of all running processes. | | `processes.txt` |
+| The list of system's services. | | `services.txt` |
+| A copy of all the logs from the system. | | `logs/`, `logcat.txt` |
+| The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
+| A list of all packages installed and related distribution files. | |  `packages.json` |
+| Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
+| A list of files on the system. | | `files.json` |
+| A copy of the files available in temp folders. | | `tmp/*` |
+
+### About optional data collection
+
+#### Backup
+
+The following options are presented when running an androidqf collection:
+
+```
+Would you like to take a backup of the device?
+...
+? Backup:
+  ▸ Only SMS
+    Everything
+    No backup
+```
+
+These options refers to data collected from the device by running the `adb backup` command in the background. If `No backup` is selected, the `adb backup` command is not run.
+
+| Option | Explanation |
+|--------|-------------|
+| Only SMS | `adb backup com.android.providers.telephony` is run. Only data from `com.android.providers.telephony` is collected. This includes the SMS database. |
+| Everything | `adb backup -all` is run. This requests backups of only apps that have explicitly allowed backups of their data via this method. Since Android 12+, this method doesn’t extract anything for almost all apps.|
+| No backup | `adb backup` is not run |
+
+### Downloading copies of apps
+
+```
+Would you like to download copies of all apps or only non-system ones?
+
+? Download:
+  ▸ All
+    Only non-system packages
+    Do not download any
+```
+
+| Option | Explanation |
+|--------|-------------|
+| All | All installed packages will be retrieved from the phone |
+| Only non-system packages | Don't download any packages listed in `adb pm list packages -s` |
+| Do not download any | Don't download any packages |
+
 
 ## Encryption & Potential Threats
 
