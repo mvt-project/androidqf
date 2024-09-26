@@ -284,6 +284,30 @@ func ValidCertificates() []string {
 		"4a4271a5234894d8366b8bf4e2176688d11160fd", // Tidal
 		"609823baed399d9a97138d636550ebe82014cf2e", // Tinder
 		"a60ca98776fcbf2619abca20de05b1eea0480e83", // TunnelbearVPN
+		"3c1e9e8403779280b465c7ba25d1ff2ae45677f1", // Alibaba
+		"021448d2c09f5ce644ce508c027215ab39e0a69a", // Alibaba
+		"2e0bf701b484205cd6bacae5bba5572e13214a60", // eInnovation (temu)
+		"fa460538222d5fde82e6e37d2e3dc6588d68a894", // Roadget (SHEIN)
+		"288501360a644bd10b98966d9cbab3ce7f998fa1", // DJI
+		"12f198c1384505b5b266012e3df0dcc225e9cb43", // EA Games
+		"4f68482d82a8a932da61b30721310e5dfa0976fa", // Innersloth (Among Us)
+		"707566f8b09b4c8bfd772e1b536d581f19bc3012", // Epic Games
+		"0571306fea7202b10cf6c41b614bf5809211745d", // Valve
+		"321187995bc7cdc2b5fc91b11a96e2baa8602c62", // Niantic
+		"f450e842186fe75cfeb0ad887ea95f8d98383b38", // Roblox
+		"456120d30cda8720255b60d0324c7d154307f525", // Supercell (Clash of Clans)
+		"3ec8cd69d71b7922e2a17445840866b26d86e283", // Tencent (PUBG)
+		"0f78de9b1d14bf6fed018347c9efca0e3fa38574", // lantern.io
+		"eefbc981428343bbddfff6b23b6bd8717351410c", // VideoLan
+		"7266e5a058b08d4c67214e681a463eabe4034a32", // WPS Office
+		"9707c52c898bf67666615c1b42d01c3465104a4d", // LibreOffice
+		"a79966c152a6b7f40707169ce9b58b50b96e1618", // Collabora Office
+		"ee36dcb4385eebfa43eb15c1ab260459a9a90801", // BitDefender
+		"056da4d3fdfe688e3938152a891fd1fe5348d09c", // Mcafee
+		"1b3c8b566d5b80541c75144a9bb16057b71dcb9d", // Avira
+		"941006ab72b5b5e29c3689f875d9f8dc85a2c801", // F-Secure
+		"e3fb91ecb1a9c23acf6431fbaceb15ac68a21831", // Mattermost
+		"8c68c13822723a2b1fa844bed340031beb1f9463", // Twitch
 	}
 	return certs
 }
