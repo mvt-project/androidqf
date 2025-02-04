@@ -151,6 +151,8 @@ func (a *Acquisition) HashFiles() error {
 		if fileInfo.IsDir() {
 			return nil
 		}
+		// Makes files read only
+		os.Chmod(filePath, 0o400)
 
 		sha256, err := hashes.FileSHA256(filePath)
 		if err != nil {
