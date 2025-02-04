@@ -1,6 +1,9 @@
 BUILD_FOLDER  = "$(shell pwd)/build"
 ASSETS_FOLDER = "$(shell pwd)/assets"
 
+.PHONY: all
+default: all ;
+
 VERSION := $(shell git describe --always --long --dirty)
 PACKAGE_PATH = github.com/mvt-project/androidqf
 
