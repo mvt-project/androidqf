@@ -88,7 +88,7 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 		len(packages),
 	)
 
-	fmt.Println("Would you like to download copies of all apps or only non-system ones?")
+	log.Info("Would you like to download copies of all apps or only non-system ones?")
 	downloadPrompt := promptui.Select{
 		Label: "Download",
 		Items: []string{apkAll, apkNotSystem, apkNone},
@@ -103,7 +103,7 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 	if download != apkNone {
 
 		// Ask if the user want to remove trusted packages
-		fmt.Println("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
+		log.Info("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
 		promptAll := promptui.Select{
 			Label: "Remove",
 			Items: []string{apkRemoveTrusted, apkKeepAll},
