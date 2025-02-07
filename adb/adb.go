@@ -23,7 +23,7 @@ type ADB struct {
 var Client *ADB
 
 // New returns a new ADB instance.
-func New(serial string) (*ADB, error) {
+func New() (*ADB, error) {
 	adb := ADB{}
 	err := adb.findExe()
 	if err != nil {
@@ -35,33 +35,41 @@ func New(serial string) (*ADB, error) {
 	log.Debug("Killing existing ADB server if running")
 	adb.KillServer()
 
-	// Managing devices
-	devices, err := adb.Devices()
+	// Confirm that we can call "adb devices" without errors
+	_, err = adb.Devices()
 	if err != nil {
 		return nil, err
+	}
+	return &adb, nil
+}
+
+func (a *ADB) SetSerial(serial string) (string, error) {
+	devices, err := a.Devices()
+	if err != nil {
+		return "", err
 	}
 
 	serial = strings.TrimSpace(serial)
 	if len(devices) == 0 {
-		return nil, fmt.Errorf("no devices connected to adb")
+		return "", fmt.Errorf("no devices detected over ADB")
 	}
+
 	if serial != "" {
 		// Check that the serial match one of the devices
 		// Can be replace with the go package slices in 1.21
 		if !saveSlice.ContainsNoCase(devices, serial) {
 			// Serial is not an existing device
-			return nil, fmt.Errorf("serial %s not found in the device list", serial)
+			return "", fmt.Errorf("serial %s not found in the device list", serial)
 		}
-		adb.Serial = serial
+		a.Serial = serial
 	} else {
 		// Problem if multiple devices
 		if len(devices) > 1 {
-			return nil, fmt.Errorf("multiple devices connected, please provide a serial number")
+			return "", fmt.Errorf("multiple devices connected, please stop AndroidQF and provide a serial number")
 		}
-		adb.Serial = ""
+		a.Serial = ""
 	}
-
-	return &adb, nil
+	return a.Serial, nil
 }
 
 // List existing devices
@@ -78,6 +86,7 @@ func (a *ADB) Devices() ([]string, error) {
 		dev := strings.Split(s, "\t")
 		if len(dev) == 2 {
 			devices = append(devices, strings.TrimSpace(dev[0]))
+			log.Debug("Found new device: ", dev[0])
 		}
 	}
 

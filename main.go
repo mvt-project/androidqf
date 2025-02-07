@@ -82,19 +82,24 @@ func main() {
 	}
 
 	log.Debug("Starting androidqf")
-	adb.Client, err = adb.New(serial)
+	adb.Client, err = adb.New()
 	if err != nil {
-		log.Fatal("Impossible to initialize adb: ", err)
+		log.Fatal("Impossible to initialize ADB: ", err)
 	}
 
 	// Initialization
 	for {
-		_, err = adb.Client.GetState()
-		if err == nil {
-			break
+		serial, err = adb.Client.SetSerial(serial)
+		if err != nil {
+			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
+		} else {
+			_, err = adb.Client.GetState()
+			if err == nil {
+				break
+			}
+			log.Debug(err)
+			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 		}
-		log.Debug(err)
-		log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 		time.Sleep(5 * time.Second)
 	}
 
