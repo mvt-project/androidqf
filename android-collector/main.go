@@ -1,8 +1,6 @@
 package main
 
-import (
-	"github.com/Te-k/android-collector/cmd"
-)
+import "github.com/mvt-project/androidqf/android-collector/cmd"
 
 func main() {
 	cmd.Execute()

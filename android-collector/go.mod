@@ -1,4 +1,4 @@
-module github.com/Te-k/android-collector
+module github.com/mvt-project/androidqf/android-collector
 
 go 1.20
 
