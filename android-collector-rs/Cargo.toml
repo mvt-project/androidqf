@@ -1,0 +1,30 @@
+[package]
+name = "android-collector-rs"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+log = "0.4.21"
+env_logger = { version = "0.11.8", features = ["auto-color"] }
+clap = { version = "4.5.35", features = ["cargo", "derive"] }
+yara-x = { version = "0.14.0" }
+globwalk = "0.9.1"
+crossbeam = "0.8"
+serde_json = { version = "1.0.140", features = ["preserve_order"] }
+serde = { version = "1.0.219", features = ["derive"] }
+jwalk-meta = "0.9"
+wild = "2.2.1"
+flume = "0.11"
+glob-sl = "0.4"
+sha2 = "0.11.0-pre.5"
+base16ct = { version = "0.2", features = ["alloc"] }
+procfs = "0.17.0"
+
+# An example of a custom profile
+[profile.release]
+strip = true      # Automatically strip symbols from the binary.
+opt-level = "z"   # Optimize for size.
+lto = true        # Enable link time optimization
+codegen-units = 1 # Reduce parallel code generation units
+panic = "abort"
