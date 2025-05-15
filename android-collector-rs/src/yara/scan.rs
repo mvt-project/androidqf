@@ -5,19 +5,18 @@ use flume::{unbounded, Receiver, Sender};
 use std::fs::canonicalize;
 use std::fs::Metadata;
 use std::io::Error;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
 
+use yara_x::{Patterns, Rule, Rules, Scanner};
+
 use crate::helper::filter::{create_filter, filter_children, Filter};
 use crate::helper::options::Options;
 use crate::helper::ErrorsType;
 use crate::yara::scan_result::{PatternJson, RuleJson, ScanResult, ScanResults, YaraEntry};
-
-use yara_x::errors::ScanError;
-use yara_x::{Patterns, Rule, Rules, Scanner};
 
 fn rules_to_json(scan_results: &mut dyn ExactSizeIterator<Item = Rule>) -> Vec<RuleJson> {
     scan_results
@@ -116,7 +115,7 @@ fn create_entry(
     }
 
     let entry: ScanResult = ScanResult::YaraEntry(YaraEntry {
-        path: path,
+        path,
         count: matched_count,
         rules: rules_result,
     });
