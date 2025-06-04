@@ -1,6 +1,7 @@
 use jwalk_meta::WalkDirGeneric;
 use sha2::{Digest, Sha256};
-use std::{fs, io};
+use std::fs;
+use std::io;
 
 use flume::{unbounded, Receiver, Sender};
 use std::fs::canonicalize;
@@ -81,16 +82,6 @@ fn create_entry(
     let mut digest = String::from("");
     if file_type.is_file() {
         let path = String::from(dir_entry.path().to_str().unwrap());
-
-        /*
-        let mut scanner = Scanner::new(rules_ref);
-
-        let scan_results = scanner.scan_file(path.clone()).unwrap();
-        println!(
-            "PATH {:?} RES = {:?}",
-            path,
-            scan_results.matching_rules().len()
-        );*/
 
         digest = match &mut fs::File::open(&path) {
             Err(_) => String::from(""),

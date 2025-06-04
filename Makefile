@@ -48,6 +48,14 @@ collector:
 	@echo "Copying collector binaries to assets folder."
 	cp android-collector/build/collector_* $(ASSETS_FOLDER)
 
+collector-rs:
+	@mkdir -p $(BUILD_FOLDER)
+	@echo "Building Android collector-rs..."
+	cd android-collector-rs && RUSTFLAGS="-Clink-arg=-z -Clink-arg=nostart-stop-gc" cargo ndk -t aarch64-linux-android build --release
+	@echo "Finished building collector."
+	@echo "Copying collector binaries to assets folder."
+	cp android-collector-rs/target/aarch64-linux-android/release/android-collector-rs $(ASSETS_FOLDER)
+
 windows:
 	@mkdir -p $(BUILD_FOLDER)
 
@@ -62,9 +70,6 @@ windows:
 	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinUsbApi.dll $(ASSETS_FOLDER)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb.exe $(ASSETS_FOLDER)
 
-	@echo "[builder] Building Windows binary for amd64"
-
-	$(FLAGS_WINDOWS) go build --ldflags '$(LD_FLAGS) -extldflags "-static"' -o $(BUILD_FOLDER)/androidqf_windows_amd64.exe .
 
 	@echo "[builder] Done!"
 
@@ -80,11 +85,6 @@ darwin:
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
 
-	@echo "[builder] Building Darwin binary for amd64"
-
-	$(FLAGS_DARWIN) GOARCH=amd64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_darwin_amd64 .
-	$(FLAGS_DARWIN) GOARCH=arm64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_darwin_arm64 .
-
 	@echo "[builder] Done!"
 
 linux:
@@ -98,11 +98,6 @@ linux:
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_LINUX)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
-
-	@echo "[builder] Building Linux binary for amd64"
-
-	@$(FLAGS_LINUX) GOARCH=amd64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_linux_amd64 .
-	@$(FLAGS_LINUX) GOARCH=arm64 go build --ldflags '$(LD_FLAGS)' -o $(BUILD_FOLDER)/androidqf_linux_arm64 .
 
 	@echo "[builder] Done!"
 
@@ -127,9 +122,9 @@ download:
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
 
-all: collector windows darwin linux
+all: collector-rs windows darwin linux
 
 clean:
 	rm -rf $(BUILD_FOLDER)
 	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll rm -f $(ASSETS_FOLDER)/collector_*
-	cd android-collector && $(MAKE) clean
+	cd android-collector-rs && cargo clean
