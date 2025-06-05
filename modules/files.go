@@ -63,6 +63,8 @@ func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	for _, folder := range folders {
+		log.Debugf("Starting to collect files in '%s'.", folder)
+
 		var out []adb.FileInfo
 		var err error
 		if method == "collector" {

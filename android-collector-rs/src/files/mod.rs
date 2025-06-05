@@ -24,16 +24,14 @@ pub fn exec_find(args: &ArgMatches) -> anyhow::Result<()> {
     info!("EXEC FIND");
 
     let scan = Scandir::new(args.get_one::<String>("path").unwrap(), None)?
-        .dir_exclude(Some(vec![
-            "/proc/**".to_string(),
-            "/sys/**".to_string(),
-            "/system/**".to_string(),
-        ]))
+        .dir_exclude(Some(vec!["/proc/**".to_string(), "/sys/**".to_string()]))
         .max_depth(5)
         .follow_links(false)
         .collect()?;
 
-    println!("{:?}", scan.to_json().unwrap());
-
+    // Get the scans and convert to something compatible with AndroidQF
+    for file in scan.results {
+        println!("{:?}", file.to_json().unwrap());
+    }
     Ok(())
 }

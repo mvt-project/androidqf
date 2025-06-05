@@ -111,7 +111,7 @@ func (c *Collector) Install() error {
 		return fmt.Errorf("unsupported architecture for collector: %s", c.Architecture)
 	}
 
-	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
+	log.Debugf("Deploying collector binary '%s' for architecture '%s' in '%s'.", collectorName, c.Architecture, c.ExePath)
 	collectorBinary, err := assets.Collector.ReadFile(collectorName)
 	if err != nil {
 		// Somehow the file doesn't exist
@@ -154,16 +154,19 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", path)
+	out, err := c.Adb.Shell(c.ExePath, "find", "--path", path)
 	if err != nil {
 		return results, err
 	}
+
 	for _, line := range strings.Split(out, "\n") {
 		err = json.Unmarshal([]byte(line), &file)
 		if err == nil {
 			results = append(results, file)
 		}
 	}
+
+	log.Debug(results)
 
 	return results, nil
 }
@@ -209,6 +212,9 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 	if err != nil {
 		return results, err
 	}
+
+	log.Debug(out)
+
 	err = json.Unmarshal([]byte(out), &results)
 	if err != nil {
 		return results, err
