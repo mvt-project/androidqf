@@ -160,7 +160,10 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 	}
 
 	for _, line := range strings.Split(out, "\n") {
+		log.Info(line)
 		err = json.Unmarshal([]byte(line), &file)
+
+		log.Info(err)
 		if err == nil {
 			results = append(results, file)
 		}

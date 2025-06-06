@@ -11,6 +11,14 @@ pub enum ScandirResult {
 
 impl ScandirResult {
     #[inline]
+    pub fn digest(&self) -> &String {
+        match self {
+            Self::DirEntry(e) => &e.digest,
+            Self::Error(e) => &e.0,
+        }
+    }
+
+    #[inline]
     pub fn path(&self) -> &String {
         match self {
             Self::DirEntry(e) => &e.path,
