@@ -22,7 +22,7 @@ pub fn files_cmds() -> Command {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MVTFileInfo {
+pub struct AndroidQFFileInfo {
     path: String,
     size: u64,
     mode: String,
@@ -52,17 +52,17 @@ pub fn exec_find(args: &ArgMatches) -> anyhow::Result<()> {
 
     // Get the scans and convert to struct compatible with AndroidQF, in order to keep compatibility
     for file in scan.results {
-        let m = MVTFileInfo {
+        let m = AndroidQFFileInfo {
             path: file.path().clone(),
             size: file.size(),
             mode: "".to_string(),
-            user_id: 0,
+            user_id: file.uid(),
             user_name: "".to_string(),
-            group_id: 0,
+            group_id: file.gid(),
             group_name: "".to_string(),
-            changed_time: 0,
-            modified_time: 0,
-            access_time: 0,
+            changed_time: file.ctime() as i64,
+            modified_time: file.mtime() as i64,
+            access_time: file.atime() as i64,
             error: "".to_string(),
             context: "".to_string(),
             sha1: "".to_string(),

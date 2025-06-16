@@ -90,6 +90,22 @@ impl ScandirResult {
         }
     }
 
+    #[inline]
+    pub fn uid(&self) -> u32 {
+        match self {
+            Self::DirEntry(e) => e.st_uid,
+            Self::Error(_) => 0,
+        }
+    }
+
+    #[inline]
+    pub fn gid(&self) -> u32 {
+        match self {
+            Self::DirEntry(e) => e.st_gid,
+            Self::Error(_) => 0,
+        }
+    }
+
     pub fn to_json(&self) -> serde_json::Result<String> {
         serde_json::to_string(self)
     }

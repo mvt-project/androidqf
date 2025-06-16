@@ -7,7 +7,7 @@ use flume::{unbounded, Receiver, Sender};
 use std::fs::canonicalize;
 use std::fs::Metadata;
 use std::io::Error;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -30,7 +30,6 @@ pub fn get_root_path_len(root_path: &Path) -> usize {
 
 #[inline]
 fn create_entry(
-    root_path_len: usize,
     dir_entry: &jwalk_meta::DirEntry<((), Option<Result<Metadata, Error>>)>,
 ) -> ScandirResult {
     //
@@ -70,19 +69,11 @@ fn create_entry(
         }
     }
     let is_file = file_type.is_file();
-    let path_str = dir_entry.parent_path.to_str().unwrap();
-    let mut path = if path_str.len() > root_path_len {
-        PathBuf::from(&path_str[root_path_len..])
-    } else {
-        PathBuf::new()
-    };
 
-    path.push(&dir_entry.file_name);
+    let path = String::from(dir_entry.path().to_str().unwrap());
 
     let mut digest = String::from("");
     if file_type.is_file() {
-        let path = String::from(dir_entry.path().to_str().unwrap());
-
         digest = match &mut fs::File::open(&path) {
             Err(_) => String::from(""),
             Ok(file) => {
@@ -96,7 +87,7 @@ fn create_entry(
     }
 
     let entry: ScandirResult = ScandirResult::DirEntry(DirEntry {
-        path: path.to_str().unwrap().to_string(),
+        path: path.clone(),
         is_symlink: file_type.is_symlink(),
         is_dir: file_type.is_dir(),
         is_file,
@@ -124,10 +115,6 @@ fn entries_thread(
     tx: Sender<ScandirResult>,
     stop: Arc<AtomicBool>,
 ) {
-    //    let file_yara = fs::File::open("/data/local/tmp/output.yarc").unwrap();
-    //    let rules = Rules::deserialize_from(file_yara).unwrap();
-    //    let rules_ref = &rules;
-
     let root_path_len = get_root_path_len(&options.root_path);
 
     let dir_entry = jwalk_meta::DirEntry::from_path(
@@ -141,7 +128,7 @@ fn entries_thread(
     .unwrap();
 
     if !dir_entry.file_type.is_dir() {
-        let _ = tx.send(create_entry(root_path_len, &dir_entry));
+        let _ = tx.send(create_entry(&dir_entry));
         return;
     }
 
@@ -165,7 +152,7 @@ fn entries_thread(
             filter_children(children, &filter);
             children.iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
-                    if tx.send(create_entry(root_path_len, dir_entry)).is_err() {
+                    if tx.send(create_entry(dir_entry)).is_err() {
                         return;
                     }
                 }

@@ -169,8 +169,6 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		}
 	}
 
-	log.Debug(results)
-
 	return results, nil
 }
 
