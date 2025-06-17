@@ -214,8 +214,6 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 		return results, err
 	}
 
-	log.Debug(out)
-
 	err = json.Unmarshal([]byte(out), &results)
 	if err != nil {
 		return results, err

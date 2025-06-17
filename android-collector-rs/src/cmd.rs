@@ -1,4 +1,4 @@
-use clap::{command, crate_authors, Command};
+use clap::{command, Command};
 
 use crate::files;
 use crate::process;
@@ -16,13 +16,9 @@ pub fn command(name: &'static str) -> Command {
 }
 
 pub fn cli() -> Command {
-    command!()
-        .author(crate_authors!("\n")) // requires `cargo` feature
-        .arg_required_else_help(true)
-        .subcommand_required(true)
-        .subcommands(vec![
-            yara::yara_cmds(),
-            files::files_cmds(),
-            process::process_cmds(),
-        ])
+    command!().subcommand_required(true).subcommands(vec![
+        files::files_find_cmd(),
+        process::process_ps_cmd(),
+        yara::yara_cmd(),
+    ])
 }

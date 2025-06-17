@@ -10,13 +10,13 @@ use crate::cmd_help;
 
 use scandir::Scandir;
 
-pub fn files_cmds() -> Command {
+pub fn files_find_cmd() -> Command {
     cmd::command("find")
         .about("List all files from a specific path with their attributes")
         .long_about(cmd_help::FILES_FIND_LONG_HELP)
         .arg(
             arg!(-p --"path" <PATH>)
-                .help("Scan the specific PATH")
+                .help("Scan the provided directory or file path")
                 .value_parser(value_parser!(String)),
         )
 }
@@ -42,7 +42,7 @@ pub struct AndroidQFFileInfo {
 }
 
 pub fn exec_find(args: &ArgMatches) -> anyhow::Result<()> {
-    info!("EXEC FIND");
+    info!("[collector][files][find]");
 
     let scan = Scandir::new(args.get_one::<String>("path").unwrap(), None)?
         .dir_exclude(Some(vec!["/proc/**".to_string(), "/sys/**".to_string()]))

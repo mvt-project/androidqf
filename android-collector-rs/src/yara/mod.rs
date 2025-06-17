@@ -9,7 +9,7 @@ use crate::cmd_help;
 
 use scan::Scan;
 
-pub fn yara_cmds() -> Command {
+pub fn yara_cmd() -> Command {
     cmd::command("yara")
         .about("Scan a file or directory with Yara-x")
         .long_about(cmd_help::YARA_SCAN_LONG_HELP)
@@ -26,7 +26,7 @@ pub fn yara_cmds() -> Command {
 }
 
 pub fn exec(args: &ArgMatches) -> anyhow::Result<()> {
-    info!("EXEC SCAN");
+    info!("[collector][yara]");
 
     let scan = Scan::new(
         args.get_one::<String>("path").unwrap(),

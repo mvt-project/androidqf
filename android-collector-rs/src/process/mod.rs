@@ -7,17 +7,17 @@ use crate::cmd;
 use crate::cmd_help;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct ProcessInfo {
-    pid: i32,
+pub struct AndroidQFProcessInfo {
+    pid: u32,
     uid: u32,
-    ppid: i32,
-    pgroup: i32,
-    psid: i32,
+    ppid: u32,
+    pgroup: u32,
+    psid: u32,
     filename: String,
-    priority: i64,
+    priority: u32,
     state: String,
-    user_time: u64,
-    kernel_time: u64,
+    user_time: u32,
+    kernel_time: u32,
     path: String,
     context: String,
     previous_context: String,
@@ -26,14 +26,14 @@ pub struct ProcessInfo {
     cwd: String,
 }
 
-pub fn process_cmds() -> Command {
+pub fn process_ps_cmd() -> Command {
     cmd::command("ps")
         .about("Get process list information")
         .long_about(cmd_help::PROCESS_LONG_HELP)
 }
 
 pub fn exec(_args: &ArgMatches) -> anyhow::Result<()> {
-    info!("EXEC PROCESS");
+    info!("[collector][process][ps]");
 
     let mut processes = Vec::new();
 
@@ -65,27 +65,27 @@ pub fn exec(_args: &ArgMatches) -> anyhow::Result<()> {
             command_line = prc_cmdline.clone();
         }
 
-        processes.push(ProcessInfo {
-            pid: stat.pid,
-            uid: uid,
-            ppid: stat.ppid,
-            pgroup: stat.pgrp,
-            psid: stat.session,
+        processes.push(AndroidQFProcessInfo {
+            pid: stat.pid as u32,
+            uid,
+            ppid: stat.ppid as u32,
+            pgroup: stat.pgrp as u32,
+            psid: stat.session as u32,
             filename: stat.comm.clone(),
-            priority: stat.priority,
+            priority: stat.priority as u32,
             state: String::from(stat.state),
-            user_time: stat.utime,
-            kernel_time: stat.stime,
+            user_time: stat.utime as u32,
+            kernel_time: stat.stime as u32,
             path: exe,
             context: "".to_string(),
             previous_context: "".to_string(),
-            command_line: command_line,
+            command_line,
             env: env.clone(),
-            cwd: cwd,
+            cwd,
         })
     }
 
-    println!("{:?}", serde_json::to_string(&processes));
+    println!("{}", serde_json::to_string(&processes).unwrap());
 
     Ok(())
 }
