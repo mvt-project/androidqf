@@ -28,7 +28,7 @@ You can then compile AndroidQF for your platform of choice:
     make darwin
     make windows
 
-These commands will generate binaries in a *build/* folder.
+These commands will generate binaries in a _build/_ folder.
 
 ## How to use
 
@@ -40,20 +40,20 @@ Now androidqf should be executing and creating an acquisition folder at the same
 
 The following data can be extracted:
 
-| Data | Optional? | Output path(s) |
-|------|-----------|----------------|
-| A full backup or backup of SMS and MMS messages. | :white_check_mark: | `backup.ab` |
-| The output of the getprop shell command, providing build information and configuration parameters. | |  `getprop.txt` |
-| All system settings | | `settings_*.txt` |
-| The output of the ps shell command, providing a list of all running processes. | | `processes.txt` |
-| The list of system's services. | | `services.txt` |
-| A copy of all the logs from the system. | | `logs/`, `logcat.txt` |
-| The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
-| A list of all packages installed and related distribution files. | |  `packages.json` |
-| Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
-| A list of files on the system. | | `files.json` |
-| A copy of the files available in temp folders. | | `tmp/*` |
-| A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
+| Data                                                                                               | Optional?          | Output path(s)        |
+| -------------------------------------------------------------------------------------------------- | ------------------ | --------------------- |
+| A full backup or backup of SMS and MMS messages.                                                   | :white_check_mark: | `backup.ab`           |
+| The output of the getprop shell command, providing build information and configuration parameters. |                    | `getprop.txt`         |
+| All system settings                                                                                |                    | `settings_*.txt`      |
+| The output of the ps shell command or the collector, providing a list of all running processes.    |                    | `processes.txt`       |
+| The list of system's services.                                                                     |                    | `services.txt`        |
+| A copy of all the logs from the system.                                                            |                    | `logs/`, `logcat.txt` |
+| The output of the dumpsys shell command, providing diagnostic information about the device.        |                    | `dumpsys.txt`         |
+| A list of all packages installed and related distribution files.                                   |                    | `packages.json`       |
+| Copy of all installed APKs or of only those not marked as system apps.                             | :white_check_mark: | `apks/*`              |
+| The output of the find shell command or the collector, providing a list of files on the system.    |                    | `files.json`          |
+| A copy of the files available in temp folders.                                                     |                    | `tmp/*`               |
+| A bug report containing system and app-specific logs, with no private data included.               |                    | `bugreport.zip`       |
 
 ### About optional data collection
 
@@ -72,11 +72,11 @@ Would you like to take a backup of the device?
 
 These options refers to data collected from the device by running the `adb backup` command in the background. If `No backup` is selected, the `adb backup` command is not run.
 
-| Option | Explanation |
-|--------|-------------|
-| Only SMS | `adb backup com.android.providers.telephony` is run. Only data from `com.android.providers.telephony` is collected. This includes the SMS database. |
-| Everything | `adb backup -all` is run. This requests backups of only apps that have explicitly allowed backups of their data via this method. Since Android 12+, this method doesn’t extract anything for almost all apps.|
-| No backup | `adb backup` is not run |
+| Option     | Explanation                                                                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only SMS   | `adb backup com.android.providers.telephony` is run. Only data from `com.android.providers.telephony` is collected. This includes the SMS database.                                                           |
+| Everything | `adb backup -all` is run. This requests backups of only apps that have explicitly allowed backups of their data via this method. Since Android 12+, this method doesn’t extract anything for almost all apps. |
+| No backup  | `adb backup` is not run                                                                                                                                                                                       |
 
 ### Downloading copies of apps
 
@@ -89,12 +89,11 @@ Would you like to download copies of all apps or only non-system ones?
     Do not download any
 ```
 
-| Option | Explanation |
-|--------|-------------|
-| All | All installed packages will be retrieved from the phone |
+| Option                   | Explanation                                                     |
+| ------------------------ | --------------------------------------------------------------- |
+| All                      | All installed packages will be retrieved from the phone         |
 | Only non-system packages | Don't download any packages listed in `adb pm list packages -s` |
-| Do not download any | Don't download any packages |
-
+| Do not download any      | Don't download any packages                                     |
 
 ## Encryption & Potential Threats
 
@@ -116,6 +115,6 @@ Bear in mind, it is always possible that at least some portion of the unencrypte
 
 ## License
 
-The purpose of androidqf is to facilitate the ***consensual forensic analysis*** of devices of those who might be targets of sophisticated mobile spyware attacks, especially members of civil society and marginalized communities. We do not want androidqf to enable privacy violations of non-consenting individuals. Therefore, the goal of this license is to prohibit the use of androidqf (and any other software licensed the same) for the purpose of *adversarial forensics*.
+The purpose of androidqf is to facilitate the **_consensual forensic analysis_** of devices of those who might be targets of sophisticated mobile spyware attacks, especially members of civil society and marginalized communities. We do not want androidqf to enable privacy violations of non-consenting individuals. Therefore, the goal of this license is to prohibit the use of androidqf (and any other software licensed the same) for the purpose of _adversarial forensics_.
 
-In order to achieve this androidqf is released under [MVT License 1.1](https://license.mvt.re/1.1/), an adaptation of [Mozilla Public License v2.0](https://www.mozilla.org/MPL). This modified license includes a new clause 3.0, "Consensual Use Restriction" which permits the use of the licensed software (and any *"Larger Work"* derived from it) exclusively with the explicit consent of the person/s whose data is being extracted and/or analysed (*"Data Owner"*).
+In order to achieve this androidqf is released under [MVT License 1.1](https://license.mvt.re/1.1/), an adaptation of [Mozilla Public License v2.0](https://www.mozilla.org/MPL). This modified license includes a new clause 3.0, "Consensual Use Restriction" which permits the use of the licensed software (and any _"Larger Work"_ derived from it) exclusively with the explicit consent of the person/s whose data is being extracted and/or analysed (_"Data Owner"_).
