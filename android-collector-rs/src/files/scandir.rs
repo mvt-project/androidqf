@@ -32,8 +32,6 @@ pub fn get_root_path_len(root_path: &Path) -> usize {
 fn create_entry(
     dir_entry: &jwalk_meta::DirEntry<((), Option<Result<Metadata, Error>>)>,
 ) -> ScandirResult {
-    //
-
     let file_type = dir_entry.file_type;
     let mut st_ctime: Option<SystemTime> = None;
     let mut st_mtime: Option<SystemTime> = None;
