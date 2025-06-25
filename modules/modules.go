@@ -35,6 +35,7 @@ func List() []Module {
 		NewLogcat(),
 		NewLogs(),
 		NewTemp(),
+		NewYara(),
 	}
 }
 

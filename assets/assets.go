@@ -14,7 +14,7 @@ import (
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 )
 
-//go:embed collector_*
+//go:embed collector_* rules.yarc
 var Collector embed.FS
 
 type Asset struct {

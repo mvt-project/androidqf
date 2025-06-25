@@ -20,6 +20,7 @@ import (
 
 type Collector struct {
 	ExePath      string
+	RulePath     string
 	Installed    bool
 	Adb          *ADB
 	Architecture string
@@ -65,7 +66,7 @@ type ProcessInfo struct {
 
 // Returns a new Collector instance.
 func (a *ADB) GetCollector(tmpDir string, arch string) (*Collector, error) {
-	c := Collector{ExePath: filepath.Join(tmpDir, "collector"), Adb: a, Architecture: arch}
+	c := Collector{ExePath: filepath.Join(tmpDir, "collector"), RulePath: filepath.Join(tmpDir, "rules.yarc"), Adb: a, Architecture: arch}
 
 	err := c.Install()
 	if err != nil {
@@ -78,6 +79,15 @@ func (a *ADB) GetCollector(tmpDir string, arch string) (*Collector, error) {
 // Check if collector is installed.
 func (c *Collector) isInstalled() bool {
 	out, err := c.Adb.FileExists(c.ExePath)
+	if err != nil {
+		return false
+	}
+	return out
+}
+
+// Check if rule file is installed.
+func (c *Collector) ruleIsInstalled() bool {
+	out, err := c.Adb.FileExists(c.RulePath)
 	if err != nil {
 		return false
 	}
@@ -135,6 +145,45 @@ func (c *Collector) Install() error {
 		return err
 	}
 	_, err = c.Adb.Shell("chmod", "+x", c.ExePath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Install the Yara rules.
+func (c *Collector) RulesInstall() error {
+	if c.ruleIsInstalled() {
+		_, err := c.Adb.Shell("rm", c.RulePath)
+		if err != nil {
+			return err
+		}
+	}
+
+	rulesName := "rules.yarc"
+	log.Debugf("Deploying yara rules '%s' in '%s'.", rulesName, c.RulePath)
+
+	ruleBinary, err := assets.Collector.ReadFile(rulesName)
+	if err != nil {
+		log.Infof(err.Error())
+		// Somehow the file doesn't exist
+		return errors.New("couldn't find the Yara rules")
+	}
+
+	ruleTemp, _ := os.CreateTemp("", "yara_")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(ruleTemp.Name())
+
+	// Write rule binary data out to temporary path
+	if _, err := ruleTemp.Write(ruleBinary); err != nil {
+		ruleTemp.Close()
+		return err
+	}
+
+	_, err = c.Adb.Push(ruleTemp.Name(), c.RulePath)
 	if err != nil {
 		return err
 	}
@@ -217,6 +266,45 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 	err = json.Unmarshal([]byte(out), &results)
 	if err != nil {
 		return results, err
+	}
+
+	return results, nil
+}
+
+// Run Yara-X on the phone at the given path and rules path
+func (c *Collector) Yara(path string) ([]FileInfo, error) {
+	var results []FileInfo
+	var file FileInfo
+
+	if !c.isInstalled() {
+		err := c.Install()
+		if err != nil {
+			log.Debugf("Impossible to install collector: %w", err)
+			return results, err
+		}
+	}
+
+	if !c.ruleIsInstalled() {
+		err := c.RulesInstall()
+		if err != nil {
+			log.Debugf("Impossible to install Yara rules: %w", err)
+			return results, err
+		}
+	}
+
+	out, err := c.Adb.Shell(c.ExePath, "yara", "--path", path, "--rule_path", c.RulePath)
+	if err != nil {
+		return results, err
+	}
+
+	for _, line := range strings.Split(out, "\n") {
+		log.Info(line)
+		err = json.Unmarshal([]byte(line), &file)
+
+		log.Info(err)
+		if err == nil {
+			results = append(results, file)
+		}
 	}
 
 	return results, nil

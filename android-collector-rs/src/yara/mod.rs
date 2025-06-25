@@ -42,7 +42,9 @@ pub fn exec(args: &ArgMatches) -> anyhow::Result<()> {
     .follow_links(false)
     .collect()?;
 
-    println!("{:?}", scan);
+    for file in scan.results {
+        println!("{:?}", file);
+    }
 
     Ok(())
 }
