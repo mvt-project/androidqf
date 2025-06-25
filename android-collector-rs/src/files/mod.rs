@@ -1,7 +1,7 @@
 pub mod scandir;
 pub mod scandir_result;
 
-use clap::{arg, value_parser, ArgMatches, Command};
+use clap::{arg, value_parser, ArgAction, ArgMatches, Command};
 use log::info;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,12 @@ pub fn files_find_cmd() -> Command {
             arg!(-p --"path" <PATH>)
                 .help("Scan the provided directory or file path")
                 .value_parser(value_parser!(String)),
+        )
+        .arg(
+            arg!(-e - -"exclude_dir")
+                .help("Exclude a directory from the paths")
+                .value_parser(value_parser!(String))
+                .action(ArgAction::Append),
         )
 }
 
@@ -44,8 +50,18 @@ pub struct AndroidQFFileInfo {
 pub fn exec_find(args: &ArgMatches) -> anyhow::Result<()> {
     info!("[collector][files][find]");
 
+    let mut excluded_dirs = Vec::new();
+    for dir in args
+        .try_get_many::<String>("exclude_dir")
+        .unwrap_or_default()
+        .into_iter()
+        .flatten()
+    {
+        excluded_dirs.push(dir.clone());
+    }
+
     let scan = Scandir::new(args.get_one::<String>("path").unwrap(), None)?
-        .dir_exclude(Some(vec!["/proc/**".to_string(), "/sys/**".to_string()]))
+        .dir_exclude(Some(excluded_dirs))
         .max_depth(5)
         .follow_links(false)
         .collect()?;

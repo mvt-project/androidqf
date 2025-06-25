@@ -154,7 +154,7 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", "--path", path)
+	out, err := c.Adb.Shell(c.ExePath, "find", "--path", path, "--exclude_dir", "/proc/**", "--exclude_dir", "/sys/**")
 	if err != nil {
 		return results, err
 	}
