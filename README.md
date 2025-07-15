@@ -32,6 +32,9 @@ These commands will generate binaries in a *build/* folder.
 
 ## How to use
 
+> [!TIP]
+> We have not yet provided extensive official documentation of the output bundle androidqf produces. You might consider referring to the third-party androidqf documentation that has been developed by our friends at [SocialTIC](https://socialtic.org), in conjunction with their mobile forensics guide: [SocialTIC Forensics - AndroidQF output file dictionary](https://forensics.socialtic.org/en/references/01-reference-androidqf-dictionary/01-reference-androidqf-dictionary.html)
+
 Before launching androidqf you need to have the target Android device connected to your computer via USB, and you will need to have enabled USB debugging. Please refer to the [official documentation](https://developer.android.com/studio/debug/dev-options#enable) on how to do this, but also be mindful that Android phones from different manufacturers might require different navigation steps than the defaults.
 
 Once USB debugging is enabled, you can proceed launching androidqf. It will first attempt to connect to the device over the USB bridge, which should result in the Android phone to prompt you to manually authorize the host keys. Make sure to authorize them, ideally permanently so that the prompt wouldn't appear again.
