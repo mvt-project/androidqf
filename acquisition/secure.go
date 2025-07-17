@@ -6,6 +6,7 @@
 package acquisition
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"os"
@@ -13,10 +14,70 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	"github.com/botherder/go-savetime/files"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
+
+func createZipFile(sourceDir, zipPath string) error {
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create ZIP file: %v", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	return filepath.Walk(sourceDir, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking path %s: %v", filePath, err)
+		}
+
+		// Skip the root directory itself
+		if filePath == sourceDir {
+			return nil
+		}
+
+		// Get the relative path from the source directory
+		relPath, err := filepath.Rel(sourceDir, filePath)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s: %v", filePath, err)
+		}
+
+		// Convert Windows backslashes to forward slashes
+		zipEntryPath := strings.ReplaceAll(relPath, "\\", "/")
+
+		// Create directory entries for directories
+		if info.IsDir() {
+			zipEntryPath += "/"
+			_, err := zipWriter.Create(zipEntryPath)
+			if err != nil {
+				return fmt.Errorf("failed to create directory entry %s: %v", zipEntryPath, err)
+			}
+			return nil
+		}
+
+		// Create file entry
+		fileWriter, err := zipWriter.Create(zipEntryPath)
+		if err != nil {
+			return fmt.Errorf("failed to create file entry %s: %v", zipEntryPath, err)
+		}
+
+		// Copy file content
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %v", filePath, err)
+		}
+		defer file.Close()
+
+		_, err = io.Copy(fileWriter, file)
+		if err != nil {
+			return fmt.Errorf("failed to copy file content for %s: %v", filePath, err)
+		}
+
+		return nil
+	})
+}
 
 func (a *Acquisition) StoreSecurely() error {
 	cwd := saveRuntime.GetExecutableDirectory()
@@ -33,7 +94,7 @@ func (a *Acquisition) StoreSecurely() error {
 
 	log.Info("Compressing the acquisition folder. This might take a while...")
 
-	err := files.Zip(a.StoragePath, zipFilePath)
+	err := createZipFile(a.StoragePath, zipFilePath)
 	if err != nil {
 		return err
 	}
