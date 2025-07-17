@@ -16,7 +16,7 @@ androidqf is intended to provide a simple and portable cross-platform utility to
 
 Executable binaries for Linux, Windows and Mac should be available in the [latest release](https://github.com/mvt-project/androidqf/releases/latest). In case you have issues running the binary you might want to build it by yourself.
 
-In order to build androidqf you will need Go 1.15+ installed. You will also need to install `make`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information. Android shell quirkes can make running shell commands to gather information too brittle.
+In order to build androidqf you will need Go 1.15+ installed. You will also need to install `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information. Android shell quirkes can make running shell commands to gather information too brittle.
 
 When ready you can clone the repository and first build the `collector` module with:
 
