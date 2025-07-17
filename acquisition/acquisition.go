@@ -85,6 +85,9 @@ func New(path string) (*Acquisition, error) {
 func (a *Acquisition) Complete() {
 	a.Completed = time.Now().UTC()
 
+	// Close the log file before cleanup
+	log.CloseFileLog()
+
 	if a.Collector != nil {
 		a.Collector.Clean()
 	}

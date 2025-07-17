@@ -143,10 +143,15 @@ func EnableFileLog(level LEVEL, filePath string) error {
 	return nil
 }
 
-func DisableFileLog() {
+func CloseFileLog() {
 	log.fd.Close()
 	log.fd = nil
 	log.fileName = ""
+	if log.fd != nil {
+		log.fd.Close()
+		log.fd = nil
+		log.fileName = ""
+	}
 }
 
 func Debug(v ...any) {
