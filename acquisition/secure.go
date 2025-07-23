@@ -6,6 +6,7 @@
 package acquisition
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"os"
@@ -13,10 +14,29 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	"github.com/botherder/go-savetime/files"
 	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
+
+func createZipFile(sourceDir, zipPath string) error {
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create ZIP file: %v", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	// Use AddFS to add the entire directory
+	fsys := os.DirFS(sourceDir)
+	err = zipWriter.AddFS(fsys)
+	if err != nil {
+		return fmt.Errorf("failed to add directory to ZIP: %v", err)
+	}
+
+	return nil
+}
 
 func (a *Acquisition) StoreSecurely() error {
 	cwd := saveRuntime.GetExecutableDirectory()
@@ -33,7 +53,7 @@ func (a *Acquisition) StoreSecurely() error {
 
 	log.Info("Compressing the acquisition folder. This might take a while...")
 
-	err := files.Zip(a.StoragePath, zipFilePath)
+	err := createZipFile(a.StoragePath, zipFilePath)
 	if err != nil {
 		return err
 	}
