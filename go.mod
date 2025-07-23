@@ -1,6 +1,6 @@
 module github.com/mvt-project/androidqf
 
-go 1.23.0
+go 1.24
 
 require (
 	filippo.io/age v1.2.1
