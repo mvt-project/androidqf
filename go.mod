@@ -1,14 +1,14 @@
 module github.com/mvt-project/androidqf
 
+go 1.23.0
 
-go 1.23
+toolchain go1.24.5
 
 require (
 	filippo.io/age v1.2.1
 	github.com/avast/apkverifier v0.0.0-20250626104651-727e33396aec
 	github.com/botherder/go-savetime v1.5.0
 	github.com/google/uuid v1.6.0
-
 	github.com/i582/cfmt v1.4.0
 	github.com/manifoldco/promptui v0.9.0
 )
