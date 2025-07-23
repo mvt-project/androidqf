@@ -34,6 +34,7 @@ type Acquisition struct {
 	TmpDir           string         `json:"tmp_dir"`
 	SdCard           string         `json:"sdcard"`
 	Cpu              string         `json:"cpu"`
+	closeLog         func()         `json:"-"`
 }
 
 // New returns a new Acquisition instance.
@@ -77,13 +78,24 @@ func New(path string) (*Acquisition, error) {
 
 	// Init logging file
 	logPath := filepath.Join(acq.StoragePath, "command.log")
-	log.EnableFileLog(log.DEBUG, logPath)
+	closeLog, err := log.EnableFileLog(log.DEBUG, logPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable file logging: %v", err)
+	}
+
+	// Store cleanup function for later use
+	acq.closeLog = closeLog
 
 	return &acq, nil
 }
 
 func (a *Acquisition) Complete() {
 	a.Completed = time.Now().UTC()
+
+	// Ensure log file is closed before cleanup operations
+	if a.closeLog != nil {
+		defer a.closeLog()
+	}
 
 	if a.Collector != nil {
 		a.Collector.Clean()

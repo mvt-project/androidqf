@@ -129,24 +129,31 @@ func Coloring(enable bool) {
 	log.Color = enable
 }
 
-func EnableFileLog(level LEVEL, filePath string) error {
+func EnableFileLog(level LEVEL, filePath string) (func(), error) {
 	if filePath == "" {
-		return errors.New("invalid file path")
+		return nil, errors.New("invalid file path")
 	}
 
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	log.fd = file
 	log.fileName = filePath
-	return nil
+
+	// Return cleanup function for defer pattern
+	cleanup := func() {
+		CloseFileLog()
+	}
+	return cleanup, nil
 }
 
-func DisableFileLog() {
-	log.fd.Close()
-	log.fd = nil
-	log.fileName = ""
+func CloseFileLog() {
+	if log.fd != nil {
+		log.fd.Close()
+		log.fd = nil
+		log.fileName = ""
+	}
 }
 
 func Debug(v ...any) {
