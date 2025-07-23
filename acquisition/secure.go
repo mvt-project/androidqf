@@ -88,8 +88,10 @@ func (a *Acquisition) StoreSecurely() error {
 		return fmt.Errorf("failed to delete the unencrypted compressed archive: %v", err)
 	}
 
-	// Close the log file before removing the acquisition directory
-	log.CloseFileLog()
+	// Ensure log file is closed before removing the acquisition directory
+	if a.closeLog != nil {
+		defer a.closeLog()
+	}
 
 	err = os.RemoveAll(a.StoragePath)
 	if err != nil {
