@@ -38,5 +38,5 @@ func (e *Environment) Run(acq *acquisition.Acquisition, fast bool) error {
 		return fmt.Errorf("failed to run `adb shell env`: %v", err)
 	}
 
-	return saveCommandOutput(filepath.Join(e.StoragePath, "env.txt"), out)
+	return saveCommandOutput(acq.Fs, filepath.Join(e.StoragePath, "env.txt"), out)
 }

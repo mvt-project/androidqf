@@ -6,6 +6,7 @@
 package modules
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 
@@ -36,24 +37,62 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 		"Generating a bugreport for the device...",
 	)
 
-	err := adb.Client.Bugreport()
-	if err != nil {
-		log.Debugf("Impossible to generate bugreport: %w", err)
-		return err
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Debugf("Impossible to get current directory: %w", err)
-		return err
-	}
-
-	origBugreportPath := filepath.Join(cwd, "bugreport.zip")
 	bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
 
-	err = os.Rename(origBugreportPath, bugreportPath)
-	if err != nil {
-		return err
+	if acq.UseMemoryFs {
+		// Write bugreport directly to memory filesystem
+		bugreportFile, err := acq.Fs.Create(bugreportPath)
+		if err != nil {
+			return err
+		}
+		defer bugreportFile.Close()
+
+		err = adb.Client.BugreportToWriter(bugreportFile)
+		if err != nil {
+			log.Debugf("Impossible to generate bugreport: %v", err)
+			return err
+		}
+	} else {
+		// Use traditional disk-based approach
+		err := adb.Client.Bugreport()
+		if err != nil {
+			log.Debugf("Impossible to generate bugreport: %v", err)
+			return err
+		}
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Debugf("Impossible to get current directory: %v", err)
+			return err
+		}
+
+		origBugreportPath := filepath.Join(cwd, "bugreport.zip")
+
+		// Read the bugreport file from disk
+		origFile, err := os.Open(origBugreportPath)
+		if err != nil {
+			return err
+		}
+		defer origFile.Close()
+
+		// Write to the filesystem
+		bugreportFile, err := acq.Fs.Create(bugreportPath)
+		if err != nil {
+			return err
+		}
+		defer bugreportFile.Close()
+
+		// Copy the file content
+		_, err = io.Copy(bugreportFile, origFile)
+		if err != nil {
+			return err
+		}
+
+		// Remove the original file from disk
+		err = os.Remove(origBugreportPath)
+		if err != nil {
+			log.Debugf("Failed to remove original bugreport file: %v", err)
+		}
 	}
 
 	log.Debug("Bugreport completed!")

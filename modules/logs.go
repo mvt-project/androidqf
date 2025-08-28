@@ -5,8 +5,6 @@
 package modules
 
 import (
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -32,11 +30,6 @@ func (l *Logs) Name() string {
 func (l *Logs) InitStorage(storagePath string) error {
 	l.StoragePath = storagePath
 	l.LogsPath = filepath.Join(storagePath, "logs")
-	err := os.Mkdir(l.LogsPath, 0o755)
-	if err != nil {
-		return fmt.Errorf("failed to create logs folder: %v", err)
-	}
-
 	return nil
 }
 
@@ -71,18 +64,37 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 		log.Debugf("From: %s", logFile)
 		log.Debugf("To: %s", localPath)
 
-		err := os.MkdirAll(localDir, 0o755)
+		err := acq.Fs.MkdirAll(localDir, 0o755)
 		if err != nil {
 			log.Errorf("Failed to create folders for logs %s: %v\n", localDir, err)
 			continue
 		}
 
-		out, err := adb.Client.Pull(logFile, localPath)
-		if err != nil {
-			if !text.ContainsNoCase(out, "Permission denied") {
-				log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+		if acq.UseMemoryFs {
+			// Pull directly to memory filesystem
+			targetFile, err := acq.Fs.Create(localPath)
+			if err != nil {
+				log.Errorf("Failed to create target file %s: %v\n", localPath, err)
+				continue
 			}
-			continue
+			defer targetFile.Close()
+
+			err = adb.Client.PullToWriter(logFile, targetFile)
+			if err != nil {
+				if !text.ContainsNoCase(err.Error(), "Permission denied") {
+					log.Errorf("Failed to pull log file %s: %v\n", logFile, err)
+				}
+				continue
+			}
+		} else {
+			// Direct pull to disk
+			out, err := adb.Client.Pull(logFile, localPath)
+			if err != nil {
+				if !text.ContainsNoCase(out, "Permission denied") {
+					log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+				}
+				continue
+			}
 		}
 	}
 

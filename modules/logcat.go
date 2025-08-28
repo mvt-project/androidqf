@@ -38,7 +38,7 @@ func (l *Logcat) Run(acq *acquisition.Acquisition, fast bool) error {
 		return fmt.Errorf("failed to run `adb shell logcat`: %v", err)
 	}
 
-	err = saveCommandOutput(filepath.Join(l.StoragePath, "logcat.txt"), out)
+	err = saveCommandOutput(acq.Fs, filepath.Join(l.StoragePath, "logcat.txt"), out)
 	if err != nil {
 		return err
 	}
@@ -51,5 +51,5 @@ func (l *Logcat) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
-	return saveCommandOutput(filepath.Join(l.StoragePath, "logcat_old.txt"), out)
+	return saveCommandOutput(acq.Fs, filepath.Join(l.StoragePath, "logcat_old.txt"), out)
 }

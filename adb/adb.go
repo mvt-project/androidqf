@@ -6,8 +6,10 @@
 package adb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
@@ -146,6 +148,22 @@ func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 	return string(out), nil
 }
 
+// PullToWriter downloads a file from the device directly to an io.Writer (for memory operations).
+func (a *ADB) PullToWriter(remotePath string, writer io.Writer) error {
+	cmd := exec.Command(a.ExePath, "-s", a.Serial, "shell", "cat", remotePath)
+	cmd.Stdout = writer
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("adb shell cat failed: %v - %s", err, stderr.String())
+	}
+
+	return nil
+}
+
 // Push a file on the phone
 func (a *ADB) Push(localPath, remotePath string) (string, error) {
 	out, err := a.Exec("push", localPath, remotePath)
@@ -162,11 +180,55 @@ func (a *ADB) Backup(arg string) error {
 	return cmd.Run()
 }
 
+// BackupToWriter generates a backup and writes it directly to an io.Writer (for memory operations).
+func (a *ADB) BackupToWriter(arg string, writer io.Writer) error {
+	var args []string
+	if a.Serial != "" {
+		args = append(args, "-s", a.Serial)
+	}
+	args = append(args, "backup", "-nocompress", "-f", "-", arg)
+
+	cmd := exec.Command(a.ExePath, args...)
+	cmd.Stdout = writer
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("adb backup failed: %v - %s", err, stderr.String())
+	}
+
+	return nil
+}
+
 // Bugreport generates a bugreport of the the device
 func (a *ADB) Bugreport() error {
 	cmd := exec.Command(a.ExePath, "bugreport", "bugreport.zip")
 	err := cmd.Run()
 	return err
+}
+
+// BugreportToWriter generates a bugreport and writes it directly to an io.Writer (for memory operations).
+func (a *ADB) BugreportToWriter(writer io.Writer) error {
+	var args []string
+	if a.Serial != "" {
+		args = append(args, "-s", a.Serial)
+	}
+	args = append(args, "bugreport")
+
+	cmd := exec.Command(a.ExePath, args...)
+	cmd.Stdout = writer
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("adb bugreport failed: %v - %s", err, stderr.String())
+	}
+
+	return nil
 }
 
 // check if file exists

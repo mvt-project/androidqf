@@ -83,5 +83,5 @@ func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {
 		}
 	}
 
-	return saveCommandOutputJson(filepath.Join(f.StoragePath, "files.json"), &fileDetails)
+	return saveCommandOutputJson(acq.Fs, filepath.Join(f.StoragePath, "files.json"), &fileDetails)
 }

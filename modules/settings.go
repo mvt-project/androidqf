@@ -40,6 +40,7 @@ func (s *Settings) Run(acq *acquisition.Acquisition, fast bool) error {
 		}
 
 		err = saveCommandOutput(
+			acq.Fs,
 			filepath.Join(s.StoragePath, fmt.Sprintf("settings_%s.txt", namespace)),
 			out,
 		)

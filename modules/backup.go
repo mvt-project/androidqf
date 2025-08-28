@@ -7,6 +7,7 @@ package modules
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -65,24 +66,62 @@ func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 		arg,
 	)
 
-	err = adb.Client.Backup(arg)
-	if err != nil {
-		log.Debugf("Impossible to get backup: %w", err)
-		return err
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Debugf("Impossible to get current directory: %w", err)
-		return err
-	}
-
-	origBackupPath := filepath.Join(cwd, "backup.ab")
 	backupPath := filepath.Join(b.StoragePath, "backup.ab")
 
-	err = os.Rename(origBackupPath, backupPath)
-	if err != nil {
-		return err
+	if acq.UseMemoryFs {
+		// Write backup directly to memory filesystem
+		backupFile, err := acq.Fs.Create(backupPath)
+		if err != nil {
+			return err
+		}
+		defer backupFile.Close()
+
+		err = adb.Client.BackupToWriter(arg, backupFile)
+		if err != nil {
+			log.Debugf("Impossible to get backup: %v", err)
+			return err
+		}
+	} else {
+		// Use traditional disk-based approach
+		err = adb.Client.Backup(arg)
+		if err != nil {
+			log.Debugf("Impossible to get backup: %v", err)
+			return err
+		}
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Debugf("Impossible to get current directory: %v", err)
+			return err
+		}
+
+		origBackupPath := filepath.Join(cwd, "backup.ab")
+
+		// Read the backup file from disk
+		origFile, err := os.Open(origBackupPath)
+		if err != nil {
+			return err
+		}
+		defer origFile.Close()
+
+		// Write to the filesystem
+		backupFile, err := acq.Fs.Create(backupPath)
+		if err != nil {
+			return err
+		}
+		defer backupFile.Close()
+
+		// Copy the file content
+		_, err = io.Copy(backupFile, origFile)
+		if err != nil {
+			return err
+		}
+
+		// Remove the original file from disk
+		err = os.Remove(origBackupPath)
+		if err != nil {
+			log.Debugf("Failed to remove original backup file: %v", err)
+		}
 	}
 
 	log.Info("Backup completed!")

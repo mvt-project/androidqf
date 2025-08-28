@@ -6,10 +6,10 @@ package modules
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/botherder/go-savetime/text"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
@@ -31,11 +31,6 @@ func (t *Temp) Name() string {
 func (t *Temp) InitStorage(storagePath string) error {
 	t.StoragePath = storagePath
 	t.TempPath = filepath.Join(storagePath, "tmp")
-	err := os.Mkdir(t.TempPath, 0o755)
-	if err != nil {
-		return fmt.Errorf("failed to create tmp folder: %v", err)
-	}
-
 	return nil
 }
 
@@ -55,7 +50,39 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 		dest_path := filepath.Join(t.TempPath,
 			strings.TrimPrefix(file, acq.TmpDir))
 
-		adb.Client.Pull(file, dest_path)
+		dest_dir := filepath.Dir(dest_path)
+		err := acq.Fs.MkdirAll(dest_dir, 0o755)
+		if err != nil {
+			log.Errorf("Failed to create directory %s: %v\n", dest_dir, err)
+			continue
+		}
+
+		if acq.UseMemoryFs {
+			// Pull directly to memory filesystem
+			targetFile, err := acq.Fs.Create(dest_path)
+			if err != nil {
+				log.Errorf("Failed to create target file %s: %v\n", dest_path, err)
+				continue
+			}
+			defer targetFile.Close()
+
+			err = adb.Client.PullToWriter(file, targetFile)
+			if err != nil {
+				if !text.ContainsNoCase(err.Error(), "Permission denied") {
+					log.Errorf("Failed to pull temp file %s: %v\n", file, err)
+				}
+				continue
+			}
+		} else {
+			// Direct pull to disk
+			out, err := adb.Client.Pull(file, dest_path)
+			if err != nil {
+				if !text.ContainsNoCase(out, "Permission denied") {
+					log.Errorf("Failed to pull temp file %s: %s\n", file, strings.TrimSpace(out))
+				}
+				continue
+			}
+		}
 	}
 	return nil
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/utils"
+	"github.com/spf13/afero"
 )
 
 // Acquisition is the main object containing all phone information
@@ -35,6 +36,9 @@ type Acquisition struct {
 	SdCard           string         `json:"sdcard"`
 	Cpu              string         `json:"cpu"`
 	closeLog         func()         `json:"-"`
+	Fs               afero.Fs       `json:"-"`
+	UseMemoryFs      bool           `json:"use_memory_fs"`
+	KeyFilePresent   bool           `json:"key_file_present"`
 }
 
 // New returns a new Acquisition instance.
@@ -50,21 +54,53 @@ func New(path string) (*Acquisition, error) {
 	} else {
 		acq.StoragePath = path
 	}
-	// Check if the path exist
-	stat, err := os.Stat(acq.StoragePath)
-	if os.IsNotExist(err) {
-		err := os.Mkdir(acq.StoragePath, 0o755)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+
+	// Check if key.txt is present
+	keyFilePath := filepath.Join(rt.GetExecutableDirectory(), "key.txt")
+	if _, err := os.Stat(keyFilePath); err == nil {
+		acq.KeyFilePresent = true
+		log.Info("Key file detected, checking available memory for secure processing...")
+
+		// Check if we have enough memory (4GB) and key file is present
+		if utils.HasSufficientMemory() {
+			acq.UseMemoryFs = true
+			acq.Fs = afero.NewMemMapFs()
+			log.Info("Using in-memory filesystem for secure data processing")
+
+			// Create the directory structure in memory
+			err := acq.Fs.MkdirAll(acq.StoragePath, 0o755)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create acquisition folder in memory: %v", err)
+			}
+		} else {
+			log.Warning("Insufficient memory for in-memory processing, falling back to disk-based storage")
+			acq.UseMemoryFs = false
+			acq.Fs = afero.NewOsFs()
 		}
 	} else {
-		if !stat.IsDir() {
-			return nil, fmt.Errorf("path exist and is not a folder")
+		acq.KeyFilePresent = false
+		acq.UseMemoryFs = false
+		acq.Fs = afero.NewOsFs()
+		log.Debug("No key file present, using standard disk-based storage")
+	}
+
+	// For disk-based filesystem, ensure the directory exists
+	if !acq.UseMemoryFs {
+		stat, err := os.Stat(acq.StoragePath)
+		if os.IsNotExist(err) {
+			err := os.Mkdir(acq.StoragePath, 0o755)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create acquisition folder: %v", err)
+			}
+		} else {
+			if !stat.IsDir() {
+				return nil, fmt.Errorf("path exist and is not a folder")
+			}
 		}
 	}
 
 	// Get system information first to get tmp folder
-	err = acq.GetSystemInformation()
+	err := acq.GetSystemInformation()
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +112,20 @@ func New(path string) (*Acquisition, error) {
 	}
 	acq.Collector = coll
 
-	// Init logging file
+	// Init logging file - always use OS filesystem for logging to ensure it persists
 	logPath := filepath.Join(acq.StoragePath, "command.log")
-	closeLog, err := log.EnableFileLog(log.DEBUG, logPath)
+	var closeLog func()
+	if acq.UseMemoryFs {
+		// For memory filesystem, we still want logs to persist on disk
+		// Create the directory on disk if it doesn't exist
+		if _, err := os.Stat(acq.StoragePath); os.IsNotExist(err) {
+			err := os.MkdirAll(acq.StoragePath, 0o755)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create logging directory: %v", err)
+			}
+		}
+	}
+	closeLog, err = log.EnableFileLog(log.DEBUG, logPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable file logging: %v", err)
 	}
@@ -146,7 +193,7 @@ func (a *Acquisition) GetSystemInformation() error {
 func (a *Acquisition) HashFiles() error {
 	log.Info("Generating list of files hashes...")
 
-	csvFile, err := os.Create(filepath.Join(a.StoragePath, "hashes.csv"))
+	csvFile, err := a.Fs.Create(filepath.Join(a.StoragePath, "hashes.csv"))
 	if err != nil {
 		return err
 	}
@@ -155,7 +202,7 @@ func (a *Acquisition) HashFiles() error {
 	csvWriter := csv.NewWriter(csvFile)
 	defer csvWriter.Flush()
 
-	_ = filepath.Walk(a.StoragePath, func(filePath string, fileInfo os.FileInfo, err error) error {
+	err = afero.Walk(a.Fs, a.StoragePath, func(filePath string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -163,12 +210,28 @@ func (a *Acquisition) HashFiles() error {
 		if fileInfo.IsDir() {
 			return nil
 		}
-		// Makes files read only
-		os.Chmod(filePath, 0o400)
 
-		sha256, err := hashes.FileSHA256(filePath)
-		if err != nil {
-			return err
+		// For disk-based filesystem, make files read only
+		if !a.UseMemoryFs {
+			os.Chmod(filePath, 0o400)
+		}
+
+		// For memory filesystem, we need to read the file and calculate hash manually
+		var sha256 string
+		if a.UseMemoryFs {
+			content, err := afero.ReadFile(a.Fs, filePath)
+			if err != nil {
+				return err
+			}
+			sha256, err = hashes.StringSHA256(string(content))
+			if err != nil {
+				return err
+			}
+		} else {
+			sha256, err = hashes.FileSHA256(filePath)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = csvWriter.Write([]string{filePath, sha256})
@@ -179,7 +242,7 @@ func (a *Acquisition) HashFiles() error {
 		return nil
 	})
 
-	return nil
+	return err
 }
 
 func (a *Acquisition) StoreInfo() error {
@@ -193,7 +256,7 @@ func (a *Acquisition) StoreInfo() error {
 
 	infoPath := filepath.Join(a.StoragePath, "acquisition.json")
 
-	err = os.WriteFile(infoPath, info, 0o644)
+	err = afero.WriteFile(a.Fs, infoPath, info, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write acquisition details to file: %v",
 			err)

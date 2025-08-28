@@ -7,9 +7,9 @@ package modules
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/mvt-project/androidqf/acquisition"
+	"github.com/spf13/afero"
 )
 
 type Module interface {
@@ -38,16 +38,16 @@ func List() []Module {
 	}
 }
 
-func saveCommandOutputJson(filePath string, data any) error {
+func saveCommandOutputJson(fs afero.Fs, filePath string, data any) error {
 	jsonData, err := json.MarshalIndent(&data, "", "    ")
 	if err != nil {
 		return fmt.Errorf("failed to convert JSON: %v", err)
 	}
-	return saveCommandOutput(filePath, string(jsonData))
+	return saveCommandOutput(fs, filePath, string(jsonData))
 }
 
-func saveCommandOutput(filePath, output string) error {
-	file, err := os.Create(filePath)
+func saveCommandOutput(fs afero.Fs, filePath, output string) error {
+	file, err := fs.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create %s file: %v", filePath, err)
 	}
@@ -58,7 +58,9 @@ func saveCommandOutput(filePath, output string) error {
 		return fmt.Errorf("failed to write command output to %s: %v", filePath, err)
 	}
 
-	file.Sync()
+	if syncer, ok := file.(interface{ Sync() error }); ok {
+		syncer.Sync()
+	}
 
 	return nil
 }
