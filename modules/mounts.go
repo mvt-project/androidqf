@@ -6,8 +6,8 @@
 package modules
 
 import (
-	"slices"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/mvt-project/androidqf/acquisition"
@@ -37,9 +37,9 @@ func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
 
 	var mountsData []string
 
-	// Run "mount | grep '/system'"
-	log.Debug("Running: mount | grep '/system'")
-	out1, err1 := adb.Client.Shell("mount | grep '/system'")
+	// Run "mount"
+	log.Debug("Running: mount")
+	out1, err1 := adb.Client.Shell("mount")
 	if err1 == nil && out1 != "" {
 		lines := strings.Split(strings.TrimSpace(out1), "\n")
 		for _, line := range lines {
@@ -48,12 +48,12 @@ func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
 			}
 		}
 	} else {
-		log.Debug("mount | grep '/system' command failed or returned empty result")
+		log.Debug("mount command failed or returned empty result")
 	}
 
-	// Run "cat /proc/mounts | grep '/system'"
-	log.Debug("Running: cat /proc/mounts | grep '/system'")
-	out2, err2 := adb.Client.Shell("cat /proc/mounts | grep '/system'")
+	// Run "cat /proc/mounts"
+	log.Debug("Running: cat /proc/mounts")
+	out2, err2 := adb.Client.Shell("cat /proc/mounts")
 	if err2 == nil && out2 != "" {
 		lines := strings.Split(strings.TrimSpace(out2), "\n")
 		for _, line := range lines {
@@ -67,7 +67,7 @@ func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
 			}
 		}
 	} else {
-		log.Debug("cat /proc/mounts | grep '/system' command failed or returned empty result")
+		log.Debug("cat /proc/mounts command failed or returned empty result")
 	}
 
 	log.Debugf("Found %d mount entries", len(mountsData))
