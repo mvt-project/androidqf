@@ -86,17 +86,6 @@ func saveStringToAcquisition(acq *acquisition.Acquisition, filename, content str
 	return saveCommandOutput(filePath, content)
 }
 
-// saveBytesToAcquisition saves byte content to either encrypted stream or file
-func saveBytesToAcquisition(acq *acquisition.Acquisition, filename string, content []byte) error {
-	if acq.StreamingMode && acq.EncryptedWriter != nil {
-		return acq.EncryptedWriter.CreateFileFromBytes(filename, content)
-	}
-
-	// Fall back to traditional file saving
-	filePath := filepath.Join(acq.StoragePath, filename)
-	return os.WriteFile(filePath, content, 0644)
-}
-
 // saveDataToStream saves JSON data to encrypted zip stream
 func saveDataToStream(writer *acquisition.EncryptedZipWriter, filename string, data any) error {
 	jsonData, err := json.MarshalIndent(&data, "", "    ")
