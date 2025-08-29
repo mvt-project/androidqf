@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 )
 
 // StreamingBuffer manages in-memory buffering for direct streaming operations
@@ -59,13 +60,15 @@ func (sb *StreamingBuffer) Reset() {
 // StreamingPuller provides utilities for streaming ADB operations
 type StreamingPuller struct {
 	adbPath string
+	serial  string
 	maxMem  int64
 }
 
 // NewStreamingPuller creates a new streaming puller
-func NewStreamingPuller(adbPath string, maxMemoryMB int) *StreamingPuller {
+func NewStreamingPuller(adbPath, serial string, maxMemoryMB int) *StreamingPuller {
 	return &StreamingPuller{
 		adbPath: adbPath,
+		serial:  serial,
 		maxMem:  int64(maxMemoryMB) * 1024 * 1024,
 	}
 }
@@ -74,7 +77,12 @@ func NewStreamingPuller(adbPath string, maxMemoryMB int) *StreamingPuller {
 func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, error) {
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	cmd := exec.Command(sp.adbPath, "exec-out", "cat", remotePath)
+	args := []string{"exec-out", "cat", remotePath}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
+	}
+
+	cmd := exec.Command(sp.adbPath, args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -87,7 +95,12 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 // PullToWriter pulls a file from device and streams it directly to a writer
 func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) error {
-	cmd := exec.Command(sp.adbPath, "exec-out", "cat", remotePath)
+	args := []string{"exec-out", "cat", remotePath}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
+	}
+
+	cmd := exec.Command(sp.adbPath, args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -98,11 +111,16 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 	return nil
 }
 
-// BackupToBuffer creates a backup directly into memory buffer
+// BackupToBuffer creates a backup directly into memory buffer using exec-out
 func (sp *StreamingPuller) BackupToBuffer(arg string) (*StreamingBuffer, error) {
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	cmd := exec.Command(sp.adbPath, "backup", "-nocompress", "-f", "-", arg)
+	args := []string{"exec-out", "bu", "backup", arg}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
+	}
+
+	cmd := exec.Command(sp.adbPath, args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -113,9 +131,14 @@ func (sp *StreamingPuller) BackupToBuffer(arg string) (*StreamingBuffer, error) 
 	return buffer, nil
 }
 
-// BackupToWriter creates a backup and streams it directly to a writer
+// BackupToWriter creates a backup and streams it directly to a writer using exec-out
 func (sp *StreamingPuller) BackupToWriter(arg string, writer io.Writer) error {
-	cmd := exec.Command(sp.adbPath, "backup", "-nocompress", "-f", "-", arg)
+	args := []string{"exec-out", "bu", "backup", arg}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
+	}
+
+	cmd := exec.Command(sp.adbPath, args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -126,30 +149,98 @@ func (sp *StreamingPuller) BackupToWriter(arg string, writer io.Writer) error {
 	return nil
 }
 
-// BugreportToBuffer creates a bugreport directly into memory buffer
+// BugreportToBuffer creates a bugreport directly into memory buffer using bugreportz
 func (sp *StreamingPuller) BugreportToBuffer() (*StreamingBuffer, error) {
+	// First, generate bugreport zip on device using bugreportz
+	args := []string{"shell", "bugreportz"}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
+	}
+
+	cmd := exec.Command(sp.adbPath, args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate bugreport with bugreportz: %v", err)
+	}
+
+	// Parse output to get filename (bugreportz outputs: OK:/data/user_de/0/com.android.shell/files/bugreports/bugreport-xxx.zip)
+	filename := strings.TrimSpace(string(output))
+	if strings.HasPrefix(filename, "OK:") {
+		filename = strings.TrimPrefix(filename, "OK:")
+	} else {
+		return nil, fmt.Errorf("bugreportz failed: %s", filename)
+	}
+
+	// Stream the bugreport file to buffer
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	cmd := exec.Command(sp.adbPath, "bugreport")
-	cmd.Stdout = buffer
-
-	err := cmd.Run()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bugreport to buffer: %v", err)
+	streamArgs := []string{"exec-out", "cat", filename}
+	if sp.serial != "" {
+		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
+
+	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd.Stdout = buffer
+
+	err = streamCmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("failed to stream bugreport file: %v", err)
+	}
+
+	// Clean up the bugreport file from device
+	cleanupArgs := []string{"shell", "rm", filename}
+	if sp.serial != "" {
+		cleanupArgs = append([]string{"-s", sp.serial}, cleanupArgs...)
+	}
+	cleanupCmd := exec.Command(sp.adbPath, cleanupArgs...)
+	cleanupCmd.Run() // Ignore errors for cleanup
 
 	return buffer, nil
 }
 
-// BugreportToWriter creates a bugreport and streams it directly to a writer
+// BugreportToWriter creates a bugreport and streams it directly to a writer using bugreportz
 func (sp *StreamingPuller) BugreportToWriter(writer io.Writer) error {
-	cmd := exec.Command(sp.adbPath, "bugreport")
-	cmd.Stdout = writer
-
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to create bugreport to writer: %v", err)
+	// First, generate bugreport zip on device using bugreportz
+	args := []string{"shell", "bugreportz"}
+	if sp.serial != "" {
+		args = append([]string{"-s", sp.serial}, args...)
 	}
+
+	cmd := exec.Command(sp.adbPath, args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to generate bugreport with bugreportz: %v", err)
+	}
+
+	// Parse output to get filename (bugreportz outputs: OK:/data/user_de/0/com.android.shell/files/bugreports/bugreport-xxx.zip)
+	filename := strings.TrimSpace(string(output))
+	if strings.HasPrefix(filename, "OK:") {
+		filename = strings.TrimPrefix(filename, "OK:")
+	} else {
+		return fmt.Errorf("bugreportz failed: %s", filename)
+	}
+
+	// Stream the bugreport file to writer
+	streamArgs := []string{"exec-out", "cat", filename}
+	if sp.serial != "" {
+		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
+	}
+
+	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd.Stdout = writer
+
+	err = streamCmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to stream bugreport file: %v", err)
+	}
+
+	// Clean up the bugreport file from device
+	cleanupArgs := []string{"shell", "rm", filename}
+	if sp.serial != "" {
+		cleanupArgs = append([]string{"-s", sp.serial}, cleanupArgs...)
+	}
+	cleanupCmd := exec.Command(sp.adbPath, cleanupArgs...)
+	cleanupCmd.Run() // Ignore errors for cleanup
 
 	return nil
 }

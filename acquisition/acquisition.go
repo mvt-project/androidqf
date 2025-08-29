@@ -102,7 +102,7 @@ func New(path string) (*Acquisition, error) {
 		acq.closeLog = nil // No separate log file in streaming mode
 
 		// Initialize streaming puller for direct operations
-		acq.StreamingPuller = NewStreamingPuller(adb.Client.ExePath, 100) // 100MB max memory
+		acq.StreamingPuller = NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100) // 100MB max memory
 	}
 
 	return &acq, nil
