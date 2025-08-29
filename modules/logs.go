@@ -32,9 +32,13 @@ func (l *Logs) Name() string {
 func (l *Logs) InitStorage(storagePath string) error {
 	l.StoragePath = storagePath
 	l.LogsPath = filepath.Join(storagePath, "logs")
-	err := os.Mkdir(l.LogsPath, 0o755)
-	if err != nil {
-		return fmt.Errorf("failed to create logs folder: %v", err)
+
+	// Only create directory in traditional mode
+	if storagePath != "" {
+		err := os.Mkdir(l.LogsPath, 0o755)
+		if err != nil && !os.IsExist(err) {
+			return fmt.Errorf("failed to create logs folder: %v", err)
+		}
 	}
 
 	return nil
@@ -66,23 +70,51 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	for _, logFile := range logFiles {
-		localPath := filepath.Join(l.LogsPath, logFile)
-		localDir, _ := filepath.Split(localPath)
-		log.Debugf("From: %s", logFile)
-		log.Debugf("To: %s", localPath)
+		if acq.StreamingMode && acq.EncryptedWriter != nil {
+			// Streaming mode: stream directly from ADB to encrypted zip without temp files
+			log.Debugf("From: %s", logFile)
+			log.Debugf("To encrypted archive as: logs%s", logFile)
 
-		err := os.MkdirAll(localDir, 0o755)
-		if err != nil {
-			log.Errorf("Failed to create folders for logs %s: %v\n", localDir, err)
-			continue
-		}
+			// Create zip path with logs/ prefix
+			zipPath := fmt.Sprintf("logs%s", logFile)
 
-		out, err := adb.Client.Pull(logFile, localPath)
-		if err != nil {
-			if !text.ContainsNoCase(out, "Permission denied") {
-				log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+			// Create zip entry writer
+			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
+			if err != nil {
+				log.Errorf("Failed to create zip entry for log %s: %v\n", logFile, err)
+				continue
 			}
-			continue
+
+			// Stream log file directly to encrypted zip using acquisition's streaming puller
+			err = acq.StreamingPuller.PullToWriter(logFile, writer)
+			if err != nil {
+				if !text.ContainsNoCase(err.Error(), "Permission denied") {
+					log.Errorf("Failed to stream log file %s: %v\n", logFile, err)
+				}
+				continue
+			}
+
+			log.Debugf("Streamed log file %s directly to encrypted archive", logFile)
+		} else {
+			// Traditional mode: create local directory structure and pull files
+			localPath := filepath.Join(l.LogsPath, logFile)
+			localDir, _ := filepath.Split(localPath)
+			log.Debugf("From: %s", logFile)
+			log.Debugf("To: %s", localPath)
+
+			err := os.MkdirAll(localDir, 0o755)
+			if err != nil {
+				log.Errorf("Failed to create folders for logs %s: %v\n", localDir, err)
+				continue
+			}
+
+			out, err := adb.Client.Pull(logFile, localPath)
+			if err != nil {
+				if !text.ContainsNoCase(out, "Permission denied") {
+					log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
+				}
+				continue
+			}
 		}
 	}
 

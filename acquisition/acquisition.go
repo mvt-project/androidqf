@@ -9,6 +9,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,16 +26,19 @@ import (
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
-	UUID             string         `json:"uuid"`
-	AndroidQFVersion string         `json:"androidqf_version"`
-	StoragePath      string         `json:"storage_path"`
-	Started          time.Time      `json:"started"`
-	Completed        time.Time      `json:"completed"`
-	Collector        *adb.Collector `json:"collector"`
-	TmpDir           string         `json:"tmp_dir"`
-	SdCard           string         `json:"sdcard"`
-	Cpu              string         `json:"cpu"`
-	closeLog         func()         `json:"-"`
+	UUID             string              `json:"uuid"`
+	AndroidQFVersion string              `json:"androidqf_version"`
+	StoragePath      string              `json:"storage_path"`
+	Started          time.Time           `json:"started"`
+	Completed        time.Time           `json:"completed"`
+	Collector        *adb.Collector      `json:"collector"`
+	TmpDir           string              `json:"tmp_dir"`
+	SdCard           string              `json:"sdcard"`
+	Cpu              string              `json:"cpu"`
+	closeLog         func()              `json:"-"`
+	EncryptedWriter  *EncryptedZipWriter `json:"-"`
+	StreamingMode    bool                `json:"streaming_mode"`
+	StreamingPuller  *StreamingPuller    `json:"-"`
 }
 
 // New returns a new Acquisition instance.
@@ -76,15 +80,30 @@ func New(path string) (*Acquisition, error) {
 	}
 	acq.Collector = coll
 
-	// Init logging file
-	logPath := filepath.Join(acq.StoragePath, "command.log")
-	closeLog, err := log.EnableFileLog(log.DEBUG, logPath)
+	// Try to initialize encrypted streaming mode
+	encWriter, err := NewEncryptedZipWriter(acq.UUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enable file logging: %v", err)
-	}
+		// No key file or encryption setup failed, use normal mode
+		log.Debug("Encrypted streaming not available, using normal mode")
+		acq.StreamingMode = false
 
-	// Store cleanup function for later use
-	acq.closeLog = closeLog
+		// Init logging file for normal mode
+		logPath := filepath.Join(acq.StoragePath, "command.log")
+		closeLog, err := log.EnableFileLog(log.DEBUG, logPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable file logging: %v", err)
+		}
+		acq.closeLog = closeLog
+	} else {
+		// Encrypted streaming mode enabled
+		log.Info("Using encrypted streaming mode - data will be written directly to encrypted archive")
+		acq.StreamingMode = true
+		acq.EncryptedWriter = encWriter
+		acq.closeLog = nil // No separate log file in streaming mode
+
+		// Initialize streaming puller for direct operations
+		acq.StreamingPuller = NewStreamingPuller(adb.Client.ExePath, 100) // 100MB max memory
+	}
 
 	return &acq, nil
 }
@@ -92,9 +111,39 @@ func New(path string) (*Acquisition, error) {
 func (a *Acquisition) Complete() {
 	a.Completed = time.Now().UTC()
 
-	// Ensure log file is closed before cleanup operations
-	if a.closeLog != nil {
-		defer a.closeLog()
+	// Handle streaming mode completion
+	if a.StreamingMode && a.EncryptedWriter != nil {
+		// Store acquisition info in the encrypted zip
+		info, err := json.MarshalIndent(a, "", " ")
+		if err != nil {
+			log.Error("Failed to marshal acquisition info for encrypted archive")
+		} else {
+			err = a.EncryptedWriter.CreateFileFromBytes("acquisition.json", info)
+			if err != nil {
+				log.ErrorExc("Failed to store acquisition info in encrypted archive", err)
+			}
+		}
+
+		// Close the encrypted writer
+		err = a.EncryptedWriter.Close()
+		if err != nil {
+			log.ErrorExc("Failed to close encrypted archive", err)
+		}
+
+		// Remove the temporary storage directory if it was created and used
+		if a.StoragePath != "" {
+			if _, err := os.Stat(a.StoragePath); err == nil {
+				err = os.RemoveAll(a.StoragePath)
+				if err != nil {
+					log.ErrorExc("Failed to clean up temporary storage directory", err)
+				}
+			}
+		}
+	} else {
+		// Ensure log file is closed before cleanup operations
+		if a.closeLog != nil {
+			defer a.closeLog()
+		}
 	}
 
 	if a.Collector != nil {
@@ -144,6 +193,12 @@ func (a *Acquisition) GetSystemInformation() error {
 }
 
 func (a *Acquisition) HashFiles() error {
+	// In streaming mode, files are directly encrypted and no local files exist to hash
+	if a.StreamingMode {
+		log.Debug("Skipping hash generation in streaming mode (data is encrypted)")
+		return nil
+	}
+
 	log.Info("Generating list of files hashes...")
 
 	csvFile, err := os.Create(filepath.Join(a.StoragePath, "hashes.csv"))
@@ -183,6 +238,11 @@ func (a *Acquisition) HashFiles() error {
 }
 
 func (a *Acquisition) StoreInfo() error {
+	// In streaming mode, info is stored during Complete()
+	if a.StreamingMode {
+		return nil
+	}
+
 	log.Info("Saving details about acquisition and device...")
 
 	info, err := json.MarshalIndent(a, "", " ")
@@ -197,6 +257,77 @@ func (a *Acquisition) StoreInfo() error {
 	if err != nil {
 		return fmt.Errorf("failed to write acquisition details to file: %v",
 			err)
+	}
+
+	return nil
+}
+
+// StreamAPKToZip streams an APK file directly to encrypted zip with certificate processing
+func (a *Acquisition) StreamAPKToZip(remotePath, zipPath string, processFunc func(io.Reader) error) error {
+	if !a.StreamingMode || a.EncryptedWriter == nil {
+		return fmt.Errorf("streaming mode not available")
+	}
+
+	// Pull APK data to memory buffer
+	buffer, err := a.StreamingPuller.PullToBuffer(remotePath)
+	if err != nil {
+		return fmt.Errorf("failed to pull APK %s: %v", remotePath, err)
+	}
+
+	// Process APK if processor provided (e.g., certificate verification)
+	if processFunc != nil {
+		err = processFunc(buffer.Reader())
+		if err != nil {
+			return fmt.Errorf("failed to process APK %s: %v", remotePath, err)
+		}
+	}
+
+	// Stream to encrypted zip
+	err = a.EncryptedWriter.CreateFileFromReader(zipPath, buffer.Reader())
+	if err != nil {
+		return fmt.Errorf("failed to add APK %s to encrypted zip: %v", remotePath, err)
+	}
+
+	return nil
+}
+
+// StreamBackupToZip streams a backup directly to encrypted zip
+func (a *Acquisition) StreamBackupToZip(arg, zipPath string) error {
+	if !a.StreamingMode || a.EncryptedWriter == nil {
+		return fmt.Errorf("streaming mode not available")
+	}
+
+	// Create zip entry writer
+	writer, err := a.EncryptedWriter.CreateFile(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip entry for backup: %v", err)
+	}
+
+	// Stream backup directly to zip
+	err = a.StreamingPuller.BackupToWriter(arg, writer)
+	if err != nil {
+		return fmt.Errorf("failed to stream backup to zip: %v", err)
+	}
+
+	return nil
+}
+
+// StreamBugreportToZip streams a bugreport directly to encrypted zip
+func (a *Acquisition) StreamBugreportToZip(zipPath string) error {
+	if !a.StreamingMode || a.EncryptedWriter == nil {
+		return fmt.Errorf("streaming mode not available")
+	}
+
+	// Create zip entry writer
+	writer, err := a.EncryptedWriter.CreateFile(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip entry for bugreport: %v", err)
+	}
+
+	// Stream bugreport directly to zip
+	err = a.StreamingPuller.BugreportToWriter(writer)
+	if err != nil {
+		return fmt.Errorf("failed to stream bugreport to zip: %v", err)
 	}
 
 	return nil

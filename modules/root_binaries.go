@@ -6,7 +6,6 @@
 package modules
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/mvt-project/androidqf/acquisition"
@@ -62,5 +61,5 @@ func (r *RootBinaries) Run(acq *acquisition.Acquisition, fast bool) error {
 		found_root_binaries = append(found_root_binaries, out)
 	}
 
-	return saveCommandOutputJson(filepath.Join(r.StoragePath, "root_binaries.json"), &found_root_binaries)
+	return saveDataToAcquisition(acq, "root_binaries.json", &found_root_binaries)
 }

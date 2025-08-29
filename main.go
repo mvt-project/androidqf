@@ -133,21 +133,27 @@ func main() {
 		}
 	}
 
-	err = acq.HashFiles()
-	if err != nil {
-		log.ErrorExc("Failed to generate list of file hashes", err)
-		return
+	if acq.StreamingMode {
+		// In streaming mode, all data is already encrypted in the zip stream
+		log.Info("Finalizing encrypted acquisition...")
+	} else {
+		// Traditional mode: hash files, then encrypt if key exists
+		err = acq.HashFiles()
+		if err != nil {
+			log.ErrorExc("Failed to generate list of file hashes", err)
+			return
+		}
+
+		acq.StoreInfo()
+
+		err = acq.StoreSecurely()
+		if err != nil {
+			log.ErrorExc("Something failed while encrypting the acquisition", err)
+			log.Warning("WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!")
+		}
 	}
 
 	acq.Complete()
-	acq.StoreInfo()
-
-	err = acq.StoreSecurely()
-	if err != nil {
-		log.ErrorExc("Something failed while encrypting the acquisition", err)
-		log.Warning("WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!")
-	}
-
 	log.Info("Acquisition completed.")
 
 	systemPause()

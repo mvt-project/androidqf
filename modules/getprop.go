@@ -6,7 +6,6 @@ package modules
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -38,5 +37,5 @@ func (g *GetProp) Run(acq *acquisition.Acquisition, fast bool) error {
 		return fmt.Errorf("failed to run `adb shell getprop`: %v", err)
 	}
 
-	return saveCommandOutput(filepath.Join(g.StoragePath, "getprop.txt"), out)
+	return saveStringToAcquisition(acq, "getprop.txt", out)
 }

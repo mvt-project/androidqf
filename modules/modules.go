@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mvt-project/androidqf/acquisition"
 )
@@ -61,4 +62,46 @@ func saveCommandOutput(filePath, output string) error {
 	file.Sync()
 
 	return nil
+}
+
+// saveDataToAcquisition saves data to either encrypted stream or file based on acquisition mode
+func saveDataToAcquisition(acq *acquisition.Acquisition, filename string, data any) error {
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		return saveDataToStream(acq.EncryptedWriter, filename, data)
+	}
+
+	// Fall back to traditional file saving
+	filePath := filepath.Join(acq.StoragePath, filename)
+	return saveCommandOutputJson(filePath, data)
+}
+
+// saveStringToAcquisition saves string content to either encrypted stream or file
+func saveStringToAcquisition(acq *acquisition.Acquisition, filename, content string) error {
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		return acq.EncryptedWriter.CreateFileFromString(filename, content)
+	}
+
+	// Fall back to traditional file saving
+	filePath := filepath.Join(acq.StoragePath, filename)
+	return saveCommandOutput(filePath, content)
+}
+
+// saveBytesToAcquisition saves byte content to either encrypted stream or file
+func saveBytesToAcquisition(acq *acquisition.Acquisition, filename string, content []byte) error {
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		return acq.EncryptedWriter.CreateFileFromBytes(filename, content)
+	}
+
+	// Fall back to traditional file saving
+	filePath := filepath.Join(acq.StoragePath, filename)
+	return os.WriteFile(filePath, content, 0644)
+}
+
+// saveDataToStream saves JSON data to encrypted zip stream
+func saveDataToStream(writer *acquisition.EncryptedZipWriter, filename string, data any) error {
+	jsonData, err := json.MarshalIndent(&data, "", "    ")
+	if err != nil {
+		return fmt.Errorf("failed to convert JSON: %v", err)
+	}
+	return writer.CreateFileFromString(filename, string(jsonData))
 }

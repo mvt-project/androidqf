@@ -6,6 +6,7 @@
 package modules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -36,24 +37,32 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 		"Generating a bugreport for the device...",
 	)
 
-	err := adb.Client.Bugreport()
-	if err != nil {
-		log.Debugf("Impossible to generate bugreport: %w", err)
-		return err
-	}
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		// Streaming mode: stream bugreport directly to encrypted zip without temp files
+		err := acq.StreamBugreportToZip("bugreport.zip")
+		if err != nil {
+			return fmt.Errorf("failed to stream bugreport to encrypted archive: %v", err)
+		}
+	} else {
+		// Traditional mode: create bugreport file and move to storage directory
+		err := adb.Client.Bugreport()
+		if err != nil {
+			log.Debugf("Impossible to generate bugreport: %w", err)
+			return err
+		}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Debugf("Impossible to get current directory: %w", err)
-		return err
-	}
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Debugf("Impossible to get current directory: %w", err)
+			return err
+		}
 
-	origBugreportPath := filepath.Join(cwd, "bugreport.zip")
-	bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
-
-	err = os.Rename(origBugreportPath, bugreportPath)
-	if err != nil {
-		return err
+		origBugreportPath := filepath.Join(cwd, "bugreport.zip")
+		bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
+		err = os.Rename(origBugreportPath, bugreportPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	log.Debug("Bugreport completed!")

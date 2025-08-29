@@ -6,6 +6,7 @@ package modules
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,9 +42,13 @@ func (p *Packages) Name() string {
 func (p *Packages) InitStorage(storagePath string) error {
 	p.StoragePath = storagePath
 	p.ApksPath = filepath.Join(storagePath, "apks")
-	err := os.Mkdir(p.ApksPath, 0o755)
-	if err != nil {
-		return fmt.Errorf("failed to create apks folder: %v", err)
+
+	// Only create directory in traditional mode
+	if storagePath != "" {
+		err := os.Mkdir(p.ApksPath, 0o755)
+		if err != nil && !os.IsExist(err) {
+			return fmt.Errorf("failed to create apks folder: %v", err)
+		}
 	}
 
 	return nil
@@ -125,39 +130,95 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 
 			for ipf := 0; ipf < len(packages[ip].Files); ipf++ {
 				packageFile := &packages[ip].Files[ipf]
-				localPath := p.getPathToLocalCopy(packages[ip].Name, packageFile.Path)
 
-				out, err := adb.Client.Pull(packageFile.Path, localPath)
-				if err != nil {
-					packageFile.Error = out
-					log.Debugf("ERROR: failed to download %s: %s", packageFile.Path, out)
-					continue
-				}
+				if acq.StreamingMode && acq.EncryptedWriter != nil {
+					// Streaming mode: stream directly to encrypted zip without temp files
 
-				log.Debugf("Downloaded %s to %s", packageFile.Path, localPath)
+					// Create zip path for APK
+					fileName := ""
+					if strings.Contains(packageFile.Path, "==/") {
+						fileName = fmt.Sprintf("_%s", strings.Replace(strings.Split(packageFile.Path, "==/")[1], ".apk", "", 1))
+					}
+					zipPath := fmt.Sprintf("apks/%s%s.apk", packages[ip].Name, fileName)
 
-				// Check the certificate
-				verified, cert, err := utils.VerifyCertificate(localPath)
-				if cert == nil {
-					// Couldn't extract certificate
-					log.Debugf("Couldn't parse certificate for app %s", localPath)
-					packageFile.CertificateError = err.Error()
-					packageFile.VerifiedCertificate = false
-				} else {
-					packageFile.Certificate = *cert
-					packageFile.VerifiedCertificate = false
+					// Create certificate processor function
+					var skipAPK bool
+					certProcessor := func(reader io.Reader) error {
+						// Verify certificate from stream
+						verified, cert, err := utils.VerifyCertificateFromReader(reader)
+						if cert == nil {
+							packageFile.CertificateError = err.Error()
+							packageFile.VerifiedCertificate = false
+						} else {
+							packageFile.Certificate = *cert
+							packageFile.VerifiedCertificate = verified
+							if err != nil {
+								packageFile.CertificateError = err.Error()
+							} else {
+								packageFile.CertificateError = ""
+								if utils.IsTrusted(*cert) {
+									packageFile.TrustedCertificate = true
+									if keepOption == apkRemoveTrusted {
+										log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
+										skipAPK = true
+										return nil // Skip but don't error
+									}
+								}
+							}
+						}
+						return nil
+					}
+
+					// Stream APK directly to encrypted zip with certificate processing
+					err = acq.StreamAPKToZip(packageFile.Path, zipPath, certProcessor)
 					if err != nil {
-						// Extracted certificate but couldn't verify it
+						packageFile.Error = fmt.Sprintf("Failed to stream to encrypted archive: %v", err)
+						log.Debugf("ERROR: failed to stream %s to encrypted archive: %v", packageFile.Path, err)
+						continue
+					}
+
+					// Skip if marked as trusted and removal requested
+					if skipAPK {
+						continue
+					}
+
+					log.Debugf("Streamed %s directly to encrypted archive as %s", packageFile.Path, zipPath)
+				} else {
+					// Traditional mode: download to local storage
+					localPath := p.getPathToLocalCopy(packages[ip].Name, packageFile.Path)
+
+					out, err := adb.Client.Pull(packageFile.Path, localPath)
+					if err != nil {
+						packageFile.Error = out
+						log.Debugf("ERROR: failed to download %s: %s", packageFile.Path, out)
+						continue
+					}
+
+					log.Debugf("Downloaded %s to %s", packageFile.Path, localPath)
+
+					// Check the certificate
+					verified, cert, err := utils.VerifyCertificate(localPath)
+					if cert == nil {
+						// Couldn't extract certificate
+						log.Debugf("Couldn't parse certificate for app %s", localPath)
 						packageFile.CertificateError = err.Error()
+						packageFile.VerifiedCertificate = false
 					} else {
-						packageFile.CertificateError = ""
-						packageFile.VerifiedCertificate = verified
-						if utils.IsTrusted(*cert) {
-							packageFile.TrustedCertificate = true
-							if keepOption == apkRemoveTrusted {
-								log.Debugf("Trusted APK removed: %s - %s",
-									localPath, packageFile.SHA256)
-								os.Remove(localPath)
+						packageFile.Certificate = *cert
+						packageFile.VerifiedCertificate = false
+						if err != nil {
+							// Extracted certificate but couldn't verify it
+							packageFile.CertificateError = err.Error()
+						} else {
+							packageFile.CertificateError = ""
+							packageFile.VerifiedCertificate = verified
+							if utils.IsTrusted(*cert) {
+								packageFile.TrustedCertificate = true
+								if keepOption == apkRemoveTrusted {
+									log.Debugf("Trusted APK removed: %s - %s",
+										localPath, packageFile.SHA256)
+									os.Remove(localPath)
+								}
 							}
 						}
 					}
@@ -166,5 +227,5 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 		}
 	}
 
-	return saveCommandOutputJson(filepath.Join(p.StoragePath, "packages.json"), &packages)
+	return saveDataToAcquisition(acq, "packages.json", &packages)
 }

@@ -6,7 +6,6 @@ package modules
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -22,7 +21,7 @@ func NewSettings() *Settings {
 }
 
 func (s *Settings) Name() string {
-	return "logcat"
+	return "settings"
 }
 
 func (s *Settings) InitStorage(storagePath string) error {
@@ -39,10 +38,7 @@ func (s *Settings) Run(acq *acquisition.Acquisition, fast bool) error {
 			return fmt.Errorf("failed to run `cmd settings %s`: %v", namespace, err)
 		}
 
-		err = saveCommandOutput(
-			filepath.Join(s.StoragePath, fmt.Sprintf("settings_%s.txt", namespace)),
-			out,
-		)
+		err = saveStringToAcquisition(acq, fmt.Sprintf("settings_%s.txt", namespace), out)
 		if err != nil {
 			log.Errorf("Impossible to save settings: %v", err)
 		}

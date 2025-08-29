@@ -39,6 +39,11 @@ func createZipFile(sourceDir, zipPath string) error {
 }
 
 func (a *Acquisition) StoreSecurely() error {
+	// In streaming mode, data is already encrypted during collection
+	if a.StreamingMode {
+		return nil
+	}
+
 	cwd := saveRuntime.GetExecutableDirectory()
 
 	keyFilePath := filepath.Join(cwd, "key.txt")

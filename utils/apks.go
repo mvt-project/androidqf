@@ -7,6 +7,8 @@ package utils
 
 import (
 	"errors"
+	"io"
+	"os"
 
 	"github.com/avast/apkverifier"
 )
@@ -338,4 +340,27 @@ func VerifyCertificate(path string) (bool, *apkverifier.CertInfo, error) {
 		return false, cert, err
 	}
 	return true, cert, nil
+}
+
+// VerifyCertificateFromReader extracts certificate from APK data in a reader and returns information about it
+// This creates a temporary file for verification and immediately cleans it up
+func VerifyCertificateFromReader(reader io.Reader) (bool, *apkverifier.CertInfo, error) {
+	// Create temporary file for verification
+	tempFile, err := os.CreateTemp("", "androidqf_cert_verify_*.apk")
+	if err != nil {
+		return false, nil, err
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath) // Clean up immediately after verification
+
+	// Copy reader data to temp file
+	_, err = io.Copy(tempFile, reader)
+	if err != nil {
+		tempFile.Close()
+		return false, nil, err
+	}
+	tempFile.Close()
+
+	// Use existing file-based verification
+	return VerifyCertificate(tempPath)
 }
