@@ -6,7 +6,6 @@ package modules
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,29 +54,36 @@ func (p *Packages) InitStorage(storagePath string) error {
 }
 
 func (p *Packages) getPathToLocalCopy(packageName, filePath string) string {
-	fileName := ""
-	if strings.Contains(filePath, "==/") {
-		fileName = fmt.Sprintf(
-			"_%s",
-			strings.Replace(strings.Split(filePath, "==/")[1], ".apk", "", 1),
-		)
-	}
-
+	fileName := p.extractFileName(filePath)
 	localPath := filepath.Join(p.ApksPath, fmt.Sprintf("%s%s.apk", packageName, fileName))
+
 	counter := 0
 	for {
 		if _, err := os.Stat(localPath); os.IsNotExist(err) {
 			break
 		}
-
 		counter++
 		localPath = filepath.Join(
 			p.ApksPath,
 			fmt.Sprintf("%s%s_%d.apk", packageName, fileName, counter),
 		)
 	}
-
 	return localPath
+}
+
+func (p *Packages) extractFileName(filePath string) string {
+	if strings.Contains(filePath, "==/") {
+		parts := strings.Split(filePath, "==/")
+		if len(parts) > 1 {
+			return fmt.Sprintf("_%s", strings.Replace(parts[1], ".apk", "", 1))
+		}
+	}
+	return ""
+}
+
+func (p *Packages) generateZipPath(packageName, filePath string) string {
+	fileName := p.extractFileName(filePath)
+	return fmt.Sprintf("apks/%s%s.apk", packageName, fileName)
 }
 
 func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
@@ -133,56 +139,10 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 
 				if acq.StreamingMode && acq.EncryptedWriter != nil {
 					// Streaming mode: stream directly to encrypted zip without temp files
-
-					// Create zip path for APK
-					fileName := ""
-					if strings.Contains(packageFile.Path, "==/") {
-						fileName = fmt.Sprintf("_%s", strings.Replace(strings.Split(packageFile.Path, "==/")[1], ".apk", "", 1))
-					}
-					zipPath := fmt.Sprintf("apks/%s%s.apk", packages[ip].Name, fileName)
-
-					// Create certificate processor function
-					var skipAPK bool
-					certProcessor := func(reader io.Reader) error {
-						// Verify certificate from stream
-						verified, cert, err := utils.VerifyCertificateFromReader(reader)
-						if cert == nil {
-							packageFile.CertificateError = err.Error()
-							packageFile.VerifiedCertificate = false
-						} else {
-							packageFile.Certificate = *cert
-							packageFile.VerifiedCertificate = verified
-							if err != nil {
-								packageFile.CertificateError = err.Error()
-							} else {
-								packageFile.CertificateError = ""
-								if utils.IsTrusted(*cert) {
-									packageFile.TrustedCertificate = true
-									if keepOption == apkRemoveTrusted {
-										log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
-										skipAPK = true
-										return nil // Skip but don't error
-									}
-								}
-							}
-						}
-						return nil
-					}
-
-					// Stream APK directly to encrypted zip with certificate processing
-					err = acq.StreamAPKToZip(packageFile.Path, zipPath, certProcessor)
-					if err != nil {
-						packageFile.Error = fmt.Sprintf("Failed to stream to encrypted archive: %v", err)
-						log.Debugf("ERROR: failed to stream %s to encrypted archive: %v", packageFile.Path, err)
+					if err := p.processAPKStreaming(packages[ip].Name, packageFile, keepOption, acq); err != nil {
+						log.Debugf("ERROR: failed to process APK %s: %v", packageFile.Path, err)
 						continue
 					}
-
-					// Skip if marked as trusted and removal requested
-					if skipAPK {
-						continue
-					}
-
-					log.Debugf("Streamed %s directly to encrypted archive as %s", packageFile.Path, zipPath)
 				} else {
 					// Traditional mode: download to local storage
 					localPath := p.getPathToLocalCopy(packages[ip].Name, packageFile.Path)
@@ -228,4 +188,71 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	return saveDataToAcquisition(acq, "packages.json", &packages)
+}
+
+// processAPKStreaming handles APK processing in streaming mode
+func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.PackageFile, keepOption string, acq *acquisition.Acquisition) error {
+	zipPath := p.generateZipPath(packageName, packageFile.Path)
+
+	// Process certificate and determine if APK should be skipped
+	shouldSkip, err := p.processCertificate(packageFile, keepOption, acq)
+	if err != nil {
+		packageFile.Error = fmt.Sprintf("Certificate processing failed: %v", err)
+		return err
+	}
+
+	if shouldSkip {
+		log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
+		return nil
+	}
+
+	// Stream APK directly to encrypted zip
+	err = acq.StreamAPKToZip(packageFile.Path, zipPath, nil)
+	if err != nil {
+		packageFile.Error = fmt.Sprintf("Failed to stream to encrypted archive: %v", err)
+		return err
+	}
+
+	log.Debugf("Streamed %s directly to encrypted archive as %s", packageFile.Path, zipPath)
+	return nil
+}
+
+// processCertificate handles certificate verification and returns whether APK should be skipped
+func (p *Packages) processCertificate(packageFile *adb.PackageFile, keepOption string, acq *acquisition.Acquisition) (bool, error) {
+	// Pull APK to buffer for certificate verification
+	buffer, err := acq.StreamingPuller.PullToBuffer(packageFile.Path)
+	if err != nil {
+		return false, fmt.Errorf("failed to pull APK for certificate verification: %v", err)
+	}
+
+	// Verify certificate from buffer using in-memory verification
+	verified, cert, err := utils.VerifyCertificateFromReader(buffer.Reader())
+	if cert == nil {
+		packageFile.CertificateError = "No certificate found"
+		if err != nil {
+			packageFile.CertificateError = err.Error()
+		}
+		packageFile.VerifiedCertificate = false
+		return false, nil
+	}
+
+	// Set certificate information
+	packageFile.Certificate = *cert
+	packageFile.VerifiedCertificate = verified
+
+	if err != nil {
+		packageFile.CertificateError = err.Error()
+	} else {
+		packageFile.CertificateError = ""
+	}
+
+	// Check if certificate is trusted and should be removed
+	if utils.IsTrusted(*cert) {
+		packageFile.TrustedCertificate = true
+		if keepOption == apkRemoveTrusted {
+			return true, nil // Skip this APK
+		}
+	}
+
+	return false, nil
 }

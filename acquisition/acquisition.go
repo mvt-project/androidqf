@@ -103,6 +103,7 @@ func New(path string) (*Acquisition, error) {
 
 		// Initialize streaming puller for direct operations
 		acq.StreamingPuller = NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100) // 100MB max memory
+
 	}
 
 	return &acq, nil
@@ -264,28 +265,35 @@ func (a *Acquisition) StoreInfo() error {
 
 // StreamAPKToZip streams an APK file directly to encrypted zip with certificate processing
 func (a *Acquisition) StreamAPKToZip(remotePath, zipPath string, processFunc func(io.Reader) error) error {
-	if !a.StreamingMode || a.EncryptedWriter == nil {
-		return fmt.Errorf("streaming mode not available")
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+
+	if remotePath == "" {
+		return fmt.Errorf("remote path cannot be empty")
+	}
+	if zipPath == "" {
+		return fmt.Errorf("zip path cannot be empty")
 	}
 
 	// Pull APK data to memory buffer
 	buffer, err := a.StreamingPuller.PullToBuffer(remotePath)
 	if err != nil {
-		return fmt.Errorf("failed to pull APK %s: %v", remotePath, err)
+		return fmt.Errorf("failed to pull APK %q: %v", remotePath, err)
 	}
 
 	// Process APK if processor provided (e.g., certificate verification)
 	if processFunc != nil {
 		err = processFunc(buffer.Reader())
 		if err != nil {
-			return fmt.Errorf("failed to process APK %s: %v", remotePath, err)
+			return fmt.Errorf("failed to process APK %q: %v", remotePath, err)
 		}
 	}
 
 	// Stream to encrypted zip
 	err = a.EncryptedWriter.CreateFileFromReader(zipPath, buffer.Reader())
 	if err != nil {
-		return fmt.Errorf("failed to add APK %s to encrypted zip: %v", remotePath, err)
+		return fmt.Errorf("failed to add APK %q to encrypted zip: %v", remotePath, err)
 	}
 
 	return nil
@@ -293,8 +301,15 @@ func (a *Acquisition) StreamAPKToZip(remotePath, zipPath string, processFunc fun
 
 // StreamBackupToZip streams a backup directly to encrypted zip
 func (a *Acquisition) StreamBackupToZip(arg, zipPath string) error {
-	if !a.StreamingMode || a.EncryptedWriter == nil {
-		return fmt.Errorf("streaming mode not available")
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+
+	if arg == "" {
+		return fmt.Errorf("backup argument cannot be empty")
+	}
+	if zipPath == "" {
+		return fmt.Errorf("zip path cannot be empty")
 	}
 
 	// Create zip entry writer
@@ -306,7 +321,7 @@ func (a *Acquisition) StreamBackupToZip(arg, zipPath string) error {
 	// Stream backup directly to zip
 	err = a.StreamingPuller.BackupToWriter(arg, writer)
 	if err != nil {
-		return fmt.Errorf("failed to stream backup to zip: %v", err)
+		return fmt.Errorf("failed to stream backup %q to zip: %v", arg, err)
 	}
 
 	return nil
@@ -314,8 +329,12 @@ func (a *Acquisition) StreamBackupToZip(arg, zipPath string) error {
 
 // StreamBugreportToZip streams a bugreport directly to encrypted zip
 func (a *Acquisition) StreamBugreportToZip(zipPath string) error {
-	if !a.StreamingMode || a.EncryptedWriter == nil {
-		return fmt.Errorf("streaming mode not available")
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+
+	if zipPath == "" {
+		return fmt.Errorf("zip path cannot be empty")
 	}
 
 	// Create zip entry writer
@@ -330,5 +349,19 @@ func (a *Acquisition) StreamBugreportToZip(zipPath string) error {
 		return fmt.Errorf("failed to stream bugreport to zip: %v", err)
 	}
 
+	return nil
+}
+
+// validateStreamingMode checks if streaming mode is properly initialized
+func (a *Acquisition) validateStreamingMode() error {
+	if !a.StreamingMode {
+		return fmt.Errorf("streaming mode not enabled")
+	}
+	if a.EncryptedWriter == nil {
+		return fmt.Errorf("encrypted writer not initialized")
+	}
+	if a.StreamingPuller == nil {
+		return fmt.Errorf("streaming puller not initialized")
+	}
 	return nil
 }

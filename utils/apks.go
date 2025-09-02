@@ -6,9 +6,9 @@
 package utils
 
 import (
+	"bytes"
 	"errors"
 	"io"
-	"os"
 
 	"github.com/avast/apkverifier"
 )
@@ -342,25 +342,39 @@ func VerifyCertificate(path string) (bool, *apkverifier.CertInfo, error) {
 	return true, cert, nil
 }
 
-// VerifyCertificateFromReader extracts certificate from APK data in a reader and returns information about it
-// This creates a temporary file for verification and immediately cleans it up
+// VerifyCertificateFromReader performs full certificate verification in memory without temporary files
 func VerifyCertificateFromReader(reader io.Reader) (bool, *apkverifier.CertInfo, error) {
-	// Create temporary file for verification
-	tempFile, err := os.CreateTemp("", "androidqf_cert_verify_*.apk")
+	// Read all APK data into memory first
+	apkData, err := io.ReadAll(reader)
 	if err != nil {
 		return false, nil, err
 	}
-	tempPath := tempFile.Name()
-	defer os.Remove(tempPath) // Clean up immediately after verification
 
-	// Copy reader data to temp file
-	_, err = io.Copy(tempFile, reader)
+	// Create a ReadSeeker from the APK data for apkverifier library
+	readSeeker := bytes.NewReader(apkData)
+
+	// Extract certificates using the ReadSeeker-based function
+	certs, err := apkverifier.ExtractCertsReader(readSeeker, nil)
 	if err != nil {
-		tempFile.Close()
 		return false, nil, err
 	}
-	tempFile.Close()
 
-	// Use existing file-based verification
-	return VerifyCertificate(tempPath)
+	// Pick the best certificate from the extracted chains
+	certInfo, cert := apkverifier.PickBestApkCert(certs)
+	if cert == nil {
+		return false, nil, errors.New("no certificate found")
+	}
+
+	// Reset the ReadSeeker for verification
+	readSeeker.Seek(0, 0)
+
+	// Perform full signature verification using ReadSeeker
+	_, err = apkverifier.VerifyReader(readSeeker, nil)
+	if err != nil {
+		// Verification failed but we have certificate info
+		return false, certInfo, err
+	}
+
+	// Verification successful
+	return true, certInfo, nil
 }
