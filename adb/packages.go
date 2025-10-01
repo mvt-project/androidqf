@@ -92,8 +92,12 @@ func (a *ADB) GetPackages(fast bool) ([]Package, error) {
 		// Some phones do not support -i option
 		out, err = a.Shell("pm", "list", "packages", "-U", "-u")
 		if err != nil {
-			return []Package{}, fmt.Errorf("failed to launch `pm list packages` command: %v",
-				err)
+			// old Samsung throw errors when trying to access installed packages of other users
+			out, err = a.Shell("pm", "list", "packages", "-U", "-u", "-i", "--user 0")
+			if err != nil {
+				return []Package{}, fmt.Errorf("failed to launch `pm list packages` command: %v",
+					err)
+			}
 		}
 		withInstaller = false
 	}
