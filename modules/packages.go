@@ -113,16 +113,24 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 	// Otherwise we walk through the list of package, pull the files, and hash them.
 	if download != apkNone {
 
-		// Ask if the user want to remove trusted packages
-		log.Info("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
-		promptAll := promptui.Select{
-			Label: "Remove",
-			Items: []string{apkRemoveTrusted, apkKeepAll},
-		}
-		_, keepOption, err := promptAll.Run()
-		if err != nil {
-			return fmt.Errorf("failed to make selection for download option: %v",
-				err)
+		var keepOption string
+
+		// Only ask about certificate removal for unencrypted output
+		if acq.StreamingMode && acq.EncryptedWriter != nil {
+			// For encrypted output, always keep all APKs (skip certificate checking)
+			keepOption = apkKeepAll
+		} else {
+			// Ask if the user want to remove trusted packages for unencrypted output
+			log.Info("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
+			promptAll := promptui.Select{
+				Label: "Remove",
+				Items: []string{apkRemoveTrusted, apkKeepAll},
+			}
+			_, keepOption, err = promptAll.Run()
+			if err != nil {
+				return fmt.Errorf("failed to make selection for download option: %v",
+					err)
+			}
 		}
 
 		for ip := 0; ip < len(packages); ip++ {
@@ -194,20 +202,25 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.PackageFile, keepOption string, acq *acquisition.Acquisition) error {
 	zipPath := p.generateZipPath(packageName, packageFile.Path)
 
-	// Process certificate and determine if APK should be skipped
-	shouldSkip, err := p.processCertificate(packageFile, keepOption, acq)
-	if err != nil {
-		packageFile.Error = fmt.Sprintf("Certificate processing failed: %v", err)
-		return err
-	}
+	// For encrypted output, skip certificate processing entirely
+	if acq.EncryptedWriter != nil {
+		log.Debugf("Skipping certificate check for encrypted output: %s", packageFile.Path)
+	} else {
+		// Process certificate and determine if APK should be skipped (unencrypted output only)
+		shouldSkip, err := p.processCertificate(packageFile, keepOption, acq)
+		if err != nil {
+			packageFile.Error = fmt.Sprintf("Certificate processing failed: %v", err)
+			return err
+		}
 
-	if shouldSkip {
-		log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
-		return nil
+		if shouldSkip {
+			log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
+			return nil
+		}
 	}
 
 	// Stream APK directly to encrypted zip
-	err = acq.StreamAPKToZip(packageFile.Path, zipPath, nil)
+	err := acq.StreamAPKToZip(packageFile.Path, zipPath, nil)
 	if err != nil {
 		packageFile.Error = fmt.Sprintf("Failed to stream to encrypted archive: %v", err)
 		return err
