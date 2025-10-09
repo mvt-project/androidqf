@@ -6,7 +6,6 @@
 package modules
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -72,5 +71,5 @@ func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
 
 	log.Debugf("Found %d mount entries", len(mountsData))
 
-	return saveCommandOutputJson(filepath.Join(m.StoragePath, "mounts.json"), &mountsData)
+	return saveDataToAcquisition(acq, "mounts.json", &mountsData)
 }
