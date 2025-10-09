@@ -5,8 +5,6 @@
 package modules
 
 import (
-	"path/filepath"
-
 	"github.com/botherder/go-savetime/slice"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -83,5 +81,5 @@ func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {
 		}
 	}
 
-	return saveCommandOutputJson(filepath.Join(f.StoragePath, "files.json"), &fileDetails)
+	return saveDataToAcquisition(acq, "files.json", &fileDetails)
 }

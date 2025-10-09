@@ -65,24 +65,32 @@ func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 		arg,
 	)
 
-	err = adb.Client.Backup(arg)
-	if err != nil {
-		log.Debugf("Impossible to get backup: %w", err)
-		return err
-	}
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		// Streaming mode: stream backup directly to encrypted zip without temp files
+		err = acq.StreamBackupToZip(arg, "backup.ab")
+		if err != nil {
+			return fmt.Errorf("failed to stream backup to encrypted archive: %v", err)
+		}
+	} else {
+		// Traditional mode: create backup file and move to storage directory
+		err = adb.Client.Backup(arg)
+		if err != nil {
+			log.Debugf("Impossible to get backup: %w", err)
+			return err
+		}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Debugf("Impossible to get current directory: %w", err)
-		return err
-	}
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Debugf("Impossible to get current directory: %w", err)
+			return err
+		}
 
-	origBackupPath := filepath.Join(cwd, "backup.ab")
-	backupPath := filepath.Join(b.StoragePath, "backup.ab")
-
-	err = os.Rename(origBackupPath, backupPath)
-	if err != nil {
-		return err
+		origBackupPath := filepath.Join(cwd, "backup.ab")
+		backupPath := filepath.Join(b.StoragePath, "backup.ab")
+		err = os.Rename(origBackupPath, backupPath)
+		if err != nil {
+			return err
+		}
 	}
 
 	log.Info("Backup completed!")

@@ -6,7 +6,6 @@ package modules
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -38,7 +37,7 @@ func (l *Logcat) Run(acq *acquisition.Acquisition, fast bool) error {
 		return fmt.Errorf("failed to run `adb shell logcat`: %v", err)
 	}
 
-	err = saveCommandOutput(filepath.Join(l.StoragePath, "logcat.txt"), out)
+	err = saveStringToAcquisition(acq, "logcat.txt", out)
 	if err != nil {
 		return err
 	}
@@ -51,5 +50,5 @@ func (l *Logcat) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
-	return saveCommandOutput(filepath.Join(l.StoragePath, "logcat_old.txt"), out)
+	return saveStringToAcquisition(acq, "logcat_old.txt", out)
 }

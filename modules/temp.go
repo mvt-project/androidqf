@@ -31,9 +31,13 @@ func (t *Temp) Name() string {
 func (t *Temp) InitStorage(storagePath string) error {
 	t.StoragePath = storagePath
 	t.TempPath = filepath.Join(storagePath, "tmp")
-	err := os.Mkdir(t.TempPath, 0o755)
-	if err != nil {
-		return fmt.Errorf("failed to create tmp folder: %v", err)
+
+	// Only create directory in traditional mode
+	if storagePath != "" {
+		err := os.Mkdir(t.TempPath, 0o755)
+		if err != nil && !os.IsExist(err) {
+			return fmt.Errorf("failed to create tmp folder: %v", err)
+		}
 	}
 
 	return nil
@@ -52,10 +56,33 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 		if file == acq.TmpDir {
 			continue
 		}
-		dest_path := filepath.Join(t.TempPath,
-			strings.TrimPrefix(file, acq.TmpDir))
 
-		adb.Client.Pull(file, dest_path)
+		if acq.StreamingMode && acq.EncryptedWriter != nil {
+			// Streaming mode: stream directly from ADB to encrypted zip without temp files
+			zipPath := fmt.Sprintf("tmp/%s", strings.TrimPrefix(file, acq.TmpDir))
+
+			// Create zip entry writer
+			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
+			if err != nil {
+				log.Errorf("Failed to create zip entry for temp file %s: %v\n", file, err)
+				continue
+			}
+
+			// Stream temp file directly to encrypted zip using acquisition's streaming puller
+			err = acq.StreamingPuller.PullToWriter(file, writer)
+			if err != nil {
+				log.Errorf("Failed to stream temp file %s: %v\n", file, err)
+				continue
+			}
+
+			log.Debugf("Streamed temp file %s directly to encrypted archive as %s", file, zipPath)
+		} else {
+			// Traditional mode: pull directly to local storage
+			dest_path := filepath.Join(t.TempPath,
+				strings.TrimPrefix(file, acq.TmpDir))
+
+			adb.Client.Pull(file, dest_path)
+		}
 	}
 	return nil
 }

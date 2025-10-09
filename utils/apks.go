@@ -6,7 +6,9 @@
 package utils
 
 import (
+	"bytes"
 	"errors"
+	"io"
 
 	"github.com/avast/apkverifier"
 )
@@ -338,4 +340,41 @@ func VerifyCertificate(path string) (bool, *apkverifier.CertInfo, error) {
 		return false, cert, err
 	}
 	return true, cert, nil
+}
+
+// VerifyCertificateFromReader performs full certificate verification in memory without temporary files
+func VerifyCertificateFromReader(reader io.Reader) (bool, *apkverifier.CertInfo, error) {
+	// Read all APK data into memory first
+	apkData, err := io.ReadAll(reader)
+	if err != nil {
+		return false, nil, err
+	}
+
+	// Create a ReadSeeker from the APK data for apkverifier library
+	readSeeker := bytes.NewReader(apkData)
+
+	// Extract certificates using the ReadSeeker-based function
+	certs, err := apkverifier.ExtractCertsReader(readSeeker, nil)
+	if err != nil {
+		return false, nil, err
+	}
+
+	// Pick the best certificate from the extracted chains
+	certInfo, cert := apkverifier.PickBestApkCert(certs)
+	if cert == nil {
+		return false, nil, errors.New("no certificate found")
+	}
+
+	// Reset the ReadSeeker for verification
+	readSeeker.Seek(0, 0)
+
+	// Perform full signature verification using ReadSeeker
+	_, err = apkverifier.VerifyReader(readSeeker, nil)
+	if err != nil {
+		// Verification failed but we have certificate info
+		return false, certInfo, err
+	}
+
+	// Verification successful
+	return true, certInfo, nil
 }
