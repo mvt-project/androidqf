@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
@@ -46,6 +47,7 @@ func main() {
 	var module string
 	var output_folder string
 	var serial string
+	var tcpAddr string
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
@@ -60,6 +62,8 @@ func main() {
 	flag.StringVar(&output_folder, "o", "", "Output folder")
 	flag.StringVar(&serial, "serial", "", "Phone serial number")
 	flag.StringVar(&serial, "s", "", "Phone serial number")
+	flag.StringVar(&tcpAddr, "connect", "", "Connect to device over network using ip:port")
+	flag.StringVar(&tcpAddr, "c", "", "Connect to device over network using ip:port")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
 
 	flag.Parse()
@@ -85,6 +89,20 @@ func main() {
 	adb.Client, err = adb.New()
 	if err != nil {
 		log.Fatal("Impossible to initialize ADB: ", err)
+	}
+
+	if tcpAddr != "" {
+		log.Infof("Attempting to connect to %s over network...", tcpAddr)
+		out, err := adb.Client.Exec("connect", tcpAddr)
+		if err != nil {
+			log.Error(fmt.Sprintf("Failed to connect to %s: %v", tcpAddr, err))
+		} else {
+			log.Infof("ADB connect output: %s", strings.TrimSpace(string(out)))
+			// If no serial was explicitly provided, use the ip:port as the serial
+			if serial == "" {
+				serial = tcpAddr
+			}
+		}
 	}
 
 	// Initialization

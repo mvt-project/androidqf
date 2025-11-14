@@ -29,18 +29,31 @@ func DeployAssets() error {
 	for _, asset := range getAssets() {
 		assetPath := filepath.Join(cwd, asset.Name)
 
+		// If the file already exists, skip it. This avoids failing when adb
+		// is already deployed or in use by another process.
+		if _, err := os.Stat(assetPath); err == nil {
+			continue
+		} else if !os.IsNotExist(err) {
+			// Can't determine file existence (e.g., permission error); skip deploying this asset.
+			continue
+		}
+
+		// Try to create the asset file. If creation fails (for example because
+		// the file was created between the Stat and OpenFile calls, or because
+		// the file is locked by another process), skip the asset instead of failing.
 		assetFile, err := os.OpenFile(assetPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o755)
 		if err != nil {
-			// Asset file already exists. Do not try overwriting
+			// If the file exists now, just continue; otherwise skip this asset.
 			if errors.Is(err, os.ErrExist) {
 				continue
-			} else {
-				return err
 			}
+			// Could be locked or another transient error — do not fail the whole deployment.
+			continue
 		}
-		defer assetFile.Close()
 
+		// Write and close immediately (avoid defer in a loop).
 		_, err = assetFile.Write(asset.Data)
+		assetFile.Close()
 		if err != nil {
 			return err
 		}
