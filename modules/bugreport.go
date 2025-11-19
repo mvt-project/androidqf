@@ -33,6 +33,13 @@ func (b *Bugreport) InitStorage(storagePath string) error {
 }
 
 func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
+	// First, pull existing bugreports from /bugreports/ directory
+	err := b.pullExistingBugreports(acq)
+	if err != nil {
+		log.Warningf("Failed to pull existing bugreports: %v", err)
+		// Continue with new bugreport generation even if pulling old ones fails
+	}
+
 	log.Info(
 		"Generating a bugreport for the device...",
 	)
@@ -67,5 +74,91 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 
 	log.Debug("Bugreport completed!")
 
+	return nil
+}
+
+// pullExistingBugreports pulls the entire /bugreports/ directory from the device
+func (b *Bugreport) pullExistingBugreports(acq *acquisition.Acquisition) error {
+	log.Info("Pulling existing bugreports from /bugreports/ directory...")
+
+	// Check if /bugreports directory exists on device
+	exists, err := adb.Client.FileExists("/bugreports")
+	if err != nil {
+		return fmt.Errorf("failed to check if /bugreports directory exists: %v", err)
+	}
+
+	if !exists {
+		log.Debug("No /bugreports directory found on device")
+		return nil
+	}
+
+	if acq.StreamingMode && acq.EncryptedWriter != nil {
+		// Streaming mode: list files and stream each one to encrypted zip
+		return b.streamBugreportsDirectory(acq)
+	} else {
+		// Traditional mode: pull entire directory using adb pull
+		return b.pullBugreportsDirectory()
+	}
+}
+
+// streamBugreportsDirectory streams individual files from /bugreports/ to encrypted zip
+func (b *Bugreport) streamBugreportsDirectory(acq *acquisition.Acquisition) error {
+	// List files in /bugreports directory
+	files, err := adb.Client.ListFiles("/bugreports", false)
+	if err != nil {
+		return fmt.Errorf("failed to list files in /bugreports directory: %v", err)
+	}
+
+	if len(files) == 0 {
+		log.Debug("No existing bugreports found in /bugreports directory")
+		return nil
+	}
+
+	log.Infof("Found %d items in /bugreports, streaming files...", len(files))
+
+	for _, filename := range files {
+		// Skip empty entries and current/parent directory references
+		if filename == "" || filename == "." || filename == ".." {
+			continue
+		}
+
+		remotePath := fmt.Sprintf("/bugreports/%s", filename)
+		zipPath := fmt.Sprintf("bugreports/%s", filename)
+
+		log.Debugf("Streaming existing bugreport: %s", filename)
+
+		// Create zip entry writer
+		writer, err := acq.EncryptedWriter.CreateFile(zipPath)
+		if err != nil {
+			log.Warningf("Failed to create zip entry for %s: %v", filename, err)
+			continue
+		}
+
+		// Stream file directly to zip using StreamingPuller
+		err = acq.StreamingPuller.PullToWriter(remotePath, writer)
+		if err != nil {
+			log.Warningf("Failed to stream existing bugreport %s: %v", filename, err)
+			continue
+		}
+
+		log.Debugf("Successfully streamed existing bugreport: %s", filename)
+	}
+
+	log.Info("Finished streaming existing bugreports")
+	return nil
+}
+
+// pullBugreportsDirectory pulls the entire /bugreports/ directory using adb pull
+func (b *Bugreport) pullBugreportsDirectory() error {
+	bugreportsDir := filepath.Join(b.StoragePath, "bugreports")
+
+	// Use adb pull to get the entire directory
+	output, err := adb.Client.Pull("/bugreports/", bugreportsDir)
+	if err != nil {
+		return fmt.Errorf("failed to pull /bugreports directory: %v (output: %s)", err, output)
+	}
+
+	log.Info("Successfully pulled existing bugreports directory")
+	log.Debugf("ADB pull output: %s", output)
 	return nil
 }
