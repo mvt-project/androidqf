@@ -6,6 +6,7 @@
 package acquisition
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -39,6 +40,7 @@ type Acquisition struct {
 	EncryptedWriter  *EncryptedZipWriter `json:"-"`
 	StreamingMode    bool                `json:"streaming_mode"`
 	StreamingPuller  *StreamingPuller    `json:"-"`
+	logBuffer        *bytes.Buffer       `json:"-"`
 }
 
 // New returns a new Acquisition instance.
@@ -99,11 +101,19 @@ func New(path string) (*Acquisition, error) {
 		log.Info("Using encrypted streaming mode - data will be written directly to encrypted archive")
 		acq.StreamingMode = true
 		acq.EncryptedWriter = encWriter
-		acq.closeLog = nil // No separate log file in streaming mode
 
 		// Initialize streaming puller for direct operations
 		acq.StreamingPuller = NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100) // 100MB max memory
 
+		// Create buffer for command.log (will be written to archive at completion)
+		acq.logBuffer = new(bytes.Buffer)
+
+		// Init logging to write to buffer
+		closeLog, err := log.EnableWriterLog(log.DEBUG, acq.logBuffer)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable writer logging: %v", err)
+		}
+		acq.closeLog = closeLog
 	}
 
 	return &acq, nil
@@ -122,6 +132,20 @@ func (a *Acquisition) Complete() {
 			err = a.EncryptedWriter.CreateFileFromBytes("acquisition.json", info)
 			if err != nil {
 				log.ErrorExc("Failed to store acquisition info in encrypted archive", err)
+			}
+		}
+
+		// Close log writer to stop writing to buffer
+		// After this, logging will only go to stdout
+		if a.closeLog != nil {
+			a.closeLog()
+		}
+
+		// Write buffered command.log to encrypted archive
+		if a.logBuffer != nil && a.logBuffer.Len() > 0 {
+			err = a.EncryptedWriter.CreateFileFromBytes("command.log", a.logBuffer.Bytes())
+			if err != nil {
+				log.ErrorExc("Failed to add command.log to encrypted archive", err)
 			}
 		}
 

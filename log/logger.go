@@ -8,6 +8,7 @@ package log
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -32,7 +33,10 @@ type Logger struct {
 	FileLogLevel LEVEL
 	fd           *os.File
 	fileName     string
+	writer       io.Writer
+	writerActive bool
 	Color        bool
+	mu           sync.Mutex
 }
 
 var (
@@ -47,6 +51,8 @@ func New() *Logger {
 		FileLogLevel: DEBUG,
 		fd:           nil,
 		fileName:     "",
+		writer:       nil,
+		writerActive: false,
 		Color:        true,
 	}
 	return l
@@ -90,6 +96,9 @@ func (log *Logger) out(level LEVEL, format string, v ...any) {
 		}
 	}
 	// Print in the file if any
+	log.mu.Lock()
+	defer log.mu.Unlock()
+
 	if log.fd != nil {
 		var msg string
 		if level >= log.FileLogLevel {
@@ -99,6 +108,19 @@ func (log *Logger) out(level LEVEL, format string, v ...any) {
 				msg = fmt.Sprintf(format, v...)
 			}
 			fmt.Fprintf(log.fd, "%s [%s] %s\n", time.Now().Format(time.RFC3339), level.String(), msg)
+		}
+	}
+
+	// Print to writer if active (for streaming to encrypted archive)
+	if log.writerActive && log.writer != nil {
+		var msg string
+		if level >= log.FileLogLevel {
+			if format == "" {
+				msg = fmt.Sprint(v...)
+			} else {
+				msg = fmt.Sprintf(format, v...)
+			}
+			fmt.Fprintf(log.writer, "%s [%s] %s\n", time.Now().Format(time.RFC3339), level.String(), msg)
 		}
 	}
 }
@@ -148,7 +170,34 @@ func EnableFileLog(level LEVEL, filePath string) (func(), error) {
 	return cleanup, nil
 }
 
+func EnableWriterLog(level LEVEL, writer io.Writer) (func(), error) {
+	if writer == nil {
+		return nil, errors.New("writer cannot be nil")
+	}
+
+	log.mu.Lock()
+	log.writer = writer
+	log.writerActive = true
+	log.FileLogLevel = level
+	log.mu.Unlock()
+
+	// Return cleanup function for defer pattern
+	cleanup := func() {
+		CloseWriterLog()
+	}
+	return cleanup, nil
+}
+
+func CloseWriterLog() {
+	log.mu.Lock()
+	defer log.mu.Unlock()
+	log.writerActive = false
+	log.writer = nil
+}
+
 func CloseFileLog() {
+	log.mu.Lock()
+	defer log.mu.Unlock()
 	if log.fd != nil {
 		log.fd.Close()
 		log.fd = nil
