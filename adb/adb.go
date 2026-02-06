@@ -159,7 +159,11 @@ func (a *ADB) Push(localPath, remotePath string) (string, error) {
 // Backup generates a backup of the specified app, or of all.
 func (a *ADB) Backup(arg string) error {
 	cmd := exec.Command(a.ExePath, "backup", "-nocompress", arg)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, string(output))
+	}
+	return nil
 }
 
 // Bugreport generates a bugreport of the the device
