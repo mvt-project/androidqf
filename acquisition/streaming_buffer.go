@@ -162,7 +162,7 @@ func (sp *StreamingPuller) BackupToWriter(arg string, writer io.Writer) error {
 		return fmt.Errorf("writer cannot be nil")
 	}
 
-	args := []string{"exec-out", "bu", "backup", arg}
+	args := []string{"exec-out", "bu", "backup", "-nocompress", arg}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
