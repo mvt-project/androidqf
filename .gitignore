@@ -19,9 +19,9 @@ android-collector/build/
 build/
 dist/
 
-# GoReleaser temporary downloads
-assets/adb_darwin
-assets/adb_linux
+# GoReleaser temporary downloads - these are committed to git for staticcheck
+# assets/adb_darwin
+# assets/adb_linux
 
 assets/AdbWinApi.dll
 assets/AdbWinUsbApi.dll
