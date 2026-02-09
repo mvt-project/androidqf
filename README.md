@@ -16,13 +16,31 @@ androidqf is intended to provide a simple and portable cross-platform utility to
 
 Executable binaries for Linux, Windows and Mac should be available in the [latest release](https://github.com/mvt-project/androidqf/releases/latest). In case you have issues running the binary you might want to build it by yourself.
 
-In order to build androidqf you will need Go 1.15+ installed. You will also need to install `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information. Android shell quirkes can make running shell commands to gather information too brittle.
+### Building with GoReleaser (Recommended)
 
-When ready you can clone the repository and first build the `collector` module with:
+This project uses [GoReleaser](https://goreleaser.com/) for automated builds and releases. To build locally:
+
+1. Install GoReleaser:
+   ```bash
+   go install github.com/goreleaser/goreleaser@latest
+   ```
+
+2. Run a snapshot build (no publishing):
+   ```bash
+   ./build_locally.sh
+   ```
+
+This will create binaries for all platforms in the `dist/` directory, including a universal binary for macOS that works on both Intel and Apple Silicon.
+
+### Building with Make (Legacy)
+
+You can still use the traditional Makefile approach. You will need Go 1.23+ installed, along with `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
+
+First build the `collector` module:
 
     make collector
 
-You can then compile AndroidQF for your platform of choice:
+Then compile AndroidQF for your platform of choice:
 
     make linux
     make darwin

@@ -17,8 +17,12 @@ android-collector/build/
 # vendor/
 
 build/
+dist/
 
-assets/adb
+# GoReleaser temporary downloads
+assets/adb_darwin
+assets/adb_linux
+
 assets/AdbWinApi.dll
 assets/AdbWinUsbApi.dll
 assets/adb.exe
