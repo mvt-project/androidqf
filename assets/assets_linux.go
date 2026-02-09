@@ -9,7 +9,7 @@ import (
 	_ "embed"
 )
 
-//go:embed "adb"
+//go:embed "adb_linux"
 var adbData []byte
 
 func getAssets() []Asset {

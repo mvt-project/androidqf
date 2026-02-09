@@ -1,0 +1,139 @@
+# GoReleaser configuration for androidqf
+version: 2
+
+before:
+    hooks:
+        # Build the Android collector
+        - make collector
+        # Download platform tools for different OSes
+        - mkdir -p /tmp/platform-tools-downloads
+        # Windows platform tools
+        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-windows.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-windows.zip -O /tmp/platform-tools-downloads/platform-tools-latest-windows.zip; fi'
+        - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-windows.zip'
+        - cp /tmp/platform-tools/AdbWinApi.dll assets/
+        - cp /tmp/platform-tools/AdbWinUsbApi.dll assets/
+        - cp /tmp/platform-tools/adb.exe assets/
+        # macOS platform tools
+        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-darwin.zip -O /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip; fi'
+        - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip'
+        - cp /tmp/platform-tools/adb assets/adb_darwin
+        # Linux platform tools
+        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-linux.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-linux.zip -O /tmp/platform-tools-downloads/platform-tools-latest-linux.zip; fi'
+        - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-linux.zip'
+        - cp /tmp/platform-tools/adb assets/adb_linux
+
+builds:
+    - id: windows-amd64
+      main: .
+      binary: androidqf
+      goos:
+          - windows
+      goarch:
+          - amd64
+      env:
+          - CGO_ENABLED=1
+          - CC=x86_64-w64-mingw32-gcc
+      ldflags:
+          - -s -w
+          - -X github.com/mvt-project/androidqf/utils.Version={{.Version}}
+          - -extldflags "-static"
+
+    - id: linux-amd64
+      main: .
+      binary: androidqf
+      goos:
+          - linux
+      goarch:
+          - amd64
+      env:
+          - CGO_ENABLED=0
+      ldflags:
+          - -s -w
+          - -X github.com/mvt-project/androidqf/utils.Version={{.Version}}
+
+    - id: linux-arm64
+      main: .
+      binary: androidqf
+      goos:
+          - linux
+      goarch:
+          - arm64
+      env:
+          - CGO_ENABLED=0
+      ldflags:
+          - -s -w
+          - -X github.com/mvt-project/androidqf/utils.Version={{.Version}}
+
+    - id: darwin-amd64
+      main: .
+      binary: androidqf
+      goos:
+          - darwin
+      goarch:
+          - amd64
+      env:
+          - CGO_ENABLED=0
+      ldflags:
+          - -s -w
+          - -X github.com/mvt-project/androidqf/utils.Version={{.Version}}
+
+    - id: darwin-arm64
+      main: .
+      binary: androidqf
+      goos:
+          - darwin
+      goarch:
+          - arm64
+      env:
+          - CGO_ENABLED=0
+      ldflags:
+          - -s -w
+          - -X github.com/mvt-project/androidqf/utils.Version={{.Version}}
+
+# Universal binaries for macOS
+# Note: This works on Linux runners (ubuntu-latest)! GoReleaser uses a Go-based
+# implementation of lipo, so you don't need a macOS runner to create universal binaries.
+universal_binaries:
+    - id: darwin-universal
+      ids:
+          - darwin-amd64
+          - darwin-arm64
+      replace: true
+      name_template: androidqf
+
+# Archives disabled - we only want raw binaries
+archives:
+    - id: default
+      format: binary
+      name_template: >-
+          {{- .ProjectName }}_
+          {{- if eq .Os "darwin" }}macos
+          {{- else }}{{ .Os }}{{ end }}_
+          {{- if eq .Arch "all" }}universal
+          {{- else }}{{ .Arch }}{{ end }}_
+          {{- .Version }}
+
+checksum:
+    name_template: "checksums.txt"
+
+snapshot:
+    version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+    sort: asc
+    filters:
+        exclude:
+            - "^docs:"
+            - "^test:"
+            - "^ci:"
+            - "^build:"
+            - Merge pull request
+            - Merge branch
+
+release:
+    github:
+        owner: mvt-project
+        name: androidqf
+    draft: false
+    prerelease: auto
+    name_template: "{{.ProjectName}} {{.Version}}"
