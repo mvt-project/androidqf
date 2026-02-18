@@ -29,13 +29,11 @@ type IL struct {
 	StoragePath string
 	ILPath      string
 	DirOnDevice string
-	PropName    string
 }
 
 func NewIL() *IL {
 	return &IL{
 		DirOnDevice: "/sdcard/Download/Intrusion Logging/",
-		PropName:    "security.perf_harden", // TODO: temporary placeholder, switch to real IL prop when known
 	}
 }
 
@@ -59,15 +57,19 @@ func (m *IL) InitStorage(storagePath string) error {
 }
 
 func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
-	// Check if IL is enabled on device
-	enabled, err := m.isILEnabledOnDevice()
+	// Check whether the device supports AAPM.
+	compatible, err := m.isAAPMCompatibleDevice()
 	if err != nil {
-		// Don't break acquisition if the check fails; just log and skip.
-		log.Debugf("Failed to check prop %s: %v", m.PropName, err)
+		// Don't break acquisition if the check fails, just log and skip.
+		log.Debugf("Failed to check AAPM compatibility: %v", err)
 		return nil
 	}
-	if !enabled {
-		log.Debug("Intrusion Logging is not enabled; skipping")
+
+	// TODO: Investigate whether IL data could exist on a non-compatible device
+	// (for example, restored or migrated from another device on the same Google account).
+	// If so, skipping here might miss existing data.
+	if !compatible {
+		log.Info("Device is not AAPM-compatible, skipping Intrusion Logging acquisition.")
 		return nil
 	}
 
@@ -89,33 +91,48 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
-	// Snapshot of Intrusion Logs folder before triggering new log download
-	before, err := m.listDirSet(m.DirOnDevice)
 
+	// Check whether AAPM is enabled right now. If disabled, don't start the activity
+	// or wait for a new file just pull whatever is already present.
+	// We still proceed with acquisition because older IL files may remain on disk
+	// and should be collected with user consent.
+	aapmEnabled, err := m.isAAPMEnabled()
 	if err != nil {
-		log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
-		return nil
+		log.Debugf("Failed to check AAPM enabled state: %v", err)
+		aapmEnabled = false
 	}
 
-	// Start the Activity to prompt the user to download a new Intrusion Log
-	if err := adb.Client.IL(); err != nil {
-		log.Errorf("IL: failed to start activity: %v", err)
-		// Still allow pulling existing files if user wants; continue anyway.
-	}
+	if aapmEnabled {
+		// Snapshot of Intrusion Logs folder before triggering new log download
+		before, err := m.listDirSet(m.DirOnDevice)
 
-	log.Info("On the device: open the screen that appears, scroll to the 'Download and Decrypt' button, and tap it.")
-	log.Info("Waiting for a new file to appear in " + m.DirOnDevice + " (Ctrl+C to skip waiting and continue acquisition)...")
+		if err != nil {
+			log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
+			return nil
+		}
+
+		// Start the Activity to prompt the user to download a new Intrusion Log
+		if err := adb.Client.IL(); err != nil {
+			log.Errorf("IL: failed to start activity: %v", err)
+			// Still allow pulling existing files if user wants; continue anyway.
+		}
+
+		log.Info("On the device: open the screen that appears, scroll to the 'Download and Decrypt' button, and tap it.")
+		log.Info("Waiting for a new file to appear in " + m.DirOnDevice + " (Ctrl+C to skip waiting and continue acquisition)...")
 
 
-	// Watch directory (Ctrl+C cancels watch but continues acquisition)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
+		// Watch directory (Ctrl+C cancels watch but continues acquisition)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
 
-	// Pulls every 2 seconds. Timeout after 10 minutes.
-	_, watchErr := m.waitForNewFile(ctx, m.DirOnDevice, before, 2*time.Second, 10*time.Minute)
-	if watchErr != nil {
-		// If user Ctrl+C, context is canceled and acquisition continues
-		log.Info("Stopped waiting; continuing with acquisition...")
+		// Pulls every 2 seconds. Timeout after 15 minutes.
+		_, watchErr := m.waitForNewFile(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		if watchErr != nil {
+			// If user Ctrl+C, context is canceled and acquisition continues
+			log.Info("Stopped waiting, continuing with acquisition...")
+		}
+	} else {
+		log.Debug("AAPM is disabled, skipping activity launch and new file watcher (pulling existing files only).")
 	}
 
 	// Pull all files (old + new)
@@ -139,26 +156,39 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	return nil	
 }
 
+func (m *IL) isAAPMCompatibleDevice() (bool, error) {
+	// adb shell settings get secure advanced_protection_mode
+	out, err := adb.Client.Shell("settings", "get", "secure", "advanced_protection_mode")
+	if err != nil {
+		return false, err
+	}
 
-func (m *IL) isILEnabledOnDevice() (bool, error) {
-	out, err := adb.Client.Shell("getprop", m.PropName)
+	val := strings.TrimSpace(out)
+	// If the key does not exist, Android prints "null". We infer this is not compatible.
+	if strings.EqualFold(val, "null") || val == "" {
+		return false, nil
+	}
+
+	// If it's compatible, it should be "0" or "1" (treat anything non-null as compatible)
+	return true, nil
+}
+
+func (m *IL) isAAPMEnabled() (bool, error) {
+	// adb shell settings get secure advanced_protection_mode
+	out, err := adb.Client.Shell("settings", "get", "secure", "advanced_protection_mode")
 	if err != nil {
 		return false, err
 	}
 
 	val := strings.TrimSpace(out)
 
-	// We expect [prop.name]: [true] or [prop.name]: [1]
-	// so we need to parse it
-	if strings.HasPrefix(val, "[") && strings.Contains(val, "]:") {
-		parts := strings.SplitN(val, "]:", 2)
-		if len(parts) == 2 {
-			val = strings.TrimSpace(parts[1]) // now should be like: [true]
-			val = strings.Trim(val, "[] \t\r\n")
-		}
+	// If the key is missing Android returns "null"
+	if strings.EqualFold(val, "null") || val == "" {
+		return false, nil
 	}
 
-	return strings.EqualFold(val, "true") || val == "1", nil
+	// AAPM is enabled only when the value is exactly "1"
+	return val == "1", nil
 }
 
 func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
