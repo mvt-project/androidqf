@@ -1,16 +1,16 @@
 // androidqf - Android Quick Forensics
-// Copyright (c) 2021-2023 Claudio Guarnieri.
+// Copyright (c) 2021-2026 Claudio Guarnieri.
 // Use of this software is governed by the MVT License 1.1 that can be found at
 //   https://license.mvt.re/1.1/
 
 package modules
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"context"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,7 +22,7 @@ import (
 
 const (
 	acquireIL = "Yes"
-	skipIL  = "No"
+	skipIL    = "No"
 )
 
 type IL struct {
@@ -74,7 +74,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	// Ask user first
-	log.Info("Would you like to take the Intrusion Logs of the device?")
+	log.Info("Would you like to download Intrusion Logs from the device?")
 	promptIL := promptui.Select{
 		Label: "Intrusion Logs",
 		Items: []string{acquireIL, skipIL},
@@ -90,7 +90,6 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		log.Info("Skipping Intrusion Logging extraction...")
 		return nil
 	}
-
 
 	// Check whether AAPM is enabled right now. If disabled, don't start the activity
 	// or wait for a new file just pull whatever is already present.
@@ -113,14 +112,14 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 
 		// Start the Activity to prompt the user to download a new Intrusion Log
 		if err := adb.Client.IL(); err != nil {
-			log.Errorf("IL: failed to start activity: %v", err)
+			log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
 			// Still allow pulling existing files if user wants; continue anyway.
 		}
 
-		log.Info("On the device: open the screen that appears, scroll to the 'Download and Decrypt' button, and tap it.")
-		log.Info("Waiting for a new file to appear in " + m.DirOnDevice + " (Ctrl+C to skip waiting and continue acquisition)...")
+		log.Info("Launched the Intrusion Logging settings page.")
+		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt'.\n")
 
-
+		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
 		// Watch directory (Ctrl+C cancels watch but continues acquisition)
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
@@ -151,9 +150,9 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		// continue acquisition
 		return nil
 	}
-
-	log.Debug("Intrusion Logging acquisition is completed; continuing with acquisition ...")
-	return nil	
+	log.Infof("Downloaded %d Instrusion Logging files from the phone.", len(files))
+	log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
+	return nil
 }
 
 func (m *IL) isAAPMCompatibleDevice() (bool, error) {
@@ -196,8 +195,7 @@ func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("IL: poll found %d files", len(files))
-	log.Debugf("IL: poll files: %v", files)
+	log.Debugf("IL: Polling found %d intrusion logging files on device at '%s'", len(files), dir)
 	set := make(map[string]struct{}, len(files))
 	for _, f := range files {
 		set[f] = struct{}{}
