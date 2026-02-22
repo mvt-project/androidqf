@@ -3,8 +3,9 @@ version: 2
 
 before:
     hooks:
-        # Build the Android collector
-        - make collector
+        # Build the Android collector for each target architecture
+        - sh -c 'cd android-collector && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" -o ../assets/collector_arm . && upx --best ../assets/collector_arm'
+        - sh -c 'cd android-collector && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../assets/collector_arm64 . && upx --best ../assets/collector_arm64'
         # Download platform tools for different OSes
         - mkdir -p /tmp/platform-tools-downloads
         # Windows platform tools
@@ -101,10 +102,16 @@ universal_binaries:
       replace: true
       name_template: androidqf
 
+upx:
+  - # Compress binaries to make them smaller
+    enabled: true
+    compress: best
+
+
 # Archives disabled - we only want raw binaries
 archives:
     - id: default
-      format: binary
+      formats: binary
       name_template: >-
           {{- .ProjectName }}_
           {{- if eq .Os "darwin" }}macos
@@ -134,6 +141,6 @@ release:
     github:
         owner: mvt-project
         name: androidqf
-    draft: false
+    draft: true
     prerelease: auto
     name_template: "{{.ProjectName}} {{.Version}}"

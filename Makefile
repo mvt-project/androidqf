@@ -1,4 +1,5 @@
 BUILD_FOLDER  = "$(shell pwd)/build"
+DIST_FOLDER = "$(shell pwd)/dist"
 ASSETS_FOLDER = "$(shell pwd)/assets"
 
 .PHONY: all
@@ -130,6 +131,6 @@ download:
 all: collector windows darwin linux
 
 clean:
-	rm -rf $(BUILD_FOLDER)
-	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll rm -f $(ASSETS_FOLDER)/collector_*
+	rm -rf $(BUILD_FOLDER) $(DIST_FOLDER)
+	rm -f $(ASSETS_FOLDER)/adb $(ASSETS_FOLDER)/adb_darwin $(ASSETS_FOLDER)/adb_linux $(ASSETS_FOLDER)/adb.exe $(ASSETS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)/AdbWinUsbApi.dll rm -f $(ASSETS_FOLDER)/collector_*
 	cd android-collector && $(MAKE) clean
