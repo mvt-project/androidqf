@@ -106,6 +106,7 @@ upx:
   - # Compress binaries to make them smaller
     enabled: true
     compress: best
+    goos: [linux, windows]  # Mac universal binaries broken with UPX
 
 
 # Archives disabled - we only want raw binaries
