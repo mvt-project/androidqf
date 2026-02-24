@@ -117,15 +117,15 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		}
 
 		log.Info("Launched the Intrusion Logging settings page.")
-		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt'.\n")
+		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
 
 		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
 		// Watch directory (Ctrl+C cancels watch but continues acquisition)
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 
-		// Pulls every 2 seconds. Timeout after 15 minutes.
-		_, watchErr := m.waitForNewFile(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
+		watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
 		if watchErr != nil {
 			// If user Ctrl+C, context is canceled and acquisition continues
 			log.Info("Stopped waiting, continuing with acquisition...")
@@ -203,36 +203,45 @@ func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
 	return set, nil
 }
 
-func (m *IL) waitForNewFile(
+// Watch for new files until Ctrl+C or timeout.
+func (m *IL) waitForNewFiles(
 	ctx context.Context,
 	dir string,
 	before map[string]struct{},
 	pollEvery time.Duration,
 	maxWait time.Duration,
-) (string, error) {
-	deadline := time.NewTimer(maxWait)
+) error {
 	ticker := time.NewTicker(pollEvery)
-	defer deadline.Stop()
+	timeout := time.NewTimer(maxWait)
+
 	defer ticker.Stop()
+	defer timeout.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Ctrl+C => continue acquisition (treat as non-fatal)
-			return "", ctx.Err()
-		case <-deadline.C:
-			return "", fmt.Errorf("timeout waiting for new IL file")
+			// Ctrl+C => continue acquisition (non-fatal)
+			log.Info("Ctrl+C detected. Continuing acquisition...")
+			return nil
+
+		case <-timeout.C:
+			log.Info("Finished waiting for intrusion logs (15 minute timeout reached).")
+			return nil
+
 		case <-ticker.C:
-			now, err := m.listDirSet(m.DirOnDevice)
+			now, err := m.listDirSet(dir)
 			if err != nil {
-				// non-fatal; keep polling
 				log.Debugf("IL: poll list failed: %v", err)
 				continue
 			}
+
 			for f := range now {
 				if _, existed := before[f]; !existed {
-					log.Info("Detected new file: " + f)
-					return f, nil
+					log.Infof(
+						"Detected new file: %s.\nIf you finished downloading logs, press Ctrl+C to continue acquisition.",
+						f,
+					)
+					before[f] = struct{}{}
 				}
 			}
 		}
