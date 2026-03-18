@@ -6,25 +6,35 @@
 package adb
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/assets"
 )
 
 func (a *ADB) findExe() error {
-	err := assets.DeployAssets()
-	if err != nil {
-		return err
+	// Prefer a system-installed adb (covers distro packages where adb is on PATH).
+	if path, err := exec.LookPath("adb"); err == nil {
+		a.ExePath = path
+		return nil
 	}
 
-	adbPath, err := exec.LookPath("adb")
-	if err == nil {
-		a.ExePath = adbPath
-		return nil
-	} else {
-		a.ExePath = filepath.Join(saveRuntime.GetExecutableDirectory(), "adb")
+	// Fall back to the bundled binary. Extract it into a temp directory so we
+	// never try to write next to the executable (which may be /usr/bin or
+	// another read-only system path).
+	tmpDir, err := os.MkdirTemp("", "androidqf-adb-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir for adb: %v", err)
 	}
+
+	if err := assets.DeployAssetsToDir(tmpDir); err != nil {
+		os.RemoveAll(tmpDir)
+		return fmt.Errorf("failed to deploy bundled adb: %v", err)
+	}
+
+	a.ExePath = filepath.Join(tmpDir, "adb")
+	a.TmpAssetsDir = tmpDir
 	return nil
 }
