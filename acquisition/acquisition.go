@@ -20,7 +20,6 @@ import (
 	rt "github.com/botherder/go-savetime/runtime"
 	"github.com/google/uuid"
 	"github.com/mvt-project/androidqf/adb"
-	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/utils"
 )
@@ -175,9 +174,9 @@ func (a *Acquisition) Complete() {
 		a.Collector.Clean()
 	}
 
-	// Stop ADB server before trying to remove extracted assets
+	// Stop ADB server, then clean up any temp directory used for bundled assets.
 	adb.Client.KillServer()
-	assets.CleanAssets()
+	adb.Client.Cleanup()
 }
 
 func (a *Acquisition) GetSystemInformation() error {

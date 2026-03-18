@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/mvt-project/androidqf/log"
-
 	"github.com/mvt-project/androidqf/assets"
 )
 
@@ -112,13 +111,32 @@ func (c *Collector) Install() error {
 	}
 
 	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
-	collectorBinary, err := assets.Collector.ReadFile(collectorName)
-	if err != nil {
-		// Somehow the file doesn't exist
-		return errors.New("couldn't find the collector binary")
+
+	// If the caller has pointed us at a directory of pre-built collector
+	// binaries (e.g. a distro package placing them under
+	// /usr/lib/androidqf/android-collector/), use those in preference to the
+	// embedded assets.  This lets packagers ship the collectors separately
+	// without patching the source, while portable-binary users get the
+	// embedded fallback automatically.
+	var collectorBinary []byte
+	if collectorDir := os.Getenv("ANDROIDQF_COLLECTOR_DIR"); collectorDir != "" {
+		data, readErr := os.ReadFile(filepath.Join(collectorDir, collectorName))
+		if readErr == nil {
+			collectorBinary = data
+			log.Debugf("Using collector from ANDROIDQF_COLLECTOR_DIR: %s", collectorDir)
+		} else {
+			log.Debugf("ANDROIDQF_COLLECTOR_DIR set but could not read collector: %v — falling back to embedded", readErr)
+		}
+	}
+	if len(collectorBinary) == 0 {
+		var err error
+		collectorBinary, err = assets.Collector.ReadFile(collectorName)
+		if err != nil {
+			return errors.New("couldn't find the collector binary")
+		}
 	}
 
-	collectorTemp, _ := os.CreateTemp("", "collector_")
+	collectorTemp, err := os.CreateTemp("", "collector_")
 	if err != nil {
 		return err
 	}
