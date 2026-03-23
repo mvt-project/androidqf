@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"filippo.io/age"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -30,9 +29,8 @@ type EncryptedZipWriter struct {
 }
 
 // NewEncryptedZipWriter creates a new encrypted zip writer if key.txt exists
-func NewEncryptedZipWriter(uuid string) (*EncryptedZipWriter, error) {
-	cwd := saveRuntime.GetExecutableDirectory()
-	keyFilePath := filepath.Join(cwd, "key.txt")
+func NewEncryptedZipWriter(uuid, baseDir string) (*EncryptedZipWriter, error) {
+	keyFilePath := filepath.Join(baseDir, "key.txt")
 
 	// Check if key file exists
 	if _, err := os.Stat(keyFilePath); os.IsNotExist(err) {
@@ -55,7 +53,7 @@ func NewEncryptedZipWriter(uuid string) (*EncryptedZipWriter, error) {
 
 	// Create output file
 	encFileName := fmt.Sprintf("%s.zip.age", uuid)
-	outputPath := filepath.Join(cwd, encFileName)
+	outputPath := filepath.Join(baseDir, encFileName)
 
 	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
