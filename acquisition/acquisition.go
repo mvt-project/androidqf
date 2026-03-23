@@ -29,6 +29,7 @@ type Acquisition struct {
 	UUID             string              `json:"uuid"`
 	AndroidQFVersion string              `json:"androidqf_version"`
 	StoragePath      string              `json:"storage_path"`
+	BaseDir          string              `json:"base_dir"`
 	Started          time.Time           `json:"started"`
 	Completed        time.Time           `json:"completed"`
 	Collector        *adb.Collector      `json:"collector"`
@@ -55,6 +56,7 @@ func New(path string) (*Acquisition, error) {
 	} else {
 		acq.StoragePath = path
 	}
+	acq.BaseDir = filepath.Dir(acq.StoragePath)
 	// Check if the path exist
 	stat, err := os.Stat(acq.StoragePath)
 	if os.IsNotExist(err) {
@@ -82,7 +84,7 @@ func New(path string) (*Acquisition, error) {
 	acq.Collector = coll
 
 	// Try to initialize encrypted streaming mode
-	encWriter, err := NewEncryptedZipWriter(acq.UUID)
+	encWriter, err := NewEncryptedZipWriter(acq.UUID, acq.BaseDir)
 	if err != nil {
 		// No key file or encryption setup failed, use normal mode
 		log.Debug("Encrypted streaming not available, using normal mode")
