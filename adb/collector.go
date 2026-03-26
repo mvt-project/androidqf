@@ -112,7 +112,7 @@ func (c *Collector) Install() error {
 	}
 
 	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
-	collectorBinary, err := assets.Collector.ReadFile(collectorName)
+	collectorBinary, err := assets.ReadCollectorFile(collectorName)
 	if err != nil {
 		// Somehow the file doesn't exist
 		return errors.New("couldn't find the collector binary")
