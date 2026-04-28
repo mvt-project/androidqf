@@ -149,6 +149,11 @@ func (a *Acquisition) Complete() {
 			}
 		}
 
+		err = a.EncryptedWriter.CreateHashList()
+		if err != nil {
+			log.ErrorExc("Failed to add hashes.csv to encrypted archive", err)
+		}
+
 		// Close the encrypted writer
 		err = a.EncryptedWriter.Close()
 		if err != nil {
