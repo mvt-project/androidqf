@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/botherder/go-savetime/hashes"
-	rt "github.com/botherder/go-savetime/runtime"
 	"github.com/google/uuid"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/assets"
@@ -52,7 +51,7 @@ func New(path string) (*Acquisition, error) {
 	}
 
 	if path == "" {
-		acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
+		acq.StoragePath = acq.UUID
 	} else {
 		acq.StoragePath = path
 	}
