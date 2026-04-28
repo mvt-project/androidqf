@@ -10,8 +10,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 )
 
 //go:embed collector_*
@@ -22,55 +20,35 @@ type Asset struct {
 	Data []byte
 }
 
-// DeployAssets is used to retrieve the embedded adb binaries and store them.
-func DeployAssets() error {
-	cwd := saveRuntime.GetExecutableDirectory()
-
+// DeployAssetsToDir extracts the embedded adb binaries into the given directory.
+// If a file already exists there it is silently skipped, so calling this
+// function more than once (or concurrently) is safe.
+func DeployAssetsToDir(dir string) error {
 	for _, asset := range getAssets() {
-		assetPath := filepath.Join(cwd, asset.Name)
+		assetPath := filepath.Join(dir, asset.Name)
 
-		// If the file already exists, skip it. This avoids failing when adb
-		// is already deployed or in use by another process.
+		// Already present – skip without error.
 		if _, err := os.Stat(assetPath); err == nil {
 			continue
 		} else if !os.IsNotExist(err) {
-			// Can't determine file existence (e.g., permission error); skip deploying this asset.
+			// Permission or other stat error – skip this asset rather than abort.
 			continue
 		}
 
-		// Try to create the asset file. If creation fails (for example because
-		// the file was created between the Stat and OpenFile calls, or because
-		// the file is locked by another process), skip the asset instead of failing.
-		assetFile, err := os.OpenFile(assetPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o755)
+		// O_EXCL ensures we don't clobber a file created between Stat and here.
+		f, err := os.OpenFile(assetPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o755)
 		if err != nil {
-			// If the file exists now, just continue; otherwise skip this asset.
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}
-			// Could be locked or another transient error — do not fail the whole deployment.
+			// Transient error (e.g. locked) – skip rather than abort.
 			continue
 		}
 
-		// Write and close immediately (avoid defer in a loop).
-		_, err = assetFile.Write(asset.Data)
-		assetFile.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Remove assets from the local disk
-func CleanAssets() error {
-	cwd := saveRuntime.GetExecutableDirectory()
-
-	for _, asset := range getAssets() {
-		assetPath := filepath.Join(cwd, asset.Name)
-		err := os.Remove(assetPath)
-		if err != nil {
-			return err
+		_, writeErr := f.Write(asset.Data)
+		f.Close()
+		if writeErr != nil {
+			return writeErr
 		}
 	}
 

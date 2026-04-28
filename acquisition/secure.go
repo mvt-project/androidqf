@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -44,9 +43,7 @@ func (a *Acquisition) StoreSecurely() error {
 		return nil
 	}
 
-	cwd := saveRuntime.GetExecutableDirectory()
-
-	keyFilePath := filepath.Join(cwd, "key.txt")
+	keyFilePath := filepath.Join(a.BaseDir, "key.txt")
 	if _, err := os.Stat(keyFilePath); os.IsNotExist(err) {
 		return nil
 	}
@@ -54,7 +51,7 @@ func (a *Acquisition) StoreSecurely() error {
 	log.Info("You provided an age public key, storing the acquisition securely.")
 
 	zipFileName := fmt.Sprintf("%s.zip", a.UUID)
-	zipFilePath := filepath.Join(cwd, zipFileName)
+	zipFilePath := filepath.Join(a.BaseDir, zipFileName)
 
 	log.Info("Compressing the acquisition folder. This might take a while...")
 
@@ -83,7 +80,7 @@ func (a *Acquisition) StoreSecurely() error {
 	defer zipFile.Close()
 
 	encFileName := fmt.Sprintf("%s.age", zipFileName)
-	encFilePath := filepath.Join(cwd, encFileName)
+	encFilePath := filepath.Join(a.BaseDir, encFileName)
 	encFile, err := os.OpenFile(encFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("unable to create encrypted file: %v", err)

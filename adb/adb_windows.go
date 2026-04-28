@@ -7,6 +7,7 @@ package adb
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,28 +17,34 @@ import (
 )
 
 func (a *ADB) findExe() error {
-	// TODO: only deploy assets when needed
-	err := assets.DeployAssets()
-	if err != nil {
-		return err
+	// Prefer a system-installed adb (covers distro packages where adb is on PATH).
+	if path, err := exec.LookPath("adb.exe"); err == nil {
+		a.ExePath = path
+		return nil
 	}
 
-	adbPath, err := exec.LookPath("adb.exe")
-	if err == nil {
-		a.ExePath = adbPath
-	} else {
-		// Get path of the current directory
-		ex, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		// Need full path to bypass go 1.19 restrictions about local path
-		a.ExePath = filepath.Join(filepath.Dir(ex), "adb.exe")
-		_, err = os.Stat(a.ExePath)
-		if err != nil {
-			log.Debugf("ADB doesn't exist at %s", a.ExePath)
-			return errors.New("Impossible to find ADB")
-		}
+	// Fall back to the bundled binary. Extract it (and the required DLLs) into
+	// a temp directory so we never try to write next to the executable (which
+	// may be a read-only system path).
+	tmpDir, err := os.MkdirTemp("", "androidqf-adb-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir for adb: %v", err)
 	}
+
+	if err := assets.DeployAssetsToDir(tmpDir); err != nil {
+		os.RemoveAll(tmpDir)
+		return fmt.Errorf("failed to deploy bundled adb: %v", err)
+	}
+
+	// Need full path to bypass Go 1.19+ restrictions about relative executable paths.
+	exePath := filepath.Join(tmpDir, "adb.exe")
+	if _, err := os.Stat(exePath); err != nil {
+		os.RemoveAll(tmpDir)
+		log.Debugf("ADB doesn't exist at %s", exePath)
+		return errors.New("impossible to find ADB")
+	}
+
+	a.ExePath = exePath
+	a.TmpAssetsDir = tmpDir
 	return nil
 }

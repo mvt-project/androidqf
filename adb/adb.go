@@ -8,6 +8,7 @@ package adb
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -16,8 +17,18 @@ import (
 )
 
 type ADB struct {
-	ExePath string
-	Serial  string
+	ExePath      string
+	Serial       string
+	TmpAssetsDir string
+}
+
+// Cleanup removes the temporary directory used to store extracted adb assets,
+// if one was created. It is a no-op when the system adb was used instead.
+func (a *ADB) Cleanup() {
+	if a.TmpAssetsDir != "" {
+		os.RemoveAll(a.TmpAssetsDir)
+		a.TmpAssetsDir = ""
+	}
 }
 
 var Client *ADB

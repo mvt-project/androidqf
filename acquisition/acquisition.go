@@ -19,7 +19,6 @@ import (
 	"github.com/botherder/go-savetime/hashes"
 	"github.com/google/uuid"
 	"github.com/mvt-project/androidqf/adb"
-	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/utils"
 )
@@ -29,6 +28,7 @@ type Acquisition struct {
 	UUID             string              `json:"uuid"`
 	AndroidQFVersion string              `json:"androidqf_version"`
 	StoragePath      string              `json:"storage_path"`
+	BaseDir          string              `json:"base_dir"`
 	Started          time.Time           `json:"started"`
 	Completed        time.Time           `json:"completed"`
 	Collector        *adb.Collector      `json:"collector"`
@@ -55,6 +55,7 @@ func New(path string) (*Acquisition, error) {
 	} else {
 		acq.StoragePath = path
 	}
+	acq.BaseDir = filepath.Dir(acq.StoragePath)
 	// Check if the path exist
 	stat, err := os.Stat(acq.StoragePath)
 	if os.IsNotExist(err) {
@@ -82,7 +83,7 @@ func New(path string) (*Acquisition, error) {
 	acq.Collector = coll
 
 	// Try to initialize encrypted streaming mode
-	encWriter, err := NewEncryptedZipWriter(acq.UUID)
+	encWriter, err := NewEncryptedZipWriter(acq.UUID, acq.BaseDir)
 	if err != nil {
 		// No key file or encryption setup failed, use normal mode
 		log.Debug("Encrypted streaming not available, using normal mode")
@@ -174,9 +175,9 @@ func (a *Acquisition) Complete() {
 		a.Collector.Clean()
 	}
 
-	// Stop ADB server before trying to remove extracted assets
+	// Stop ADB server, then clean up any temp directory used for bundled assets.
 	adb.Client.KillServer()
-	assets.CleanAssets()
+	adb.Client.Cleanup()
 }
 
 func (a *Acquisition) GetSystemInformation() error {
