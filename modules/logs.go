@@ -69,7 +69,19 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 		log.Debugf("Files in %s: %s", logFolder, files)
 	}
 
+	absLogsPath, err := filepath.Abs(l.LogsPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve logs path: %v", err)
+	}
+
 	for _, logFile := range logFiles {
+		localPath := filepath.Join(l.LogsPath, logFile)
+		absLocalPath, err := filepath.Abs(localPath)
+		if err != nil || !strings.HasPrefix(absLocalPath, absLogsPath+string(filepath.Separator)) {
+			log.Errorf("Skipping log file with traversal path: %s\n", logFile)
+			continue
+		}
+
 		if acq.StreamingMode && acq.EncryptedWriter != nil {
 			// Streaming mode: stream directly from ADB to encrypted zip without temp files
 			log.Debugf("From: %s", logFile)
@@ -97,7 +109,6 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 			log.Debugf("Streamed log file %s directly to encrypted archive", logFile)
 		} else {
 			// Traditional mode: create local directory structure and pull files
-			localPath := filepath.Join(l.LogsPath, logFile)
 			localDir, _ := filepath.Split(localPath)
 			log.Debugf("From: %s", logFile)
 			log.Debugf("To: %s", localPath)
