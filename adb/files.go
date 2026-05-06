@@ -15,7 +15,7 @@ func (a *ADB) FindFullCommand(path string) ([]FileInfo, error) {
 	var results []FileInfo
 	out, err := a.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "-printf", "'%T@ %m %s %u %g %p\n'", "2>", "/dev/null")
 
-	if err == nil {
+	if err != nil {
 		return results, err
 	}
 
