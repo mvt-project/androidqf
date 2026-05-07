@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -90,14 +91,8 @@ func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
 		return nil, err
 	}
 
-	if name == "" {
-		return nil, fmt.Errorf("file name cannot be empty")
-	}
-
-	// Defense in depth against zip-slip: prevents path traversal entry
-	// names that could escape the destination directory on extraction.
-	if !filepath.IsLocal(name) {
-		return nil, fmt.Errorf("unsafe zip entry name: %q", name)
+	if err := validateZipEntryName(name); err != nil {
+		return nil, err
 	}
 
 	header := &zip.FileHeader{
@@ -107,6 +102,34 @@ func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
 	}
 
 	return ezw.zipWriter.CreateHeader(header)
+}
+
+func validateZipEntryName(name string) error {
+	if name == "" {
+		return fmt.Errorf("file name cannot be empty")
+	}
+	if strings.ContainsAny(name, "\\\x00") {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+	if path.IsAbs(name) {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	first, _, _ := strings.Cut(name, "/")
+	if len(first) >= 2 && first[1] == ':' {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return fmt.Errorf("unsafe zip entry name: %q", name)
+		}
+	}
+	if path.Clean(name) == "." {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	return nil
 }
 
 // CreateFileFromReader copies data from a reader to a file in the encrypted zip
