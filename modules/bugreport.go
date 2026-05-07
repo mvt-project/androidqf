@@ -47,13 +47,13 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 		// Traditional mode: create bugreport file and move to storage directory
 		err := adb.Client.Bugreport()
 		if err != nil {
-			log.Debugf("Impossible to generate bugreport: %w", err)
+			log.Debugf("Impossible to generate bugreport: %v", err)
 			return err
 		}
 
 		cwd, err := os.Getwd()
 		if err != nil {
-			log.Debugf("Impossible to get current directory: %w", err)
+			log.Debugf("Impossible to get current directory: %v", err)
 			return err
 		}
 

@@ -58,7 +58,7 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 	for _, logFolder := range []string{"/data/anr/", "/data/log/", "/sdcard/log/"} {
 		files, err := adb.Client.ListFiles(logFolder, true)
 		if err != nil {
-			log.Debugf("Impossible to get files from %", logFolder)
+			log.Debugf("Impossible to get files from %s", logFolder)
 			continue
 		}
 		if len(files) == 0 {

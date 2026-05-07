@@ -81,7 +81,7 @@ func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 
 		cwd, err := os.Getwd()
 		if err != nil {
-			log.Debugf("Impossible to get current directory: %w", err)
+			log.Debugf("Impossible to get current directory: %v", err)
 			return err
 		}
 
