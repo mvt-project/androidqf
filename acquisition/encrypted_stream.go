@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -92,6 +93,12 @@ func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
 
 	if name == "" {
 		return nil, fmt.Errorf("file name cannot be empty")
+	}
+
+	// Defense in depth against zip-slip: prevents path traversal entry
+	// names that could escape the destination directory on extraction.
+	if !filepath.IsLocal(name) {
+		return nil, fmt.Errorf("unsafe zip entry name: %q", name)
 	}
 
 	header := &zip.FileHeader{
