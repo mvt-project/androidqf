@@ -49,7 +49,7 @@ func (m *IL) InitStorage(storagePath string) error {
 	if storagePath != "" {
 		err := os.Mkdir(m.ILPath, 0o755)
 		if err != nil && !os.IsExist(err) {
-			return fmt.Errorf("Failed to create Intrusion Logging folder: %v", err)
+			return fmt.Errorf("failed to create Intrusion Logging folder: %v", err)
 		}
 	}
 
@@ -82,7 +82,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 
 	_, ILOption, err := promptIL.Run()
 	if err != nil {
-		return fmt.Errorf("Failed to make selection for IL option: %v", err)
+		return fmt.Errorf("failed to make selection for IL option: %v", err)
 	}
 
 	// User declined so we continue acquisition normally

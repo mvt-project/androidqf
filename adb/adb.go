@@ -183,7 +183,7 @@ func (a *ADB) IL() error {
 		"com.google.android.gms/.intrusiondetection.ui.retrieval.IntrusionDetectionRetrievalActivity",
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to start IL activity: %v: %s", err, cmd)
+		return fmt.Errorf("failed to start IL activity: %v: %s", err, cmd)
 	}
 	return nil
 }
