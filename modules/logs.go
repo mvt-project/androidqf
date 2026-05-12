@@ -70,6 +70,13 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	for _, logFile := range logFiles {
+		// logFile is device controlled; validate it stays within LogsPath.
+		rel, err := filepath.Rel(l.LogsPath, filepath.Join(l.LogsPath, logFile))
+		if err != nil || !filepath.IsLocal(rel) {
+			log.Errorf("Skipping log file with path traversal: %s", logFile)
+			continue
+		}
+
 		if acq.StreamingMode && acq.EncryptedWriter != nil {
 			// Streaming mode: stream directly from ADB to encrypted zip without temp files
 			log.Debugf("From: %s", logFile)
