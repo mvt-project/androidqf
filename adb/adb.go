@@ -173,6 +173,21 @@ func (a *ADB) Bugreport() error {
 	return err
 }
 
+// IL prompts the user to download Intrusion Logs
+func (a *ADB) IL() error {
+	// adb shell am start -n com.google.android.gms/.intrusiondetection.ui.retrieval.IntrusionDetectionRetrievalActivity
+	cmd, err := a.Shell(
+		"am",
+		"start",
+		"-n",
+		"com.google.android.gms/.intrusiondetection.ui.retrieval.IntrusionDetectionRetrievalActivity",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to start IL activity: %v: %s", err, cmd)
+	}
+	return nil
+}
+
 // check if file exists
 func (a *ADB) FileExists(path string) (bool, error) {
 	out, err := a.Shell("[", "-f", path, "] || echo 1")
@@ -188,8 +203,12 @@ func (a *ADB) FileExists(path string) (bool, error) {
 // List files in a folder using ls, returns array of strings.
 func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	var remoteFiles []string
+
+	// Quote remotePath so files with spaces on their name work
+	qPath := fmt.Sprintf("'%s'", remotePath)
+
 	if recursive {
-		out, _ := a.Shell("find", remotePath, "2>", "/dev/null")
+		out, _ := a.Shell("find", qPath, "2>", "/dev/null")
 		if out != "" {
 			tmpFiles := strings.Split(out, "\n")
 			for _, file := range tmpFiles {
