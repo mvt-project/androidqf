@@ -71,8 +71,7 @@ func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 			return fmt.Errorf("failed to stream backup to encrypted archive: %v", err)
 		}
 	} else {
-		// Traditional mode: write directly into the per-case storage directory,
-		// avoiding the CWD temp-file collision window.
+		// Traditional mode: write backup directly into acquisition directory
 		backupPath := filepath.Join(b.StoragePath, "backup.ab")
 		err = adb.Client.Backup(backupPath, arg)
 		if err != nil {
