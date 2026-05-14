@@ -156,9 +156,14 @@ func (a *ADB) Push(localPath, remotePath string) (string, error) {
 	return string(out), nil
 }
 
-// Backup generates a backup of the specified app, or of all.
-func (a *ADB) Backup(arg string) error {
-	cmd := exec.Command(a.ExePath, "backup", "-nocompress", arg)
+// Backup generates a backup of the specified app or of all, writing the
+// archive directly to acquisition dir.
+func (a *ADB) Backup(outPath, arg string) error {
+	args := []string{"backup", "-nocompress", "-f", outPath, arg}
+	if a.Serial != "" {
+		args = append([]string{"-s", a.Serial}, args...)
+	}
+	cmd := exec.Command(a.ExePath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, string(output))
@@ -166,9 +171,13 @@ func (a *ADB) Backup(arg string) error {
 	return nil
 }
 
-// Bugreport generates a bugreport of the the device
-func (a *ADB) Bugreport() error {
-	cmd := exec.Command(a.ExePath, "bugreport", "bugreport.zip")
+// Write bugreport directly to acquisition dir.
+func (a *ADB) Bugreport(outPath string) error {
+	args := []string{"bugreport", outPath}
+	if a.Serial != "" {
+		args = append([]string{"-s", a.Serial}, args...)
+	}
+	cmd := exec.Command(a.ExePath, args...)
 	err := cmd.Run()
 	return err
 }
