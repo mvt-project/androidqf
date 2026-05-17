@@ -3,6 +3,8 @@
 // Use of this software is governed by the MVT License 1.1 that can be found at
 //   https://license.mvt.re/1.1/
 
+//go:build !unbundle
+
 package assets
 
 import (
@@ -15,11 +17,16 @@ import (
 )
 
 //go:embed collector_*
-var Collector embed.FS
+var collector embed.FS
 
 type Asset struct {
 	Name string
 	Data []byte
+}
+
+// Read a specific embedded collector binary
+func ReadCollectorFile(collectorName string) ([]byte, error) {
+	return collector.ReadFile(collectorName)
 }
 
 // DeployAssets is used to retrieve the embedded adb binaries and store them.
