@@ -149,7 +149,7 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}
@@ -175,7 +175,7 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}
@@ -200,7 +200,7 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 	if c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}

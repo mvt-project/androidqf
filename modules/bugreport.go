@@ -47,7 +47,7 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 		bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
 		err := adb.Client.Bugreport(bugreportPath)
 		if err != nil {
-			log.Debugf("Impossible to generate bugreport: %w", err)
+			log.Debugf("Impossible to generate bugreport: %v", err)
 			return err
 		}
 	}
