@@ -7,7 +7,6 @@ package modules
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/manifoldco/promptui"
@@ -72,23 +71,11 @@ func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
 			return fmt.Errorf("failed to stream backup to encrypted archive: %v", err)
 		}
 	} else {
-		// Traditional mode: create backup file and move to storage directory
-		err = adb.Client.Backup(arg)
+		// Traditional mode: write backup directly into acquisition directory
+		backupPath := filepath.Join(b.StoragePath, "backup.ab")
+		err = adb.Client.Backup(backupPath, arg)
 		if err != nil {
 			log.Debugf("Impossible to get backup: %v", err)
-			return err
-		}
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Debugf("Impossible to get current directory: %v", err)
-			return err
-		}
-
-		origBackupPath := filepath.Join(cwd, "backup.ab")
-		backupPath := filepath.Join(b.StoragePath, "backup.ab")
-		err = os.Rename(origBackupPath, backupPath)
-		if err != nil {
 			return err
 		}
 	}
