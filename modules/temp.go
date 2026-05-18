@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/botherder/go-savetime/text"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
@@ -81,7 +82,13 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 			dest_path := filepath.Join(t.TempPath,
 				strings.TrimPrefix(file, acq.TmpDir))
 
-			adb.Client.Pull(file, dest_path)
+			out, err := adb.Client.Pull(file, dest_path)
+			if err != nil {
+				if !text.ContainsNoCase(out, "Permission denied") {
+					log.Errorf("Failed to pull temp file %s: %s\n", file, strings.TrimSpace(out))
+				}
+				continue
+			}
 		}
 	}
 	return nil

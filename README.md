@@ -72,9 +72,11 @@ The following data can be extracted:
 | The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
 | A list of all packages installed and related distribution files. | |  `packages.json` |
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
+| Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
 | A list of files on the system. | | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
+
 
 ### About optional data collection
 
@@ -116,6 +118,20 @@ Would you like to download copies of all apps or only non-system ones?
 | Only non-system packages | Don't download any packages listed in `adb pm list packages -s` |
 | Do not download any | Don't download any packages |
 
+### Intrusion Logs
+
+```
+Would you like to take the Intrusion Logs of the device?
+
+? Intrusion Logs:
+  ▸ Yes
+    No
+```
+
+| Option | Explanation |
+|--------|-------------|
+| Yes | Intrusion Logs will be retrieved from the phone. |
+| No | Intrusion Logs acquisition is skipped. |
 
 ## Encryption & Potential Threats
 

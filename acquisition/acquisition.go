@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/botherder/go-savetime/hashes"
-	rt "github.com/botherder/go-savetime/runtime"
 	"github.com/google/uuid"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/assets"
@@ -52,7 +51,7 @@ func New(path string) (*Acquisition, error) {
 	}
 
 	if path == "" {
-		acq.StoragePath = filepath.Join(rt.GetExecutableDirectory(), acq.UUID)
+		acq.StoragePath = acq.UUID
 	} else {
 		acq.StoragePath = path
 	}
@@ -238,9 +237,8 @@ func (a *Acquisition) HashFiles() error {
 	defer csvFile.Close()
 
 	csvWriter := csv.NewWriter(csvFile)
-	defer csvWriter.Flush()
 
-	_ = filepath.Walk(a.StoragePath, func(filePath string, fileInfo os.FileInfo, err error) error {
+	walkErr := filepath.Walk(a.StoragePath, func(filePath string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -256,15 +254,15 @@ func (a *Acquisition) HashFiles() error {
 			return err
 		}
 
-		err = csvWriter.Write([]string{filePath, sha256})
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return csvWriter.Write([]string{filePath, sha256})
 	})
 
-	return nil
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return err
+	}
+
+	return walkErr
 }
 
 func (a *Acquisition) StoreInfo() error {

@@ -15,6 +15,7 @@ import (
 	"hash"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -117,8 +118,8 @@ func (ezw *EncryptedZipWriter) createFile(name string, trackHash bool) (io.Write
 		return nil, err
 	}
 
-	if name == "" {
-		return nil, fmt.Errorf("file name cannot be empty")
+	if err := validateZipEntryName(name); err != nil {
+		return nil, err
 	}
 
 	header := &zip.FileHeader{
@@ -146,6 +147,34 @@ func (ezw *EncryptedZipWriter) createFile(name string, trackHash bool) (io.Write
 		writer: writer,
 		hasher: zipHash.hasher,
 	}, nil
+}
+
+func validateZipEntryName(name string) error {
+	if name == "" {
+		return fmt.Errorf("file name cannot be empty")
+	}
+	if strings.ContainsAny(name, "\\\x00") {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+	if path.IsAbs(name) {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	first, _, _ := strings.Cut(name, "/")
+	if len(first) >= 2 && first[1] == ':' {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return fmt.Errorf("unsafe zip entry name: %q", name)
+		}
+	}
+	if path.Clean(name) == "." {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	return nil
 }
 
 // CreateFileFromReader copies data from a reader to a file in the encrypted zip
