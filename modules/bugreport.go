@@ -7,7 +7,6 @@ package modules
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/mvt-project/androidqf/acquisition"
@@ -44,23 +43,11 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
 			return fmt.Errorf("failed to stream bugreport to encrypted archive: %v", err)
 		}
 	} else {
-		// Traditional mode: create bugreport file and move to storage directory
-		err := adb.Client.Bugreport()
+		// Traditional mode: write directly into acquisition dir.
+		bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
+		err := adb.Client.Bugreport(bugreportPath)
 		if err != nil {
 			log.Debugf("Impossible to generate bugreport: %w", err)
-			return err
-		}
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Debugf("Impossible to get current directory: %w", err)
-			return err
-		}
-
-		origBugreportPath := filepath.Join(cwd, "bugreport.zip")
-		bugreportPath := filepath.Join(b.StoragePath, "bugreport.zip")
-		err = os.Rename(origBugreportPath, bugreportPath)
-		if err != nil {
 			return err
 		}
 	}
