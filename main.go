@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
+	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
@@ -36,6 +37,20 @@ func init() {
 func systemPause() {
 	cfmt.Println("Press {{Enter}}::bold|green to finish ...")
 	os.Stdin.Read(make([]byte, 1))
+}
+
+func selectADBDevice(devices []string) (string, error) {
+	promptDevice := promptui.Select{
+		Label: "Multiple Android devices detected. Select the device to acquire",
+		Items: devices,
+	}
+
+	_, device, err := promptDevice.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to select ADB device: %v", err)
+	}
+
+	return device, nil
 }
 
 func main() {
@@ -107,6 +122,20 @@ func main() {
 
 	// Initialization
 	for {
+		if serial == "" {
+			devices, err := adb.Client.Devices()
+			if err != nil {
+				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
+			} else if len(devices) > 1 {
+				serial, err = selectADBDevice(devices)
+				if err != nil {
+					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
+					time.Sleep(5 * time.Second)
+					continue
+				}
+			}
+		}
+
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
