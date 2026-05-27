@@ -48,6 +48,27 @@ Then compile AndroidQF for your platform of choice:
 
 These commands will generate binaries in a *build/* folder.
 
+### Building for distribution packages without bundled assets
+
+Distribution packages can opt out of embedding the bundled ADB and collector
+binaries by building with the `unbundle` build tag:
+
+```bash
+go build -tags unbundle -o build/
+```
+
+When this tag is enabled, androidqf expects:
+
+- `adb` to be available from the system `PATH`.
+- collector binaries to be installed under
+  `/usr/lib/androidqf/android-collector/` using the names expected by
+  androidqf, such as `collector_arm` and `collector_arm64`.
+
+Packagers may remove the bundled binary assets from `assets/` before building,
+but the `assets/` package directory and its Go source files must remain present.
+The `unbundle` build still imports the `assets` package, and the build will fail
+if the whole `assets/` directory is deleted.
+
 ## How to use
 
 > [!TIP]
