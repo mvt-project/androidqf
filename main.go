@@ -152,8 +152,12 @@ func main() {
 	}
 
 	if acq.StreamingMode {
-		// In streaming mode, all data is already encrypted in the zip stream
-		log.Info("Finalizing encrypted acquisition...")
+		// In streaming mode, all data is already in the zip stream.
+		if acq.EncryptedWriter != nil && acq.EncryptedWriter.IsEncrypted() {
+			log.Info("Finalizing encrypted acquisition...")
+		} else {
+			log.Warning("Finalizing unencrypted zip acquisition...")
+		}
 	} else {
 		// Traditional mode: hash files, then encrypt if key exists
 		err = acq.HashFiles()
