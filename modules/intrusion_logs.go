@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -249,16 +250,32 @@ func (m *IL) waitForNewFiles(
 }
 
 func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
+	streaming := acq.StreamingMode && acq.EncryptedWriter != nil
+	var localRoot *os.Root
+	var puller *acquisition.StreamingPuller
+	if !streaming {
+		var err error
+		localRoot, err = os.OpenRoot(m.ILPath)
+		if err != nil {
+			return fmt.Errorf("failed to open intrusion logs output root: %v", err)
+		}
+		defer localRoot.Close()
+		puller = acquisition.NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100)
+	}
+
 	for _, file := range deviceFiles {
 		if file == m.DirOnDevice {
 			continue
 		}
 
-		rel := strings.TrimPrefix(file, m.DirOnDevice)
-		rel = strings.TrimPrefix(rel, "/") // optional safety if DirOnDevice lacks trailing /
+		rel, err := relativeDeviceChild(m.DirOnDevice, file)
+		if err != nil {
+			log.Errorf("Skipping IL file with unsafe path %s: %v\n", file, err)
+			continue
+		}
 
-		if acq.StreamingMode && acq.EncryptedWriter != nil {
-			zipPath := fmt.Sprintf("intrusion_logs/%s", rel)
+		if streaming {
+			zipPath := path.Join("intrusion_logs", rel)
 
 			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
 			if err != nil {
@@ -274,16 +291,8 @@ func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
 
 			log.Debugf("Streamed IL file %s directly to encrypted archive as %s", file, zipPath)
 		} else {
-			destPath := filepath.Join(m.ILPath, rel)
-
-			if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-				log.Errorf("Failed to create folders for IL file %s: %v\n", destPath, err)
-				continue
-			}
-
-			out, err := adb.Client.Pull(file, destPath)
-			if err != nil {
-				log.Errorf("Failed to pull IL file %s: %s\n", file, strings.TrimSpace(out))
+			if err := streamDeviceChildToRoot(localRoot, puller, rel, file); err != nil {
+				log.Errorf("Failed to pull IL file %s: %v\n", file, err)
 				continue
 			}
 		}
