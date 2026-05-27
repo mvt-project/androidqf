@@ -7,8 +7,8 @@ package modules
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/botherder/go-savetime/text"
 	"github.com/mvt-project/androidqf/acquisition"
@@ -47,6 +47,19 @@ func (t *Temp) InitStorage(storagePath string) error {
 func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 	log.Info("Collecting files in tmp folder...")
 
+	streaming := acq.StreamingMode && acq.EncryptedWriter != nil
+	var localRoot *os.Root
+	var puller *acquisition.StreamingPuller
+	if !streaming {
+		var err error
+		localRoot, err = os.OpenRoot(t.TempPath)
+		if err != nil {
+			return fmt.Errorf("failed to open tmp output root: %v", err)
+		}
+		defer localRoot.Close()
+		puller = acquisition.NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100)
+	}
+
 	// TODO: Also check default tmp folders
 	tmpFiles, err := adb.Client.ListFiles(acq.TmpDir, true)
 	if err != nil {
@@ -58,9 +71,15 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 			continue
 		}
 
-		if acq.StreamingMode && acq.EncryptedWriter != nil {
+		rel, err := relativeDeviceChild(acq.TmpDir, file)
+		if err != nil {
+			log.Errorf("Skipping temp file with unsafe path %s: %v\n", file, err)
+			continue
+		}
+
+		if streaming {
 			// Streaming mode: stream directly from ADB to encrypted zip without temp files
-			zipPath := fmt.Sprintf("tmp/%s", strings.TrimPrefix(file, acq.TmpDir))
+			zipPath := path.Join("tmp", rel)
 
 			// Create zip entry writer
 			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
@@ -78,14 +97,10 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 
 			log.Debugf("Streamed temp file %s directly to encrypted archive as %s", file, zipPath)
 		} else {
-			// Traditional mode: pull directly to local storage
-			dest_path := filepath.Join(t.TempPath,
-				strings.TrimPrefix(file, acq.TmpDir))
-
-			out, err := adb.Client.Pull(file, dest_path)
-			if err != nil {
-				if !text.ContainsNoCase(out, "Permission denied") {
-					log.Errorf("Failed to pull temp file %s: %s\n", file, strings.TrimSpace(out))
+			// Traditional mode: stream into a file opened relative to t.TempPath.
+			if err := streamDeviceChildToRoot(localRoot, puller, rel, file); err != nil {
+				if !text.ContainsNoCase(err.Error(), "Permission denied") {
+					log.Errorf("Failed to pull temp file %s: %v\n", file, err)
 				}
 				continue
 			}
