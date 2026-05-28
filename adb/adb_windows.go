@@ -1,3 +1,5 @@
+//go:build !unbundle
+
 // androidqf - Android Quick Forensics
 // Copyright (c) 2021-2022 Claudio Guarnieri.
 // Use of this software is governed by the MVT License 1.1 that can be found at
@@ -9,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/mvt-project/androidqf/assets"
@@ -17,15 +18,9 @@ import (
 )
 
 func (a *ADB) findExe() error {
-	// Prefer a system-installed adb (covers distro packages where adb is on PATH).
-	if path, err := exec.LookPath("adb.exe"); err == nil {
-		a.ExePath = path
-		return nil
-	}
-
-	// Fall back to the bundled binary. Extract it (and the required DLLs) into
-	// a temp directory so we never try to write next to the executable (which
-	// may be a read-only system path).
+	// Extract the bundled binary (and the required DLLs) into a temp directory
+	// so we never try to write next to the executable (which may be a read-only
+	// system path).
 	tmpDir, err := os.MkdirTemp("", "androidqf-adb-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp dir for adb: %v", err)
@@ -45,6 +40,10 @@ func (a *ADB) findExe() error {
 	}
 
 	a.ExePath = exePath
+	if err := validatePlatformToolsVersion(a.ExePath); err != nil {
+		os.RemoveAll(tmpDir)
+		return err
+	}
 	a.TmpAssetsDir = tmpDir
 	return nil
 }
