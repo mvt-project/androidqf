@@ -206,7 +206,7 @@ func CloseFileLog() {
 }
 
 func Debug(v ...any) {
-	log.out(DEBUG, "", v...)
+	log.out(DEBUG, "%s", fmt.Sprint(v...))
 }
 
 func Debugf(format string, v ...any) {
@@ -214,7 +214,7 @@ func Debugf(format string, v ...any) {
 }
 
 func Info(v ...any) {
-	log.out(INFO, "", v...)
+	log.out(INFO, "%s", fmt.Sprint(v...))
 }
 
 func Infof(format string, v ...any) {
@@ -222,7 +222,7 @@ func Infof(format string, v ...any) {
 }
 
 func Warning(v ...any) {
-	log.out(WARNING, "", v...)
+	log.out(WARNING, "%s", fmt.Sprint(v...))
 }
 
 func Warningf(format string, v ...any) {
@@ -230,7 +230,7 @@ func Warningf(format string, v ...any) {
 }
 
 func Error(v ...any) {
-	log.out(ERROR, "", v...)
+	log.out(ERROR, "%s", fmt.Sprint(v...))
 }
 
 func Errorf(format string, v ...any) {
@@ -242,7 +242,7 @@ func ErrorExc(desc string, err error) {
 }
 
 func Critical(v ...any) {
-	log.out(CRITICAL, "", v...)
+	log.out(CRITICAL, "%s", fmt.Sprint(v...))
 }
 
 func Criticalf(format string, v ...any) {
@@ -250,7 +250,7 @@ func Criticalf(format string, v ...any) {
 }
 
 func Fatal(v ...any) {
-	log.out(FATAL, "", v...)
+	log.out(FATAL, "%s", fmt.Sprint(v...))
 	os.Exit(1)
 }
 

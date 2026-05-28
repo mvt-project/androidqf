@@ -8,9 +8,14 @@ package acquisition
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/csv"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -26,6 +31,25 @@ type EncryptedZipWriter struct {
 	zipWriter  *zip.Writer
 	outputPath string
 	closed     bool
+	hashes     []*zipHash
+}
+
+type zipHash struct {
+	name   string
+	hasher hash.Hash
+}
+
+type hashingWriter struct {
+	writer io.Writer
+	hasher hash.Hash
+}
+
+func (hw *hashingWriter) Write(p []byte) (int, error) {
+	n, err := hw.writer.Write(p)
+	if n > 0 {
+		_, _ = hw.hasher.Write(p[:n])
+	}
+	return n, err
 }
 
 // NewEncryptedZipWriter creates a new encrypted zip writer if key.txt exists
@@ -84,12 +108,16 @@ func NewEncryptedZipWriter(uuid, baseDir string) (*EncryptedZipWriter, error) {
 
 // CreateFile creates a new file in the encrypted zip and returns a writer
 func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
+	return ezw.createFile(name, true)
+}
+
+func (ezw *EncryptedZipWriter) createFile(name string, trackHash bool) (io.Writer, error) {
 	if err := ezw.checkClosed(); err != nil {
 		return nil, err
 	}
 
-	if name == "" {
-		return nil, fmt.Errorf("file name cannot be empty")
+	if err := validateZipEntryName(name); err != nil {
+		return nil, err
 	}
 
 	header := &zip.FileHeader{
@@ -98,7 +126,53 @@ func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
 		Modified: time.Now(),
 	}
 
-	return ezw.zipWriter.CreateHeader(header)
+	writer, err := ezw.zipWriter.CreateHeader(header)
+	if err != nil {
+		return nil, err
+	}
+
+	if !trackHash {
+		return writer, nil
+	}
+
+	zipHash := &zipHash{
+		name:   name,
+		hasher: sha256.New(),
+	}
+	ezw.hashes = append(ezw.hashes, zipHash)
+
+	return &hashingWriter{
+		writer: writer,
+		hasher: zipHash.hasher,
+	}, nil
+}
+
+func validateZipEntryName(name string) error {
+	if name == "" {
+		return fmt.Errorf("file name cannot be empty")
+	}
+	if strings.ContainsAny(name, "\\\x00") {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+	if path.IsAbs(name) {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	first, _, _ := strings.Cut(name, "/")
+	if len(first) >= 2 && first[1] == ':' {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	for _, part := range strings.Split(name, "/") {
+		if part == ".." {
+			return fmt.Errorf("unsafe zip entry name: %q", name)
+		}
+	}
+	if path.Clean(name) == "." {
+		return fmt.Errorf("unsafe zip entry name: %q", name)
+	}
+
+	return nil
 }
 
 // CreateFileFromReader copies data from a reader to a file in the encrypted zip
@@ -115,6 +189,39 @@ func (ezw *EncryptedZipWriter) CreateFileFromReader(name string, src io.Reader) 
 	_, err = io.Copy(writer, src)
 	if err != nil {
 		return fmt.Errorf("failed to copy data to zip file: %v", err)
+	}
+
+	return nil
+}
+
+// CreateHashList adds hashes.csv to the encrypted zip with SHA-256 hashes of
+// the plaintext zip entries written so far.
+func (ezw *EncryptedZipWriter) CreateHashList() error {
+	if err := ezw.checkClosed(); err != nil {
+		return err
+	}
+
+	var buffer bytes.Buffer
+	csvWriter := csv.NewWriter(&buffer)
+	for _, zipHash := range ezw.hashes {
+		if err := csvWriter.Write([]string{
+			zipHash.name,
+			hex.EncodeToString(zipHash.hasher.Sum(nil)),
+		}); err != nil {
+			return fmt.Errorf("failed to write hash entry for %q: %v", zipHash.name, err)
+		}
+	}
+	csvWriter.Flush()
+	if err := csvWriter.Error(); err != nil {
+		return fmt.Errorf("failed to create hash list: %v", err)
+	}
+
+	writer, err := ezw.createFile("hashes.csv", false)
+	if err != nil {
+		return fmt.Errorf("failed to create hashes.csv in zip: %v", err)
+	}
+	if _, err := writer.Write(buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to write hashes.csv to zip: %v", err)
 	}
 
 	return nil

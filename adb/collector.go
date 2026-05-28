@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/assets"
+	"github.com/mvt-project/androidqf/log"
 )
 
 type Collector struct {
@@ -130,7 +130,7 @@ func (c *Collector) Install() error {
 	}
 	if len(collectorBinary) == 0 {
 		var err error
-		collectorBinary, err = assets.Collector.ReadFile(collectorName)
+		collectorBinary, err = assets.ReadCollectorFile(collectorName)
 		if err != nil {
 			return errors.New("couldn't find the collector binary")
 		}
@@ -167,7 +167,7 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}
@@ -193,7 +193,7 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}
@@ -218,7 +218,7 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 	if c.isInstalled() {
 		err := c.Install()
 		if err != nil {
-			log.Debugf("Impossible to install collector: %w", err)
+			log.Debugf("Impossible to install collector: %v", err)
 			return results, err
 		}
 	}

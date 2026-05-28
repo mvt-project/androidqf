@@ -3,6 +3,8 @@
 // Use of this software is governed by the MVT License 1.1 that can be found at
 //   https://license.mvt.re/1.1/
 
+//go:build !unbundle
+
 package assets
 
 import (
@@ -13,11 +15,16 @@ import (
 )
 
 //go:embed collector_*
-var Collector embed.FS
+var collector embed.FS
 
 type Asset struct {
 	Name string
 	Data []byte
+}
+
+// Read a specific embedded collector binary
+func ReadCollectorFile(collectorName string) ([]byte, error) {
+	return collector.ReadFile(collectorName)
 }
 
 // DeployAssetsToDir extracts the embedded adb binaries into the given directory.
@@ -27,11 +34,11 @@ func DeployAssetsToDir(dir string) error {
 	for _, asset := range getAssets() {
 		assetPath := filepath.Join(dir, asset.Name)
 
-		// Already present – skip without error.
+		// Already present - skip without error.
 		if _, err := os.Stat(assetPath); err == nil {
 			continue
 		} else if !os.IsNotExist(err) {
-			// Permission or other stat error – skip this asset rather than abort.
+			// Permission or other stat error - skip this asset rather than abort.
 			continue
 		}
 
@@ -41,7 +48,7 @@ func DeployAssetsToDir(dir string) error {
 			if errors.Is(err, os.ErrExist) {
 				continue
 			}
-			// Transient error (e.g. locked) – skip rather than abort.
+			// Transient error (e.g. locked) - skip rather than abort.
 			continue
 		}
 

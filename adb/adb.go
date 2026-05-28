@@ -167,9 +167,14 @@ func (a *ADB) Push(localPath, remotePath string) (string, error) {
 	return string(out), nil
 }
 
-// Backup generates a backup of the specified app, or of all.
-func (a *ADB) Backup(arg string) error {
-	cmd := exec.Command(a.ExePath, "backup", "-nocompress", arg)
+// Backup generates a backup of the specified app or of all, writing the
+// archive directly to acquisition dir.
+func (a *ADB) Backup(outPath, arg string) error {
+	args := []string{"backup", "-nocompress", "-f", outPath, arg}
+	if a.Serial != "" {
+		args = append([]string{"-s", a.Serial}, args...)
+	}
+	cmd := exec.Command(a.ExePath, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, string(output))
@@ -177,11 +182,30 @@ func (a *ADB) Backup(arg string) error {
 	return nil
 }
 
-// Bugreport generates a bugreport of the the device
-func (a *ADB) Bugreport() error {
-	cmd := exec.Command(a.ExePath, "bugreport", "bugreport.zip")
+// Write bugreport directly to acquisition dir.
+func (a *ADB) Bugreport(outPath string) error {
+	args := []string{"bugreport", outPath}
+	if a.Serial != "" {
+		args = append([]string{"-s", a.Serial}, args...)
+	}
+	cmd := exec.Command(a.ExePath, args...)
 	err := cmd.Run()
 	return err
+}
+
+// IL prompts the user to download Intrusion Logs
+func (a *ADB) IL() error {
+	// adb shell am start -n com.google.android.gms/.intrusiondetection.ui.retrieval.IntrusionDetectionRetrievalActivity
+	cmd, err := a.Shell(
+		"am",
+		"start",
+		"-n",
+		"com.google.android.gms/.intrusiondetection.ui.retrieval.IntrusionDetectionRetrievalActivity",
+	)
+	if err != nil {
+		return fmt.Errorf("failed to start IL activity: %v: %s", err, cmd)
+	}
+	return nil
 }
 
 // check if file exists
@@ -199,8 +223,12 @@ func (a *ADB) FileExists(path string) (bool, error) {
 // List files in a folder using ls, returns array of strings.
 func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	var remoteFiles []string
+
+	// Quote remotePath so files with spaces on their name work
+	qPath := fmt.Sprintf("'%s'", remotePath)
+
 	if recursive {
-		out, _ := a.Shell("find", remotePath, "2>", "/dev/null")
+		out, _ := a.Shell("find", qPath, "2>", "/dev/null")
 		if out != "" {
 			tmpFiles := strings.Split(out, "\n")
 			for _, file := range tmpFiles {
