@@ -12,8 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-
-	saveRuntime "github.com/botherder/go-savetime/runtime"
+	"sync"
 )
 
 //go:embed collector_*
@@ -24,17 +23,32 @@ type Asset struct {
 	Data []byte
 }
 
+var (
+	deployMu    sync.Mutex
+	deployedDir string
+)
+
 // Read a specific embedded collector binary
 func ReadCollectorFile(collectorName string) ([]byte, error) {
 	return collector.ReadFile(collectorName)
 }
 
 // DeployAssets is used to retrieve the embedded adb binaries and store them.
-func DeployAssets() error {
-	cwd := saveRuntime.GetExecutableDirectory()
+func DeployAssets() (string, error) {
+	deployMu.Lock()
+	defer deployMu.Unlock()
+
+	if deployedDir != "" {
+		return deployedDir, nil
+	}
+
+	dir, err := os.MkdirTemp("", "androidqf-")
+	if err != nil {
+		return "", err
+	}
 
 	for _, asset := range getAssets() {
-		assetPath := filepath.Join(cwd, asset.Name)
+		assetPath := filepath.Join(dir, asset.Name)
 
 		// If the file already exists, skip it. This avoids failing when adb
 		// is already deployed or in use by another process.
@@ -62,24 +76,25 @@ func DeployAssets() error {
 		_, err = assetFile.Write(asset.Data)
 		assetFile.Close()
 		if err != nil {
-			return err
+			os.RemoveAll(dir)
+			return "", err
 		}
 	}
 
-	return nil
+	deployedDir = dir
+	return dir, nil
 }
 
 // Remove assets from the local disk
 func CleanAssets() error {
-	cwd := saveRuntime.GetExecutableDirectory()
+	deployMu.Lock()
+	dir := deployedDir
+	deployedDir = ""
+	deployMu.Unlock()
 
-	for _, asset := range getAssets() {
-		assetPath := filepath.Join(cwd, asset.Name)
-		err := os.Remove(assetPath)
-		if err != nil {
-			return err
-		}
+	if dir == "" {
+		return nil
 	}
 
-	return nil
+	return os.RemoveAll(dir)
 }

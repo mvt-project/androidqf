@@ -52,3 +52,34 @@ func TestCompleteDoesNotOverwriteExistingCompletedTimestamp(t *testing.T) {
 		t.Fatalf("Complete() changed Completed from %s to %s", completed, acq.Completed)
 	}
 }
+
+func TestStoreSecurelyUsesCurrentWorkingDirectory(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	writeTestAgeKey(t, cwd)
+
+	storagePath := filepath.Join(cwd, "test-acquisition")
+	if err := os.Mkdir(storagePath, 0o755); err != nil {
+		t.Fatalf("Mkdir(storagePath) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(storagePath, "data.txt"), []byte("evidence"), 0o600); err != nil {
+		t.Fatalf("WriteFile(data.txt) error = %v", err)
+	}
+
+	acq := &Acquisition{
+		UUID:        "test-acquisition",
+		StoragePath: storagePath,
+	}
+
+	if err := acq.StoreSecurely(); err != nil {
+		t.Fatalf("StoreSecurely() error = %v", err)
+	}
+
+	wantPath := filepath.Join(cwd, "test-acquisition.zip.age")
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("Stat(encrypted output) error = %v", err)
+	}
+	if _, err := os.Stat(storagePath); !os.IsNotExist(err) {
+		t.Fatalf("storage path still exists or returned unexpected error: %v", err)
+	}
+}

@@ -7,8 +7,12 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"filippo.io/age"
 )
 
 func TestCreateHashListTracksPlaintextZipEntries(t *testing.T) {
@@ -91,6 +95,44 @@ func TestCreateHashListTracksPlaintextZipEntries(t *testing.T) {
 func sha256Hex(content string) string {
 	sum := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(sum[:])
+}
+
+func writeTestAgeKey(t *testing.T, dir string) {
+	t.Helper()
+
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatalf("GenerateX25519Identity() error = %v", err)
+	}
+
+	keyPath := filepath.Join(dir, "key.txt")
+	if err := os.WriteFile(keyPath, []byte(identity.Recipient().String()), 0o600); err != nil {
+		t.Fatalf("WriteFile(key.txt) error = %v", err)
+	}
+}
+
+func TestNewEncryptedZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	writeTestAgeKey(t, cwd)
+
+	ezw, err := NewEncryptedZipWriter("test-acquisition")
+	if err != nil {
+		t.Fatalf("NewEncryptedZipWriter() error = %v", err)
+	}
+	defer os.Remove(ezw.GetOutputPath())
+
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	wantPath := filepath.Join(cwd, "test-acquisition.zip.age")
+	if ezw.GetOutputPath() != wantPath {
+		t.Fatalf("output path = %q, want %q", ezw.GetOutputPath(), wantPath)
+	}
+	if _, err := os.Stat(wantPath); err != nil {
+		t.Fatalf("Stat(output) error = %v", err)
+	}
 }
 
 func TestValidateZipEntryName(t *testing.T) {
