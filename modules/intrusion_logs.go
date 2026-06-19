@@ -74,6 +74,19 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
+	// Only collect IL data if the feature was already enabled before this module
+	// starts collection. If it is first enabled during this androidqf run, any
+	// useful data starts from that point and should be collected in a future run.
+	aapmEnabledAtStart, err := m.isAAPMEnabled()
+	if err != nil {
+		log.Debugf("Failed to check AAPM enabled state: %v", err)
+		aapmEnabledAtStart = false
+	}
+	if !aapmEnabledAtStart {
+		log.Info("Intrusion Logging is not enabled, skipping Intrusion Logging acquisition.")
+		return nil
+	}
+
 	// Ask user first
 	log.Info("Would you like to download Intrusion Logs from the device?")
 	promptIL := promptui.Select{
@@ -92,47 +105,33 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
-	// Check whether AAPM is enabled right now. If disabled, don't start the activity
-	// or wait for a new file just pull whatever is already present.
-	// We still proceed with acquisition because older IL files may remain on disk
-	// and should be collected with user consent.
-	aapmEnabled, err := m.isAAPMEnabled()
+	// Snapshot of Intrusion Logs folder before triggering new log download
+	before, err := m.listDirSet(m.DirOnDevice)
+
 	if err != nil {
-		log.Debugf("Failed to check AAPM enabled state: %v", err)
-		aapmEnabled = false
+		log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
+		return nil
 	}
 
-	if aapmEnabled {
-		// Snapshot of Intrusion Logs folder before triggering new log download
-		before, err := m.listDirSet(m.DirOnDevice)
+	// Start the Activity to prompt the user to download a new Intrusion Log
+	if err := adb.Client.IL(); err != nil {
+		log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
+		// Still allow pulling existing files if user wants; continue anyway.
+	}
 
-		if err != nil {
-			log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
-			return nil
-		}
+	log.Info("Launched the Intrusion Logging settings page.")
+	log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
 
-		// Start the Activity to prompt the user to download a new Intrusion Log
-		if err := adb.Client.IL(); err != nil {
-			log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
-			// Still allow pulling existing files if user wants; continue anyway.
-		}
+	log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
+	// Watch directory (Ctrl+C cancels watch but continues acquisition)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
-		log.Info("Launched the Intrusion Logging settings page.")
-		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
-
-		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
-		// Watch directory (Ctrl+C cancels watch but continues acquisition)
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-
-		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
-		watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
-		if watchErr != nil {
-			// If user Ctrl+C, context is canceled and acquisition continues
-			log.Info("Stopped waiting, continuing with acquisition...")
-		}
-	} else {
-		log.Debug("AAPM is disabled, skipping activity launch and new file watcher (pulling existing files only).")
+	// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
+	watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+	if watchErr != nil {
+		// If user Ctrl+C, context is canceled and acquisition continues
+		log.Info("Stopped waiting, continuing with acquisition...")
 	}
 
 	// Pull all files (old + new)
