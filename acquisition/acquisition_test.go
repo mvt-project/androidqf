@@ -1,7 +1,9 @@
 package acquisition
 
 import (
+	"archive/zip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,4 +84,70 @@ func TestStoreSecurelyUsesCurrentWorkingDirectory(t *testing.T) {
 	if _, err := os.Stat(storagePath); !os.IsNotExist(err) {
 		t.Fatalf("storage path still exists or returned unexpected error: %v", err)
 	}
+}
+
+func TestCreateZipFileCreatesReadableArchive(t *testing.T) {
+	sourcePath := t.TempDir()
+	if err := os.Mkdir(filepath.Join(sourcePath, "nested"), 0o755); err != nil {
+		t.Fatalf("Mkdir(nested) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcePath, "nested", "data.txt"), []byte("evidence"), 0o600); err != nil {
+		t.Fatalf("WriteFile(data.txt) error = %v", err)
+	}
+
+	zipPath := filepath.Join(t.TempDir(), "acquisition.zip")
+	if err := createZipFile(sourcePath, zipPath); err != nil {
+		t.Fatalf("createZipFile() error = %v", err)
+	}
+
+	files := readZipFiles(t, zipPath)
+	if files["nested/data.txt"] != "evidence" {
+		t.Fatalf("nested/data.txt = %q, want evidence", files["nested/data.txt"])
+	}
+}
+
+func TestCreateZipFileSkipsArchiveInsideSourceDirectory(t *testing.T) {
+	sourcePath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(sourcePath, "data.txt"), []byte("evidence"), 0o600); err != nil {
+		t.Fatalf("WriteFile(data.txt) error = %v", err)
+	}
+
+	zipPath := filepath.Join(sourcePath, "acquisition.zip")
+	if err := createZipFile(sourcePath, zipPath); err != nil {
+		t.Fatalf("createZipFile() error = %v", err)
+	}
+
+	files := readZipFiles(t, zipPath)
+	if files["data.txt"] != "evidence" {
+		t.Fatalf("data.txt = %q, want evidence", files["data.txt"])
+	}
+	if _, ok := files["acquisition.zip"]; ok {
+		t.Fatal("archive contains itself")
+	}
+}
+
+func readZipFiles(t *testing.T, zipPath string) map[string]string {
+	t.Helper()
+
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("OpenReader(%q) error = %v", zipPath, err)
+	}
+	defer reader.Close()
+
+	files := make(map[string]string)
+	for _, file := range reader.File {
+		readCloser, err := file.Open()
+		if err != nil {
+			t.Fatalf("Open(%q) error = %v", file.Name, err)
+		}
+		content, err := io.ReadAll(readCloser)
+		readCloser.Close()
+		if err != nil {
+			t.Fatalf("ReadAll(%q) error = %v", file.Name, err)
+		}
+		files[file.Name] = string(content)
+	}
+
+	return files
 }
