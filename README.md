@@ -69,6 +69,30 @@ but the `assets/` package directory and its Go source files must remain present.
 The `unbundle` build still imports the `assets` package, and the build will fail
 if the whole `assets/` directory is deleted.
 
+## Container image
+
+The release container image is published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/mvt-project/androidqf:latest
+```
+
+To collect from a USB-connected Android device on Linux, pass through the USB
+bus and mount an output directory:
+
+```bash
+docker run --rm -it --privileged \
+  -v /dev/bus/usb:/dev/bus/usb \
+  -v "$(pwd)/output:/output" \
+  ghcr.io/mvt-project/androidqf:latest -fast -output /output
+```
+
+You can also build the image locally for a released version:
+
+```bash
+docker build --build-arg VERSION=1.8.3 -t androidqf .
+```
+
 ## How to use
 
 > [!TIP]
