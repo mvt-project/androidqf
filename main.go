@@ -162,7 +162,11 @@ func main() {
 			return
 		}
 
-		acq.StoreInfo()
+		err = acq.StoreInfo()
+		if err != nil {
+			log.ErrorExc("Failed to store acquisition info", err)
+			return
+		}
 
 		err = acq.StoreSecurely()
 		if err != nil {
