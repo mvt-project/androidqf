@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/avast/apkverifier"
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -193,28 +194,11 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 
 					// Check the certificate
 					verified, cert, err := utils.VerifyCertificate(localPath)
-					if cert == nil {
-						// Couldn't extract certificate
-						log.Debugf("Couldn't parse certificate for app %s", localPath)
-						packageFile.CertificateError = err.Error()
-						packageFile.VerifiedCertificate = false
-					} else {
-						packageFile.Certificate = *cert
-						packageFile.VerifiedCertificate = false
-						if err != nil {
-							// Extracted certificate but couldn't verify it
-							packageFile.CertificateError = err.Error()
-						} else {
-							packageFile.CertificateError = ""
-							packageFile.VerifiedCertificate = verified
-							if utils.IsTrusted(*cert) {
-								packageFile.TrustedCertificate = true
-								if keepOption == apkRemoveTrusted {
-									log.Debugf("Trusted APK removed: %s - %s",
-										localPath, packageFile.SHA256)
-									os.Remove(localPath)
-								}
-							}
+					if shouldRemoveTrustedAPK(packageFile, verified, cert, err, keepOption) {
+						log.Debugf("Trusted APK removed: %s - %s",
+							localPath, packageFile.SHA256)
+						if err := os.Remove(localPath); err != nil {
+							log.Debugf("ERROR: failed to remove trusted APK %s: %v", localPath, err)
 						}
 					}
 				}
@@ -223,6 +207,33 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	return saveDataToAcquisition(acq, "packages.json", &packages)
+}
+
+func shouldRemoveTrustedAPK(packageFile *adb.PackageFile, verified bool, cert *apkverifier.CertInfo, certErr error, keepOption string) bool {
+	if cert == nil {
+		log.Debugf("Couldn't parse certificate for app %s", packageFile.Path)
+		packageFile.CertificateError = "No certificate found"
+		if certErr != nil {
+			packageFile.CertificateError = certErr.Error()
+		}
+		packageFile.VerifiedCertificate = false
+		return false
+	}
+
+	packageFile.Certificate = *cert
+	packageFile.VerifiedCertificate = verified
+	if certErr != nil {
+		packageFile.CertificateError = certErr.Error()
+	} else {
+		packageFile.CertificateError = ""
+	}
+
+	if verified && utils.IsTrusted(*cert) {
+		packageFile.TrustedCertificate = true
+		return keepOption == apkRemoveTrusted
+	}
+
+	return false
 }
 
 // processAPKStreaming handles APK processing in streaming mode
@@ -272,32 +283,5 @@ func (p *Packages) processCertificate(packageFile *adb.PackageFile, keepOption s
 
 	// Verify certificate from buffer using in-memory verification
 	verified, cert, err := utils.VerifyCertificateFromReader(buffer.Reader())
-	if cert == nil {
-		packageFile.CertificateError = "No certificate found"
-		if err != nil {
-			packageFile.CertificateError = err.Error()
-		}
-		packageFile.VerifiedCertificate = false
-		return false, nil
-	}
-
-	// Set certificate information
-	packageFile.Certificate = *cert
-	packageFile.VerifiedCertificate = verified
-
-	if err != nil {
-		packageFile.CertificateError = err.Error()
-	} else {
-		packageFile.CertificateError = ""
-	}
-
-	// Check if certificate is trusted and should be removed
-	if utils.IsTrusted(*cert) {
-		packageFile.TrustedCertificate = true
-		if keepOption == apkRemoveTrusted {
-			return true, nil // Skip this APK
-		}
-	}
-
-	return false, nil
+	return shouldRemoveTrustedAPK(packageFile, verified, cert, err, keepOption), nil
 }
