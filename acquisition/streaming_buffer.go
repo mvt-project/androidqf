@@ -7,11 +7,14 @@ package acquisition
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"strings"
 )
+
+var ErrStreamingBufferMemoryLimit = errors.New("streaming buffer memory limit exceeded")
 
 // StreamingBuffer manages in-memory buffering for direct streaming operations
 type StreamingBuffer struct {
@@ -32,7 +35,7 @@ func NewStreamingBuffer(maxMemoryMB int) *StreamingBuffer {
 // Write implements io.Writer interface with memory limit enforcement
 func (sb *StreamingBuffer) Write(p []byte) (int, error) {
 	if sb.size+int64(len(p)) > sb.maxMem {
-		return 0, fmt.Errorf("write would exceed memory limit of %d bytes", sb.maxMem)
+		return 0, fmt.Errorf("%w: write would exceed memory limit of %d bytes", ErrStreamingBufferMemoryLimit, sb.maxMem)
 	}
 
 	n, err := sb.buffer.Write(p)
@@ -98,7 +101,7 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 	err := cmd.Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to pull %q to buffer: %v", remotePath, err)
+		return nil, fmt.Errorf("failed to pull %q to buffer: %w", remotePath, err)
 	}
 
 	return buffer, nil
