@@ -14,9 +14,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Mounts struct {
-	StoragePath string
-}
+type Mounts struct{}
 
 func NewMounts() *Mounts {
 	return &Mounts{}
@@ -24,11 +22,6 @@ func NewMounts() *Mounts {
 
 func (m *Mounts) Name() string {
 	return "mounts"
-}
-
-func (m *Mounts) InitStorage(storagePath string) error {
-	m.StoragePath = storagePath
-	return nil
 }
 
 func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {

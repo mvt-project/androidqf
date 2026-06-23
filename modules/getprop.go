@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type GetProp struct {
-	StoragePath string
-}
+type GetProp struct{}
 
 func NewGetProp() *GetProp {
 	return &GetProp{}
@@ -22,11 +20,6 @@ func NewGetProp() *GetProp {
 
 func (g *GetProp) Name() string {
 	return "getprop"
-}
-
-func (g *GetProp) InitStorage(storagePath string) error {
-	g.StoragePath = storagePath
-	return nil
 }
 
 func (g *GetProp) Run(acq *acquisition.Acquisition, fast bool) error {

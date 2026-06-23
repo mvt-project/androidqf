@@ -6,9 +6,6 @@ package modules
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/botherder/go-savetime/text"
 	"github.com/mvt-project/androidqf/acquisition"
@@ -16,10 +13,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Logs struct {
-	StoragePath string
-	LogsPath    string
-}
+type Logs struct{}
 
 func NewLogs() *Logs {
 	return &Logs{}
@@ -27,21 +21,6 @@ func NewLogs() *Logs {
 
 func (l *Logs) Name() string {
 	return "logs"
-}
-
-func (l *Logs) InitStorage(storagePath string) error {
-	l.StoragePath = storagePath
-	l.LogsPath = filepath.Join(storagePath, "logs")
-
-	// Only create directory in traditional mode
-	if storagePath != "" {
-		err := os.Mkdir(l.LogsPath, 0o755)
-		if err != nil && !os.IsExist(err) {
-			return fmt.Errorf("failed to create logs folder: %v", err)
-		}
-	}
-
-	return nil
 }
 
 func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
@@ -70,59 +49,26 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	for _, logFile := range logFiles {
-		// logFile is device controlled; validate it stays within LogsPath.
-		rel, err := filepath.Rel(l.LogsPath, filepath.Join(l.LogsPath, logFile))
-		if err != nil || !filepath.IsLocal(rel) {
-			log.Errorf("Skipping log file with path traversal: %s", logFile)
+		log.Debugf("From: %s", logFile)
+
+		zipPath := fmt.Sprintf("logs%s", logFile)
+		log.Debugf("To archive as: %s", zipPath)
+
+		writer, err := acq.ZipWriter.CreateFile(zipPath)
+		if err != nil {
+			log.Errorf("Failed to create zip entry for log %s: %v\n", logFile, err)
 			continue
 		}
 
-		if acq.StreamingMode && acq.EncryptedWriter != nil {
-			// Streaming mode: stream directly from ADB to encrypted zip without temp files
-			log.Debugf("From: %s", logFile)
-			log.Debugf("To encrypted archive as: logs%s", logFile)
-
-			// Create zip path with logs/ prefix
-			zipPath := fmt.Sprintf("logs%s", logFile)
-
-			// Create zip entry writer
-			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
-			if err != nil {
-				log.Errorf("Failed to create zip entry for log %s: %v\n", logFile, err)
-				continue
+		err = acq.StreamingPuller.PullToWriter(logFile, writer)
+		if err != nil {
+			if !text.ContainsNoCase(err.Error(), "Permission denied") {
+				log.Errorf("Failed to stream log file %s: %v\n", logFile, err)
 			}
-
-			// Stream log file directly to encrypted zip using acquisition's streaming puller
-			err = acq.StreamingPuller.PullToWriter(logFile, writer)
-			if err != nil {
-				if !text.ContainsNoCase(err.Error(), "Permission denied") {
-					log.Errorf("Failed to stream log file %s: %v\n", logFile, err)
-				}
-				continue
-			}
-
-			log.Debugf("Streamed log file %s directly to encrypted archive", logFile)
-		} else {
-			// Traditional mode: create local directory structure and pull files
-			localPath := filepath.Join(l.LogsPath, logFile)
-			localDir, _ := filepath.Split(localPath)
-			log.Debugf("From: %s", logFile)
-			log.Debugf("To: %s", localPath)
-
-			err := os.MkdirAll(localDir, 0o755)
-			if err != nil {
-				log.Errorf("Failed to create folders for logs %s: %v\n", localDir, err)
-				continue
-			}
-
-			out, err := adb.Client.Pull(logFile, localPath)
-			if err != nil {
-				if !text.ContainsNoCase(out, "Permission denied") {
-					log.Errorf("Failed to pull log file %s: %s\n", logFile, strings.TrimSpace(out))
-				}
-				continue
-			}
+			continue
 		}
+
+		log.Debugf("Streamed log file %s directly to archive", logFile)
 	}
 
 	return nil

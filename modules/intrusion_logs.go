@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,8 +26,6 @@ const (
 )
 
 type IL struct {
-	StoragePath string
-	ILPath      string
 	DirOnDevice string
 }
 
@@ -40,21 +37,6 @@ func NewIL() *IL {
 
 func (m *IL) Name() string {
 	return "intrusion_logs"
-}
-
-func (m *IL) InitStorage(storagePath string) error {
-	m.StoragePath = storagePath
-	m.ILPath = filepath.Join(storagePath, "intrusion_logs")
-
-	// Only create directory in traditional mode
-	if storagePath != "" {
-		err := os.Mkdir(m.ILPath, 0o755)
-		if err != nil && !os.IsExist(err) {
-			return fmt.Errorf("failed to create Intrusion Logging folder: %v", err)
-		}
-	}
-
-	return nil
 }
 
 func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
@@ -250,19 +232,6 @@ func (m *IL) waitForNewFiles(
 }
 
 func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
-	streaming := acq.StreamingMode && acq.EncryptedWriter != nil
-	var localRoot *os.Root
-	var puller *acquisition.StreamingPuller
-	if !streaming {
-		var err error
-		localRoot, err = os.OpenRoot(m.ILPath)
-		if err != nil {
-			return fmt.Errorf("failed to open intrusion logs output root: %v", err)
-		}
-		defer localRoot.Close()
-		puller = acquisition.NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100)
-	}
-
 	for _, file := range deviceFiles {
 		if file == m.DirOnDevice {
 			continue
@@ -274,28 +243,21 @@ func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
 			continue
 		}
 
-		if streaming {
-			zipPath := path.Join("intrusion_logs", rel)
+		zipPath := path.Join("intrusion_logs", rel)
 
-			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
-			if err != nil {
-				log.Errorf("Failed to create zip entry for IL file %s: %v\n", file, err)
-				continue
-			}
-
-			err = acq.StreamingPuller.PullToWriter(file, writer)
-			if err != nil {
-				log.Errorf("Failed to stream IL file %s: %v\n", file, err)
-				continue
-			}
-
-			log.Debugf("Streamed IL file %s directly to encrypted archive as %s", file, zipPath)
-		} else {
-			if err := streamDeviceChildToRoot(localRoot, puller, rel, file); err != nil {
-				log.Errorf("Failed to pull IL file %s: %v\n", file, err)
-				continue
-			}
+		writer, err := acq.ZipWriter.CreateFile(zipPath)
+		if err != nil {
+			log.Errorf("Failed to create zip entry for IL file %s: %v\n", file, err)
+			continue
 		}
+
+		err = acq.StreamingPuller.PullToWriter(file, writer)
+		if err != nil {
+			log.Errorf("Failed to stream IL file %s: %v\n", file, err)
+			continue
+		}
+
+		log.Debugf("Streamed IL file %s directly to archive as %s", file, zipPath)
 	}
 
 	return nil

@@ -128,20 +128,11 @@ func main() {
 	}
 
 	// Start acquisitions
-	log.Info(fmt.Sprintf("Started new acquisition in %s", acq.StoragePath))
+	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
 	mods := modules.List()
 	for _, mod := range mods {
 		if (module != "") && (module != mod.Name()) {
-			continue
-		}
-		err = mod.InitStorage(acq.StoragePath)
-		if err != nil {
-			log.Infof(
-				"ERROR: failed to initialize storage for module %s: %v",
-				mod.Name(),
-				err,
-			)
 			continue
 		}
 
@@ -151,30 +142,7 @@ func main() {
 		}
 	}
 
-	if acq.StreamingMode {
-		// In streaming mode, all data is already encrypted in the zip stream
-		log.Info("Finalizing encrypted acquisition...")
-	} else {
-		// Traditional mode: hash files, then encrypt if key exists
-		err = acq.HashFiles()
-		if err != nil {
-			log.ErrorExc("Failed to generate list of file hashes", err)
-			return
-		}
-
-		err = acq.StoreInfo()
-		if err != nil {
-			log.ErrorExc("Failed to store acquisition info", err)
-			return
-		}
-
-		err = acq.StoreSecurely()
-		if err != nil {
-			log.ErrorExc("Something failed while encrypting the acquisition", err)
-			log.Warning("WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!")
-		}
-	}
-
+	log.Info("Finalizing acquisition archive...")
 	acq.Complete()
 	log.Info("Acquisition completed.")
 

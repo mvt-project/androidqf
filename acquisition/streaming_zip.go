@@ -24,12 +24,14 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-// EncryptedZipWriter provides streaming encrypted zip functionality
-type EncryptedZipWriter struct {
+// StreamingZipWriter provides streaming zip functionality, optionally wrapped
+// in age encryption when a public key is available.
+type StreamingZipWriter struct {
 	file       *os.File
 	encWriter  io.WriteCloser
 	zipWriter  *zip.Writer
 	outputPath string
+	encrypted  bool
 	closed     bool
 	hashes     []*zipHash
 }
@@ -52,73 +54,95 @@ func (hw *hashingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// NewEncryptedZipWriter creates a new encrypted zip writer if key.txt exists
-func NewEncryptedZipWriter(uuid string) (*EncryptedZipWriter, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
+// NewStreamingZipWriter creates a streaming zip writer in outputDir. If key.txt
+// exists, the zip stream is age-encrypted and written as .zip.age.
+func NewStreamingZipWriter(uuid, outputDir string) (*StreamingZipWriter, error) {
+	if outputDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		outputDir = cwd
 	}
 
-	// Check if key file exists
+	stat, err := os.Stat(outputDir)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return nil, fmt.Errorf("failed to create output folder: %v", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to stat output folder: %v", err)
+	} else if !stat.IsDir() {
+		return nil, fmt.Errorf("output path exists and is not a folder")
+	}
+
 	keyFilePath, ok, err := findAgeKeyFile()
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
-		return nil, fmt.Errorf("key.txt not found, encrypted streaming not available")
+
+	fileName := fmt.Sprintf("%s.zip", uuid)
+	if ok {
+		fileName += ".age"
 	}
-
-	log.Info("Found age public key, using encrypted streaming mode.")
-
-	// Read and parse public key
-	publicKey, err := os.ReadFile(keyFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read public key: %v", err)
-	}
-	publicKeyStr := strings.TrimSpace(string(publicKey))
-
-	recipient, err := age.ParseX25519Recipient(publicKeyStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse public key %q: %v", publicKeyStr, err)
-	}
-
-	// Create output file
-	encFileName := fmt.Sprintf("%s.zip.age", uuid)
-	outputPath := filepath.Join(cwd, encFileName)
+	outputPath := filepath.Join(outputDir, fileName)
 
 	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create output file: %v", err)
 	}
 
-	// Create encryption writer
-	encWriter, err := age.Encrypt(file, recipient)
-	if err != nil {
-		file.Close()
-		os.Remove(outputPath) // Clean up the created file
-		return nil, fmt.Errorf("failed to create encrypted writer: %v", err)
+	var encWriter io.WriteCloser
+	var zipSink io.Writer = file
+	if ok {
+		log.Info("Found age public key, streaming to encrypted zip archive.")
+
+		publicKey, err := os.ReadFile(keyFilePath)
+		if err != nil {
+			file.Close()
+			os.Remove(outputPath)
+			return nil, fmt.Errorf("failed to read public key: %v", err)
+		}
+		publicKeyStr := strings.TrimSpace(string(publicKey))
+
+		recipient, err := age.ParseX25519Recipient(publicKeyStr)
+		if err != nil {
+			file.Close()
+			os.Remove(outputPath)
+			return nil, fmt.Errorf("failed to parse public key %q: %v", publicKeyStr, err)
+		}
+
+		encWriter, err = age.Encrypt(file, recipient)
+		if err != nil {
+			file.Close()
+			os.Remove(outputPath)
+			return nil, fmt.Errorf("failed to create encrypted writer: %v", err)
+		}
+		zipSink = encWriter
+	} else {
+		log.Info("No age public key found, streaming to unencrypted zip archive.")
 	}
 
-	// Create zip writer
-	zipWriter := zip.NewWriter(encWriter)
+	zipWriter := zip.NewWriter(zipSink)
 
-	log.Infof("Started encrypted streaming to %s", outputPath)
+	log.Infof("Started streaming to %s", outputPath)
 
-	return &EncryptedZipWriter{
+	return &StreamingZipWriter{
 		file:       file,
 		encWriter:  encWriter,
 		zipWriter:  zipWriter,
 		outputPath: outputPath,
+		encrypted:  ok,
 		closed:     false,
 	}, nil
 }
 
-// CreateFile creates a new file in the encrypted zip and returns a writer
-func (ezw *EncryptedZipWriter) CreateFile(name string) (io.Writer, error) {
+// CreateFile creates a new file in the zip and returns a writer
+func (ezw *StreamingZipWriter) CreateFile(name string) (io.Writer, error) {
 	return ezw.createFile(name, true)
 }
 
-func (ezw *EncryptedZipWriter) createFile(name string, trackHash bool) (io.Writer, error) {
+func (ezw *StreamingZipWriter) createFile(name string, trackHash bool) (io.Writer, error) {
 	if err := ezw.checkClosed(); err != nil {
 		return nil, err
 	}
@@ -182,8 +206,8 @@ func validateZipEntryName(name string) error {
 	return nil
 }
 
-// CreateFileFromReader copies data from a reader to a file in the encrypted zip
-func (ezw *EncryptedZipWriter) CreateFileFromReader(name string, src io.Reader) error {
+// CreateFileFromReader copies data from a reader to a file in the zip
+func (ezw *StreamingZipWriter) CreateFileFromReader(name string, src io.Reader) error {
 	if src == nil {
 		return fmt.Errorf("source reader cannot be nil")
 	}
@@ -201,9 +225,9 @@ func (ezw *EncryptedZipWriter) CreateFileFromReader(name string, src io.Reader) 
 	return nil
 }
 
-// CreateHashList adds hashes.csv to the encrypted zip with SHA-256 hashes of
+// CreateHashList adds hashes.csv to the zip with SHA-256 hashes of
 // the plaintext zip entries written so far.
-func (ezw *EncryptedZipWriter) CreateHashList() error {
+func (ezw *StreamingZipWriter) CreateHashList() error {
 	if err := ezw.checkClosed(); err != nil {
 		return err
 	}
@@ -234,18 +258,18 @@ func (ezw *EncryptedZipWriter) CreateHashList() error {
 	return nil
 }
 
-// CreateFileFromString creates a file with string content in the encrypted zip
-func (ezw *EncryptedZipWriter) CreateFileFromString(name, content string) error {
+// CreateFileFromString creates a file with string content in the zip
+func (ezw *StreamingZipWriter) CreateFileFromString(name, content string) error {
 	return ezw.CreateFileFromReader(name, strings.NewReader(content))
 }
 
-// CreateFileFromBytes creates a file with byte content in the encrypted zip
-func (ezw *EncryptedZipWriter) CreateFileFromBytes(name string, content []byte) error {
+// CreateFileFromBytes creates a file with byte content in the zip
+func (ezw *StreamingZipWriter) CreateFileFromBytes(name string, content []byte) error {
 	return ezw.CreateFileFromReader(name, bytes.NewReader(content))
 }
 
-// CreateFileFromPath reads a file from disk and adds it to the encrypted zip
-func (ezw *EncryptedZipWriter) CreateFileFromPath(name, filePath string) error {
+// CreateFileFromPath reads a file from disk and adds it to the zip
+func (ezw *StreamingZipWriter) CreateFileFromPath(name, filePath string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %q: %v", filePath, err)
@@ -255,8 +279,8 @@ func (ezw *EncryptedZipWriter) CreateFileFromPath(name, filePath string) error {
 	return ezw.CreateFileFromReader(name, file)
 }
 
-// Close finalizes and closes the encrypted zip
-func (ezw *EncryptedZipWriter) Close() error {
+// Close finalizes and closes the zip
+func (ezw *StreamingZipWriter) Close() error {
 	if ezw.closed {
 		return nil
 	}
@@ -269,10 +293,11 @@ func (ezw *EncryptedZipWriter) Close() error {
 		lastErr = fmt.Errorf("failed to close zip writer: %v", err)
 	}
 
-	// Close encryption writer
-	if err := ezw.encWriter.Close(); err != nil {
-		if lastErr == nil {
-			lastErr = fmt.Errorf("failed to close encryption writer: %v", err)
+	if ezw.encWriter != nil {
+		if err := ezw.encWriter.Close(); err != nil {
+			if lastErr == nil {
+				lastErr = fmt.Errorf("failed to close encryption writer: %v", err)
+			}
 		}
 	}
 
@@ -284,25 +309,29 @@ func (ezw *EncryptedZipWriter) Close() error {
 	}
 
 	if lastErr == nil {
-		log.Infof("Encrypted archive created successfully at %s", ezw.outputPath)
+		log.Infof("Archive created successfully at %s", ezw.outputPath)
 	}
 	return lastErr
 }
 
-// GetOutputPath returns the path to the encrypted zip file
-func (ezw *EncryptedZipWriter) GetOutputPath() string {
+// GetOutputPath returns the path to the zip file
+func (ezw *StreamingZipWriter) GetOutputPath() string {
 	return ezw.outputPath
 }
 
+func (ezw *StreamingZipWriter) IsEncrypted() bool {
+	return ezw.encrypted
+}
+
 // IsClosed returns whether the writer has been closed
-func (ezw *EncryptedZipWriter) IsClosed() bool {
+func (ezw *StreamingZipWriter) IsClosed() bool {
 	return ezw.closed
 }
 
 // checkClosed is a helper method to check if the writer is closed
-func (ezw *EncryptedZipWriter) checkClosed() error {
+func (ezw *StreamingZipWriter) checkClosed() error {
 	if ezw.closed {
-		return fmt.Errorf("encrypted zip writer is closed")
+		return fmt.Errorf("streaming zip writer is closed")
 	}
 	return nil
 }

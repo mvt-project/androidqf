@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type SELinux struct {
-	StoragePath string
-}
+type SELinux struct{}
 
 func NewSELinux() *SELinux {
 	return &SELinux{}
@@ -22,11 +20,6 @@ func NewSELinux() *SELinux {
 
 func (s *SELinux) Name() string {
 	return "selinux"
-}
-
-func (s *SELinux) InitStorage(storagePath string) error {
-	s.StoragePath = storagePath
-	return nil
 }
 
 func (s *SELinux) Run(acq *acquisition.Acquisition, fast bool) error {

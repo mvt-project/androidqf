@@ -1,33 +1,51 @@
 package acquisition
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
-func TestStoreInfoSetsCompletedTimestamp(t *testing.T) {
-	acq := &Acquisition{
-		UUID:        "test-acquisition",
-		StoragePath: t.TempDir(),
+func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
+	outputDir := t.TempDir()
+	t.Chdir(outputDir)
+
+	zipWriter, err := NewStreamingZipWriter("test-acquisition", outputDir)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
 	}
 
-	if err := acq.StoreInfo(); err != nil {
-		t.Fatalf("StoreInfo() error = %v", err)
+	started := time.Now().UTC()
+	acq := &Acquisition{
+		UUID:          "test-acquisition",
+		StoragePath:   zipWriter.GetOutputPath(),
+		Started:       started,
+		ZipWriter:     zipWriter,
+		StreamingMode: true,
+		logBuffer:     bytes.NewBufferString("logged command\n"),
 	}
+
+	acq.Complete()
 
 	if acq.Completed.IsZero() {
-		t.Fatal("StoreInfo() left Completed unset")
+		t.Fatal("Complete() left Completed unset")
 	}
 
-	info, err := os.ReadFile(filepath.Join(acq.StoragePath, "acquisition.json"))
-	if err != nil {
-		t.Fatalf("ReadFile(acquisition.json) error = %v", err)
+	files := readZipFiles(t, filepath.Join(outputDir, "test-acquisition.zip"))
+	if files["command.log"] != "logged command\n" {
+		t.Fatalf("command.log = %q", files["command.log"])
+	}
+	if _, ok := files["hashes.csv"]; !ok {
+		t.Fatal("hashes.csv missing from archive")
 	}
 
 	var stored Acquisition
-	if err := json.Unmarshal(info, &stored); err != nil {
+	if err := json.Unmarshal([]byte(files["acquisition.json"]), &stored); err != nil {
 		t.Fatalf("json.Unmarshal(acquisition.json) error = %v", err)
 	}
 	if stored.Completed.IsZero() {
@@ -36,15 +54,23 @@ func TestStoreInfoSetsCompletedTimestamp(t *testing.T) {
 }
 
 func TestCompleteDoesNotOverwriteExistingCompletedTimestamp(t *testing.T) {
-	acq := &Acquisition{
-		UUID:        "test-acquisition",
-		StoragePath: t.TempDir(),
+	outputDir := t.TempDir()
+	t.Chdir(outputDir)
+
+	zipWriter, err := NewStreamingZipWriter("test-acquisition", outputDir)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
 	}
 
-	if err := acq.StoreInfo(); err != nil {
-		t.Fatalf("StoreInfo() error = %v", err)
+	completed := time.Now().UTC().Add(-time.Hour)
+	acq := &Acquisition{
+		UUID:          "test-acquisition",
+		StoragePath:   zipWriter.GetOutputPath(),
+		Started:       completed.Add(-time.Hour),
+		Completed:     completed,
+		ZipWriter:     zipWriter,
+		StreamingMode: true,
 	}
-	completed := acq.Completed
 
 	acq.Complete()
 
@@ -53,33 +79,54 @@ func TestCompleteDoesNotOverwriteExistingCompletedTimestamp(t *testing.T) {
 	}
 }
 
-func TestStoreSecurelyUsesCurrentWorkingDirectory(t *testing.T) {
+func readZipFiles(t *testing.T, archivePath string) map[string]string {
+	t.Helper()
+
+	reader, err := zip.OpenReader(archivePath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader(%q) error = %v", archivePath, err)
+	}
+	defer reader.Close()
+
+	files := make(map[string]string)
+	for _, file := range reader.File {
+		readCloser, err := file.Open()
+		if err != nil {
+			t.Fatalf("Open(%q) error = %v", file.Name, err)
+		}
+		content, err := io.ReadAll(readCloser)
+		readCloser.Close()
+		if err != nil {
+			t.Fatalf("ReadAll(%q) error = %v", file.Name, err)
+		}
+		files[file.Name] = string(content)
+	}
+
+	return files
+}
+
+func TestNewStreamingZipWriterWithoutKeyCreatesPlainZip(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
-	writeTestAgeKey(t, cwd)
 
-	storagePath := filepath.Join(cwd, "test-acquisition")
-	if err := os.Mkdir(storagePath, 0o755); err != nil {
-		t.Fatalf("Mkdir(storagePath) error = %v", err)
+	ezw, err := NewStreamingZipWriter("test-acquisition", cwd)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(storagePath, "data.txt"), []byte("evidence"), 0o600); err != nil {
-		t.Fatalf("WriteFile(data.txt) error = %v", err)
-	}
+	defer os.Remove(ezw.GetOutputPath())
 
-	acq := &Acquisition{
-		UUID:        "test-acquisition",
-		StoragePath: storagePath,
+	if ezw.IsEncrypted() {
+		t.Fatal("writer is encrypted without key.txt")
 	}
-
-	if err := acq.StoreSecurely(); err != nil {
-		t.Fatalf("StoreSecurely() error = %v", err)
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
 	}
 
-	wantPath := filepath.Join(cwd, "test-acquisition.zip.age")
+	wantPath := filepath.Join(cwd, "test-acquisition.zip")
+	if ezw.GetOutputPath() != wantPath {
+		t.Fatalf("output path = %q, want %q", ezw.GetOutputPath(), wantPath)
+	}
 	if _, err := os.Stat(wantPath); err != nil {
-		t.Fatalf("Stat(encrypted output) error = %v", err)
-	}
-	if _, err := os.Stat(storagePath); !os.IsNotExist(err) {
-		t.Fatalf("storage path still exists or returned unexpected error: %v", err)
+		t.Fatalf("Stat(output) error = %v", err)
 	}
 }

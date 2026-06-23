@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Processes struct {
-	StoragePath string
-}
+type Processes struct{}
 
 func NewProcesses() *Processes {
 	return &Processes{}
@@ -22,11 +20,6 @@ func NewProcesses() *Processes {
 
 func (p *Processes) Name() string {
 	return "processes"
-}
-
-func (p *Processes) InitStorage(storagePath string) error {
-	p.StoragePath = storagePath
-	return nil
 }
 
 func (p *Processes) Run(acq *acquisition.Acquisition, fast bool) error {
