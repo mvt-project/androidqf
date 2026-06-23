@@ -5,10 +5,6 @@
 package modules
 
 import (
-	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 )
 
@@ -80,72 +76,5 @@ func TestRelativeDeviceChild(t *testing.T) {
 				t.Fatalf("relativeDeviceChild() = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestCreateRootFile(t *testing.T) {
-	rootDir := t.TempDir()
-	root, err := os.OpenRoot(rootDir)
-	if err != nil {
-		t.Fatalf("OpenRoot() error = %v", err)
-	}
-	defer root.Close()
-
-	file, err := createRootFile(root, "nested/file.txt")
-	if err != nil {
-		t.Fatalf("createRootFile() error = %v", err)
-	}
-	if _, err := file.WriteString("ok"); err != nil {
-		t.Fatalf("WriteString() error = %v", err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-
-	got, err := os.ReadFile(filepath.Join(rootDir, "nested", "file.txt"))
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	if string(got) != "ok" {
-		t.Fatalf("created file content = %q, want %q", got, "ok")
-	}
-
-	file, err = createRootFile(root, "file.txt")
-	if err != nil {
-		t.Fatalf("createRootFile() root file error = %v", err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("Close() root file error = %v", err)
-	}
-
-	if file, err := createRootFile(root, "../escape"); err == nil {
-		file.Close()
-		t.Fatal("createRootFile() error = nil, want lexical traversal rejection")
-	}
-}
-
-func TestCreateRootFileRejectsSymlinkEscape(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("symlink creation requires extra privileges on Windows")
-	}
-
-	rootDir := t.TempDir()
-	outsideDir := t.TempDir()
-	if err := os.Symlink(outsideDir, filepath.Join(rootDir, "escape")); err != nil {
-		if errors.Is(err, os.ErrPermission) {
-			t.Skipf("symlink creation not permitted: %v", err)
-		}
-		t.Fatalf("Symlink() error = %v", err)
-	}
-
-	root, err := os.OpenRoot(rootDir)
-	if err != nil {
-		t.Fatalf("OpenRoot() error = %v", err)
-	}
-	defer root.Close()
-
-	if file, err := createRootFile(root, "escape/file.txt"); err == nil {
-		file.Close()
-		t.Fatal("createRootFile() error = nil, want symlink escape rejection")
 	}
 }

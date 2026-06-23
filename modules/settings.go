@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Settings struct {
-	StoragePath string
-}
+type Settings struct{}
 
 func NewSettings() *Settings {
 	return &Settings{}
@@ -22,11 +20,6 @@ func NewSettings() *Settings {
 
 func (s *Settings) Name() string {
 	return "settings"
-}
-
-func (s *Settings) InitStorage(storagePath string) error {
-	s.StoragePath = storagePath
-	return nil
 }
 
 func (s *Settings) Run(acq *acquisition.Acquisition, fast bool) error {
