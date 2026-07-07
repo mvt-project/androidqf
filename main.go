@@ -21,6 +21,11 @@ import (
 	"github.com/mvt-project/androidqf/utils"
 )
 
+type deviceMenuItem struct {
+	Serial string
+	Status string
+}
+
 func init() {
 	cfmt.Print(`
 	{{                    __           _     __      ____ }}::green
@@ -39,18 +44,52 @@ func systemPause() {
 	os.Stdin.Read(make([]byte, 1))
 }
 
-func selectADBDevice(devices []string) (string, error) {
+func buildDeviceMenuItems(devices []string, running map[string]runningExtraction) []deviceMenuItem {
+	items := make([]deviceMenuItem, 0, len(devices))
+	for _, device := range devices {
+		item := deviceMenuItem{Serial: device}
+		if state, ok := running[device]; ok {
+			item.Status = fmt.Sprintf("(extraction running, pid %d, started %s)", state.PID, state.Started.Local().Format("2006-01-02 15:04:05"))
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
 	promptDevice := promptui.Select{
 		Label: "Multiple Android devices detected. Select the device to acquire",
-		Items: devices,
+		Items: items,
+		Templates: &promptui.SelectTemplates{
+			Active:   "> {{ .Serial | cyan }} {{ .Status | yellow }}",
+			Inactive: "  {{ .Serial }} {{ .Status }}",
+			Selected: "{{ .Serial }}",
+		},
 	}
 
-	_, device, err := promptDevice.Run()
+	index, _, err := promptDevice.Run()
 	if err != nil {
 		return "", fmt.Errorf("failed to select ADB device: %v", err)
 	}
 
-	return device, nil
+	return items[index].Serial, nil
+}
+
+func selectADBDevice(devices []string) (string, error) {
+	return selectADBDeviceFromMenu(buildDeviceMenuItems(devices, activeRunningExtractionsBySerial()))
+}
+
+func resolveADBSerial(serial string, devices []string, selectDevice func([]deviceMenuItem) (string, error), running map[string]runningExtraction) (string, bool, error) {
+	serial = strings.TrimSpace(serial)
+	if serial != "" || len(devices) == 0 {
+		return serial, false, nil
+	}
+	if len(devices) == 1 {
+		return devices[0], false, nil
+	}
+
+	selectedSerial, err := selectDevice(buildDeviceMenuItems(devices, running))
+	return selectedSerial, true, err
 }
 
 func main() {
@@ -119,6 +158,7 @@ func main() {
 			}
 		}
 	}
+	specificDeviceRequested := serial != ""
 
 	// Initialization
 	for {
@@ -126,8 +166,8 @@ func main() {
 			devices, err := adb.Client.Devices()
 			if err != nil {
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
-			} else if len(devices) > 1 {
-				serial, err = selectADBDevice(devices)
+			} else {
+				serial, _, err = resolveADBSerial(serial, devices, selectADBDeviceFromMenu, activeRunningExtractionsBySerial())
 				if err != nil {
 					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
 					time.Sleep(5 * time.Second)
@@ -139,6 +179,9 @@ func main() {
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
+			if !specificDeviceRequested {
+				serial = ""
+			}
 		} else {
 			_, err = adb.Client.GetState()
 			if err == nil {
@@ -146,9 +189,24 @@ func main() {
 			}
 			log.Debug(err)
 			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
+			if !specificDeviceRequested {
+				serial = ""
+			}
 		}
 		time.Sleep(5 * time.Second)
 	}
+
+	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, "")
+	if err != nil {
+		log.Warningf("Unable to record running extraction state: %v", err)
+		releaseRunning = func() {}
+	}
+	runningReleased := false
+	defer func() {
+		if !runningReleased {
+			releaseRunning()
+		}
+	}()
 
 	acq, err := acquisition.New(output_folder)
 	if err != nil {
@@ -201,6 +259,8 @@ func main() {
 	}
 
 	acq.Complete()
+	releaseRunning()
+	runningReleased = true
 	log.Info("Acquisition completed.")
 
 	systemPause()

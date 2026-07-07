@@ -32,9 +32,6 @@ func New() (*ADB, error) {
 	}
 	log.Debugf("ADB found at path: %s", adb.ExePath)
 
-	log.Debug("Killing existing ADB server if running")
-	adb.KillServer()
-
 	// Confirm that we can call "adb devices" without errors
 	_, err = adb.Devices()
 	if err != nil {
@@ -63,11 +60,10 @@ func (a *ADB) SetSerial(serial string) (string, error) {
 		}
 		a.Serial = serial
 	} else {
-		// Problem if multiple devices
 		if len(devices) > 1 {
 			return "", fmt.Errorf("multiple devices connected, please stop AndroidQF and provide a serial number")
 		}
-		a.Serial = ""
+		a.Serial = devices[0]
 	}
 	return a.Serial, nil
 }
