@@ -20,6 +20,14 @@ type ADB struct {
 	Serial  string
 }
 
+type DeviceInfo struct {
+	Serial  string
+	State   string
+	Product string
+	Model   string
+	Device  string
+}
+
 var Client *ADB
 
 // New returns a new ADB instance.
@@ -87,6 +95,56 @@ func (a *ADB) Devices() ([]string, error) {
 	}
 
 	return devices, nil
+}
+
+func (a *ADB) DeviceInfos() ([]DeviceInfo, error) {
+	var devices []DeviceInfo
+	out, err := exec.Command(a.ExePath, "devices", "-l").Output()
+	if err != nil {
+		return devices, fmt.Errorf("failed to use the adb executable: %v",
+			err)
+	}
+
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines[1:] {
+		info, ok := parseDeviceInfoLine(line)
+		if !ok {
+			continue
+		}
+		devices = append(devices, info)
+		log.Debug("Found new device: ", info.Serial)
+	}
+
+	return devices, nil
+}
+
+func parseDeviceInfoLine(line string) (DeviceInfo, bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return DeviceInfo{}, false
+	}
+
+	info := DeviceInfo{
+		Serial: fields[0],
+		State:  fields[1],
+	}
+	for _, field := range fields[2:] {
+		key, value, ok := strings.Cut(field, ":")
+		if !ok {
+			continue
+		}
+
+		switch key {
+		case "product":
+			info.Product = value
+		case "model":
+			info.Model = value
+		case "device":
+			info.Device = value
+		}
+	}
+
+	return info, true
 }
 
 // Run a command to the given phone using exec

@@ -23,6 +23,7 @@ import (
 
 type deviceMenuItem struct {
 	Serial string
+	Title  string
 	Status string
 }
 
@@ -44,16 +45,45 @@ func systemPause() {
 	os.Stdin.Read(make([]byte, 1))
 }
 
-func buildDeviceMenuItems(devices []string, running map[string]runningExtraction) []deviceMenuItem {
+func buildDeviceMenuItems(devices []adb.DeviceInfo, running map[string]runningExtraction) []deviceMenuItem {
 	items := make([]deviceMenuItem, 0, len(devices))
 	for _, device := range devices {
-		item := deviceMenuItem{Serial: device}
-		if state, ok := running[device]; ok {
-			item.Status = fmt.Sprintf("(extraction running, pid %d, started %s)", state.PID, state.Started.Local().Format("2006-01-02 15:04:05"))
+		item := deviceMenuItem{
+			Serial: device.Serial,
+			Title:  deviceMenuTitle(device),
+			Status: deviceMenuStatus(device),
+		}
+		if state, ok := running[device.Serial]; ok {
+			if item.Status != "" {
+				item.Status += " "
+			}
+			item.Status += fmt.Sprintf("(extraction running, pid %d, started %s)", state.PID, state.Started.Local().Format("2006-01-02 15:04:05"))
 		}
 		items = append(items, item)
 	}
 	return items
+}
+
+func deviceMenuTitle(device adb.DeviceInfo) string {
+	name := device.Model
+	if name == "" {
+		name = device.Device
+	}
+	if name == "" {
+		name = device.Product
+	}
+	name = strings.ReplaceAll(name, "_", " ")
+	if name == "" {
+		return device.Serial
+	}
+	return fmt.Sprintf("%s (%s)", name, device.Serial)
+}
+
+func deviceMenuStatus(device adb.DeviceInfo) string {
+	if device.State == "" || device.State == "device" {
+		return ""
+	}
+	return fmt.Sprintf("(%s)", device.State)
 }
 
 func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
@@ -61,9 +91,9 @@ func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
 		Label: "Multiple Android devices detected. Select the device to acquire",
 		Items: items,
 		Templates: &promptui.SelectTemplates{
-			Active:   "> {{ .Serial | cyan }} {{ .Status | yellow }}",
-			Inactive: "  {{ .Serial }} {{ .Status }}",
-			Selected: "{{ .Serial }}",
+			Active:   "> {{ .Title | cyan }} {{ .Status | yellow }}",
+			Inactive: "  {{ .Title }} {{ .Status }}",
+			Selected: "{{ .Title }}",
 		},
 	}
 
@@ -75,13 +105,13 @@ func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
 	return items[index].Serial, nil
 }
 
-func resolveADBSerial(serial string, devices []string, selectDevice func([]deviceMenuItem) (string, error), running map[string]runningExtraction) (string, bool, error) {
+func resolveADBSerial(serial string, devices []adb.DeviceInfo, selectDevice func([]deviceMenuItem) (string, error), running map[string]runningExtraction) (string, bool, error) {
 	serial = strings.TrimSpace(serial)
 	if serial != "" || len(devices) == 0 {
 		return serial, false, nil
 	}
 	if len(devices) == 1 {
-		return devices[0], false, nil
+		return devices[0].Serial, false, nil
 	}
 
 	selectedSerial, err := selectDevice(buildDeviceMenuItems(devices, running))
@@ -159,7 +189,7 @@ func main() {
 	// Initialization
 	for {
 		if serial == "" {
-			devices, err := adb.Client.Devices()
+			devices, err := adb.Client.DeviceInfos()
 			if err != nil {
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
 			} else {

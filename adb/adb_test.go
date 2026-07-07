@@ -26,11 +26,48 @@ func fakeADB() {
 		for _, device := range strings.Split(os.Getenv("ANDROIDQF_FAKE_ADB_DEVICES"), ",") {
 			device = strings.TrimSpace(device)
 			if device != "" {
-				fmt.Printf("%s\tdevice\n", device)
+				if len(os.Args) > 2 && os.Args[2] == "-l" {
+					fmt.Printf("%s         device product:fake model:%s_Model device:%s transport_id:1\n", device, device, device)
+				} else {
+					fmt.Printf("%s\tdevice\n", device)
+				}
 			}
 		}
 	default:
 		os.Exit(2)
+	}
+}
+
+func TestDeviceInfosParsesLongDeviceList(t *testing.T) {
+	client := newFakeADB(t, "device-1,device-2")
+	devices, err := client.DeviceInfos()
+	if err != nil {
+		t.Fatalf("DeviceInfos returned error: %v", err)
+	}
+	if len(devices) != 2 {
+		t.Fatalf("DeviceInfos returned %d devices, want 2", len(devices))
+	}
+	if devices[0].Serial != "device-1" {
+		t.Fatalf("first serial = %q, want device-1", devices[0].Serial)
+	}
+	if devices[0].Model != "device-1_Model" {
+		t.Fatalf("first model = %q, want device-1_Model", devices[0].Model)
+	}
+}
+
+func TestParseDeviceInfoLineUnauthorizedWithoutModel(t *testing.T) {
+	info, ok := parseDeviceInfoLine("5B221JEBF18336         unauthorized usb:336592896X transport_id:1")
+	if !ok {
+		t.Fatal("parseDeviceInfoLine returned ok=false")
+	}
+	if info.Serial != "5B221JEBF18336" {
+		t.Fatalf("serial = %q, want 5B221JEBF18336", info.Serial)
+	}
+	if info.State != "unauthorized" {
+		t.Fatalf("state = %q, want unauthorized", info.State)
+	}
+	if info.Model != "" {
+		t.Fatalf("model = %q, want empty", info.Model)
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/mvt-project/androidqf/adb"
 )
 
 func TestResolveADBSerialNoDevicesDoesNotPrompt(t *testing.T) {
@@ -28,7 +30,7 @@ func TestResolveADBSerialNoDevicesDoesNotPrompt(t *testing.T) {
 
 func TestResolveADBSerialSingleDeviceDoesNotPrompt(t *testing.T) {
 	called := false
-	serial, prompted, err := resolveADBSerial("", []string{"device-1"}, func([]deviceMenuItem) (string, error) {
+	serial, prompted, err := resolveADBSerial("", []adb.DeviceInfo{{Serial: "device-1"}}, func([]deviceMenuItem) (string, error) {
 		called = true
 		return "", nil
 	}, nil)
@@ -57,7 +59,10 @@ func TestResolveADBSerialMultipleDevicesPromptsWithRunningStatus(t *testing.T) {
 	}
 
 	var gotItems []deviceMenuItem
-	serial, prompted, err := resolveADBSerial("", []string{"device-1", "device-2"}, func(items []deviceMenuItem) (string, error) {
+	serial, prompted, err := resolveADBSerial("", []adb.DeviceInfo{
+		{Serial: "device-1", State: "device", Model: "Pixel_9a"},
+		{Serial: "device-2", State: "device", Model: "XQ_DC54"},
+	}, func(items []deviceMenuItem) (string, error) {
 		gotItems = items
 		return items[1].Serial, nil
 	}, running)
@@ -76,6 +81,9 @@ func TestResolveADBSerialMultipleDevicesPromptsWithRunningStatus(t *testing.T) {
 	if gotItems[0].Status != "" {
 		t.Fatalf("first item status = %q, want empty", gotItems[0].Status)
 	}
+	if gotItems[0].Title != "Pixel 9a (device-1)" {
+		t.Fatalf("first item title = %q, want Pixel 9a (device-1)", gotItems[0].Title)
+	}
 	if gotItems[1].Status == "" {
 		t.Fatal("second item status is empty, want running extraction status")
 	}
@@ -83,7 +91,7 @@ func TestResolveADBSerialMultipleDevicesPromptsWithRunningStatus(t *testing.T) {
 
 func TestResolveADBSerialMultipleDevicesReturnsSelectorError(t *testing.T) {
 	wantErr := errors.New("selection failed")
-	serial, prompted, err := resolveADBSerial("", []string{"device-1", "device-2"}, func([]deviceMenuItem) (string, error) {
+	serial, prompted, err := resolveADBSerial("", []adb.DeviceInfo{{Serial: "device-1"}, {Serial: "device-2"}}, func([]deviceMenuItem) (string, error) {
 		return "", wantErr
 	}, nil)
 	if !errors.Is(err, wantErr) {
@@ -99,7 +107,7 @@ func TestResolveADBSerialMultipleDevicesReturnsSelectorError(t *testing.T) {
 
 func TestResolveADBSerialExplicitSerialDoesNotPrompt(t *testing.T) {
 	called := false
-	serial, prompted, err := resolveADBSerial("requested", []string{"device-1", "device-2"}, func([]deviceMenuItem) (string, error) {
+	serial, prompted, err := resolveADBSerial("requested", []adb.DeviceInfo{{Serial: "device-1"}, {Serial: "device-2"}}, func([]deviceMenuItem) (string, error) {
 		called = true
 		return "", nil
 	}, nil)
@@ -114,5 +122,18 @@ func TestResolveADBSerialExplicitSerialDoesNotPrompt(t *testing.T) {
 	}
 	if called {
 		t.Fatal("selector was called for explicit serial")
+	}
+}
+
+func TestBuildDeviceMenuItemsFallsBackForUnauthorizedDevice(t *testing.T) {
+	items := buildDeviceMenuItems([]adb.DeviceInfo{{Serial: "device-1", State: "unauthorized"}}, nil)
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1", len(items))
+	}
+	if items[0].Title != "device-1" {
+		t.Fatalf("title = %q, want device-1", items[0].Title)
+	}
+	if items[0].Status != "(unauthorized)" {
+		t.Fatalf("status = %q, want (unauthorized)", items[0].Status)
 	}
 }
