@@ -75,10 +75,6 @@ func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
 	return items[index].Serial, nil
 }
 
-func selectADBDevice(devices []string) (string, error) {
-	return selectADBDeviceFromMenu(buildDeviceMenuItems(devices, activeRunningExtractionsBySerial()))
-}
-
 func resolveADBSerial(serial string, devices []string, selectDevice func([]deviceMenuItem) (string, error), running map[string]runningExtraction) (string, bool, error) {
 	serial = strings.TrimSpace(serial)
 	if serial != "" || len(devices) == 0 {
