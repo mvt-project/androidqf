@@ -69,6 +69,30 @@ but the `assets/` package directory and its Go source files must remain present.
 The `unbundle` build still imports the `assets` package, and the build will fail
 if the whole `assets/` directory is deleted.
 
+## Container image
+
+The release container image is published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/mvt-project/androidqf:latest
+```
+
+To collect from a USB-connected Android device on Linux, pass through the USB
+bus and mount an output directory:
+
+```bash
+docker run --rm -it --privileged \
+  -v /dev/bus/usb:/dev/bus/usb \
+  -v "$(pwd)/output:/output" \
+  ghcr.io/mvt-project/androidqf:latest -fast -output /output
+```
+
+You can also build the image locally for a released version:
+
+```bash
+docker build --build-arg VERSION=1.8.3 -t androidqf .
+```
+
 ## How to use
 
 > [!TIP]
@@ -78,7 +102,7 @@ Before launching androidqf you need to have the target Android device connected 
 
 Once USB debugging is enabled, you can proceed launching androidqf. It will first attempt to connect to the device over the USB bridge, which should result in the Android phone to prompt you to manually authorize the host keys. Make sure to authorize them, ideally permanently so that the prompt wouldn't appear again.
 
-Now androidqf should be executing and creating an acquisition folder at the same path you have placed your androidqf binary. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention.
+Now androidqf should be executing and creating an acquisition folder in your current working directory. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention.
 
 The following data can be extracted:
 
@@ -162,7 +186,7 @@ Ideally you should have the drive fully encrypted, but that might not always be 
 
 Alternatively, androidqf allows to encrypt each acquisition with a provided [age](https://age-encryption.org) public key. Preferably, this public key belongs to a keypair for which the end-user does not possess, or at least carry, the private key. In this way, the end-user would not be able to decrypt the acquired data even under duress.
 
-If you place a file called `key.txt` in the same folder as the androidqf executable, androidqf will automatically attempt to compress and encrypt each acquisition and delete the original unencrypted copies.
+If you place a file called `key.txt` in the current working directory, androidqf will automatically attempt to compress and encrypt each acquisition and delete the original unencrypted copies. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
 
 Once you have retrieved an encrypted acquisition file, you can decrypt it with age like so:
 

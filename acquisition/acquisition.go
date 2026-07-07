@@ -118,7 +118,9 @@ func New(path string) (*Acquisition, error) {
 }
 
 func (a *Acquisition) Complete() {
-	a.Completed = time.Now().UTC()
+	if a.Completed.IsZero() {
+		a.Completed = time.Now().UTC()
+	}
 
 	// Handle streaming mode completion
 	if a.StreamingMode && a.EncryptedWriter != nil {
@@ -264,6 +266,10 @@ func (a *Acquisition) StoreInfo() error {
 	// In streaming mode, info is stored during Complete()
 	if a.StreamingMode {
 		return nil
+	}
+
+	if a.Completed.IsZero() {
+		a.Completed = time.Now().UTC()
 	}
 
 	log.Info("Saving details about acquisition and device...")

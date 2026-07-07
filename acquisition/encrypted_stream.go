@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"filippo.io/age"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -55,11 +54,17 @@ func (hw *hashingWriter) Write(p []byte) (int, error) {
 
 // NewEncryptedZipWriter creates a new encrypted zip writer if key.txt exists
 func NewEncryptedZipWriter(uuid string) (*EncryptedZipWriter, error) {
-	cwd := saveRuntime.GetExecutableDirectory()
-	keyFilePath := filepath.Join(cwd, "key.txt")
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if key file exists
-	if _, err := os.Stat(keyFilePath); os.IsNotExist(err) {
+	keyFilePath, ok, err := findAgeKeyFile()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, fmt.Errorf("key.txt not found, encrypted streaming not available")
 	}
 

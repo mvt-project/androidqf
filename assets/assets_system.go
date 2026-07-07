@@ -18,9 +18,9 @@ func ReadCollectorFile(collectorName string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// Assets are expected to be installed by package manager
-func DeployAssets() error {
-	return nil
+// Assets are expected to be installed by package manager.
+func DeployAssets() (string, error) {
+	return "", nil
 }
 
 // No assets to clean up

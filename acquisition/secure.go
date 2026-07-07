@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"filippo.io/age"
-	saveRuntime "github.com/botherder/go-savetime/runtime"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -44,10 +43,16 @@ func (a *Acquisition) StoreSecurely() error {
 		return nil
 	}
 
-	cwd := saveRuntime.GetExecutableDirectory()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
 
-	keyFilePath := filepath.Join(cwd, "key.txt")
-	if _, err := os.Stat(keyFilePath); os.IsNotExist(err) {
+	keyFilePath, ok, err := findAgeKeyFile()
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return nil
 	}
 
@@ -58,7 +63,7 @@ func (a *Acquisition) StoreSecurely() error {
 
 	log.Info("Compressing the acquisition folder. This might take a while...")
 
-	err := createZipFile(a.StoragePath, zipFilePath)
+	err = createZipFile(a.StoragePath, zipFilePath)
 	if err != nil {
 		return err
 	}
