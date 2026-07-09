@@ -13,12 +13,19 @@ import (
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
+	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/modules"
 	"github.com/mvt-project/androidqf/utils"
 )
+
+type deviceMenuItem struct {
+	Serial string
+	Title  string
+	Status string
+}
 
 func init() {
 	cfmt.Print(`
@@ -36,6 +43,79 @@ func init() {
 func systemPause() {
 	cfmt.Println("Press {{Enter}}::bold|green to finish ...")
 	os.Stdin.Read(make([]byte, 1))
+}
+
+func buildDeviceMenuItems(devices []adb.DeviceInfo, running map[string]runningExtraction) []deviceMenuItem {
+	items := make([]deviceMenuItem, 0, len(devices))
+	for _, device := range devices {
+		item := deviceMenuItem{
+			Serial: device.Serial,
+			Title:  deviceMenuTitle(device),
+			Status: deviceMenuStatus(device),
+		}
+		if state, ok := running[device.Serial]; ok {
+			if item.Status != "" {
+				item.Status += " "
+			}
+			item.Status += fmt.Sprintf("(extraction running, pid %d, started %s)", state.PID, state.Started.Local().Format("2006-01-02 15:04:05"))
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func deviceMenuTitle(device adb.DeviceInfo) string {
+	name := device.Model
+	if name == "" {
+		name = device.Device
+	}
+	if name == "" {
+		name = device.Product
+	}
+	name = strings.ReplaceAll(name, "_", " ")
+	if name == "" {
+		return device.Serial
+	}
+	return fmt.Sprintf("%s (%s)", name, device.Serial)
+}
+
+func deviceMenuStatus(device adb.DeviceInfo) string {
+	if device.State == "" || device.State == "device" {
+		return ""
+	}
+	return fmt.Sprintf("(%s)", device.State)
+}
+
+func selectADBDeviceFromMenu(items []deviceMenuItem) (string, error) {
+	promptDevice := promptui.Select{
+		Label: "Multiple Android devices detected. Select the device to acquire",
+		Items: items,
+		Templates: &promptui.SelectTemplates{
+			Active:   "> {{ .Title | cyan }} {{ .Status | yellow }}",
+			Inactive: "  {{ .Title }} {{ .Status }}",
+			Selected: "{{ .Title }}",
+		},
+	}
+
+	index, _, err := promptDevice.Run()
+	if err != nil {
+		return "", fmt.Errorf("failed to select ADB device: %v", err)
+	}
+
+	return items[index].Serial, nil
+}
+
+func resolveADBSerial(serial string, devices []adb.DeviceInfo, selectDevice func([]deviceMenuItem) (string, error), running map[string]runningExtraction) (string, bool, error) {
+	serial = strings.TrimSpace(serial)
+	if serial != "" || len(devices) == 0 {
+		return serial, false, nil
+	}
+	if len(devices) == 1 {
+		return devices[0].Serial, false, nil
+	}
+
+	selectedSerial, err := selectDevice(buildDeviceMenuItems(devices, running))
+	return selectedSerial, true, err
 }
 
 func main() {
@@ -104,12 +184,30 @@ func main() {
 			}
 		}
 	}
+	specificDeviceRequested := serial != ""
 
 	// Initialization
 	for {
+		if serial == "" {
+			devices, err := adb.Client.DeviceInfos()
+			if err != nil {
+				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
+			} else {
+				serial, _, err = resolveADBSerial(serial, devices, selectADBDeviceFromMenu, activeRunningExtractionsBySerial())
+				if err != nil {
+					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
+					time.Sleep(5 * time.Second)
+					continue
+				}
+			}
+		}
+
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
+			if !specificDeviceRequested {
+				serial = ""
+			}
 		} else {
 			_, err = adb.Client.GetState()
 			if err == nil {
@@ -117,9 +215,24 @@ func main() {
 			}
 			log.Debug(err)
 			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
+			if !specificDeviceRequested {
+				serial = ""
+			}
 		}
 		time.Sleep(5 * time.Second)
 	}
+
+	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, "")
+	if err != nil {
+		log.Warningf("Unable to record running extraction state: %v", err)
+		releaseRunning = func() {}
+	}
+	runningReleased := false
+	defer func() {
+		if !runningReleased {
+			releaseRunning()
+		}
+	}()
 
 	acq, err := acquisition.New(output_folder)
 	if err != nil {
@@ -144,8 +257,12 @@ func main() {
 
 	log.Info("Finalizing acquisition archive...")
 	if err := acq.Complete(); err != nil {
+		releaseRunning()
+		runningReleased = true
 		log.FatalExc("Failed to finalize acquisition archive", err)
 	}
+	releaseRunning()
+	runningReleased = true
 	log.Info("Acquisition completed.")
 
 	systemPause()
