@@ -208,18 +208,20 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 }
 
 func (p *Packages) processLargeEncryptedAPK(packageFile *adb.PackageFile, zipPath string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) (string, error) {
-	log.Debugf("APK %s exceeded streaming buffer limit; streaming directly to encrypted archive without certificate check", packageFile.Path)
+	log.Debugf("APK %s exceeded streaming buffer limit; staging it before adding it to the encrypted archive without certificate check", packageFile.Path)
 
 	packageFile.CertificateError = "Skipped certificate check: APK exceeds streaming buffer limit"
 	packageFile.VerifiedCertificate = false
 
-	zipPath = reserveUniqueZipPath(zipPath, usedZipPaths)
-	writer, err := acq.ZipWriter.CreateFile(zipPath)
+	tempPath, err := acq.StreamingPuller.PullToTempFile(packageFile.Path)
 	if err != nil {
-		return "", fmt.Errorf("failed to create zip entry for APK: %v", err)
+		return "", fmt.Errorf("failed to pull APK to temporary file: %w", err)
 	}
-	if err := acq.StreamingPuller.PullToWriter(packageFile.Path, writer); err != nil {
-		return "", fmt.Errorf("failed to stream APK to archive: %v", err)
+	defer os.Remove(tempPath)
+
+	zipPath = reserveUniqueZipPath(zipPath, usedZipPaths)
+	if err := acq.ZipWriter.CreateFileFromPath(zipPath, tempPath); err != nil {
+		return "", fmt.Errorf("failed to add APK to archive: %w", err)
 	}
 	return zipPath, nil
 }
@@ -227,20 +229,11 @@ func (p *Packages) processLargeEncryptedAPK(packageFile *adb.PackageFile, zipPat
 func (p *Packages) processLargeAPKFromTemp(packageFile *adb.PackageFile, keepOption, zipPath string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) (string, bool, error) {
 	log.Debugf("APK %s exceeded streaming buffer limit; using temporary file for certificate check", packageFile.Path)
 
-	tempFile, err := os.CreateTemp("", "androidqf-apk-*.apk")
+	tempPath, err := acq.StreamingPuller.PullToTempFile(packageFile.Path)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to create temporary APK file: %v", err)
+		return "", false, fmt.Errorf("failed to pull APK to temporary file: %w", err)
 	}
-	tempPath := tempFile.Name()
 	defer os.Remove(tempPath)
-
-	if err := acq.StreamingPuller.PullToWriter(packageFile.Path, tempFile); err != nil {
-		tempFile.Close()
-		return "", false, fmt.Errorf("failed to pull APK to temporary file: %v", err)
-	}
-	if err := tempFile.Close(); err != nil {
-		return "", false, fmt.Errorf("failed to close temporary APK file: %v", err)
-	}
 
 	shouldSkip, err := p.processCertificateFromPath(packageFile, keepOption, tempPath)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -27,6 +28,10 @@ func TestDefaultStreamingPullerMemoryLimit(t *testing.T) {
 }
 
 func TestPullToBufferPreservesMemoryLimitError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell script as a fake adb executable")
+	}
+
 	fakeADB := filepath.Join(t.TempDir(), "adb")
 	if err := os.WriteFile(fakeADB, []byte("#!/bin/sh\nhead -c 1048577 /dev/zero\n"), 0o700); err != nil {
 		t.Fatalf("WriteFile(fake adb) error = %v", err)

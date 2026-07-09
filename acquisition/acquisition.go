@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -197,13 +198,15 @@ func (a *Acquisition) StreamAPKToZip(remotePath, zipPath string, processFunc fun
 	buffer, err := a.StreamingPuller.PullToBuffer(remotePath)
 	if err != nil {
 		if errors.Is(err, ErrStreamingBufferMemoryLimit) && processFunc == nil {
-			log.Debugf("APK %s exceeded streaming buffer limit; streaming directly to archive", remotePath)
-			writer, err := a.ZipWriter.CreateFile(zipPath)
+			log.Debugf("APK %s exceeded streaming buffer limit; staging it before archiving", remotePath)
+			tempPath, err := a.StreamingPuller.PullToTempFile(remotePath)
 			if err != nil {
-				return fmt.Errorf("failed to create zip entry for APK %q: %v", remotePath, err)
+				return fmt.Errorf("failed to pull APK %q to a temporary file: %w", remotePath, err)
 			}
-			if err := a.StreamingPuller.PullToWriter(remotePath, writer); err != nil {
-				return fmt.Errorf("failed to stream APK %q to zip: %v", remotePath, err)
+			defer os.Remove(tempPath)
+
+			if err := a.ZipWriter.CreateFileFromPath(zipPath, tempPath); err != nil {
+				return fmt.Errorf("failed to add APK %q to zip: %w", remotePath, err)
 			}
 			return nil
 		}

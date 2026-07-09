@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -130,6 +131,28 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 	}
 
 	return nil
+}
+
+// PullToTempFile pulls a file from the device into a temporary file and
+// returns its path. The caller is responsible for removing the file.
+func (sp *StreamingPuller) PullToTempFile(remotePath string) (string, error) {
+	tempFile, err := os.CreateTemp("", "androidqf-pull-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+
+	if err := sp.PullToWriter(remotePath, tempFile); err != nil {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("failed to pull to temporary file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	return tempPath, nil
 }
 
 // BackupToBuffer creates a backup directly into memory buffer using exec-out
