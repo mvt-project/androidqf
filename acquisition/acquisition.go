@@ -19,7 +19,6 @@ import (
 	"github.com/botherder/go-savetime/hashes"
 	"github.com/google/uuid"
 	"github.com/mvt-project/androidqf/adb"
-	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/utils"
 )
@@ -180,12 +179,6 @@ func (a *Acquisition) Complete() {
 	if a.Collector != nil {
 		a.Collector.Clean()
 	}
-
-	// Stop ADB server before trying to remove extracted assets
-	if adb.Client != nil {
-		adb.Client.KillServer()
-	}
-	assets.CleanAssets()
 }
 
 func (a *Acquisition) GetSystemInformation() error {
