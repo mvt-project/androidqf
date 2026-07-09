@@ -74,17 +74,27 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		return nil
 	}
 
-	// Only collect IL data if the feature was already enabled before this module
-	// starts collection. If it is first enabled during this androidqf run, any
-	// useful data starts from that point and should be collected in a future run.
-	aapmEnabledAtStart, err := m.isAAPMEnabled()
+	// Check whether AAPM is enabled before offering to create a new log download.
+	// If it is disabled, existing logs can still be collected, but we must not
+	// launch the download activity or wait for new files.
+	aapmEnabled, err := m.isAAPMEnabled()
 	if err != nil {
 		log.Debugf("Failed to check AAPM enabled state: %v", err)
-		aapmEnabledAtStart = false
+		aapmEnabled = false
 	}
-	if !aapmEnabledAtStart {
-		log.Info("Intrusion Logging is not enabled, skipping Intrusion Logging acquisition.")
-		return nil
+
+	var existingFiles []string
+	if !aapmEnabled {
+		existingFiles, err = adb.Client.ListFiles(m.DirOnDevice, true)
+		if err != nil {
+			log.Errorf("IL: failed to list files in %s: %v", m.DirOnDevice, err)
+			return nil
+		}
+		existingFiles = m.deviceFiles(existingFiles)
+		if len(existingFiles) == 0 {
+			log.Info("Intrusion Logging is disabled and no existing Intrusion Logs were found.")
+			return nil
+		}
 	}
 
 	// Ask user first
@@ -102,6 +112,16 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	// User declined so we continue acquisition normally
 	if ILOption == skipIL {
 		log.Info("Skipping Intrusion Logging extraction...")
+		return nil
+	}
+
+	if !aapmEnabled {
+		if err := m.pullAll(acq, existingFiles); err != nil {
+			log.Errorf("IL: failed pulling IL files: %v", err)
+			return nil
+		}
+		log.Infof("Downloaded %d Intrusion Logging files from the phone.", len(existingFiles))
+		log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
 		return nil
 	}
 
@@ -140,6 +160,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		log.Errorf("IL: failed to list files for pull in %s: %v", m.DirOnDevice, err)
 		return nil
 	}
+	files = m.deviceFiles(files)
 	if len(files) == 0 {
 		log.Info("No files found in " + m.DirOnDevice)
 		return nil
@@ -150,9 +171,20 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		// continue acquisition
 		return nil
 	}
-	log.Infof("Downloaded %d Instrusion Logging files from the phone.", len(files))
+	log.Infof("Downloaded %d Intrusion Logging files from the phone.", len(files))
 	log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
 	return nil
+}
+
+// deviceFiles excludes the root directory returned by `find` when no logs exist.
+func (m *IL) deviceFiles(paths []string) []string {
+	files := make([]string, 0, len(paths))
+	for _, devicePath := range paths {
+		if _, err := relativeDeviceChild(m.DirOnDevice, devicePath); err == nil {
+			files = append(files, devicePath)
+		}
+	}
+	return files
 }
 
 func (m *IL) isAAPMCompatibleDevice() (bool, error) {
