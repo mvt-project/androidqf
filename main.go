@@ -143,7 +143,9 @@ func main() {
 	}
 
 	log.Info("Finalizing acquisition archive...")
-	acq.Complete()
+	if err := acq.Complete(); err != nil {
+		log.FatalExc("Failed to finalize acquisition archive", err)
+	}
 	log.Info("Acquisition completed.")
 
 	systemPause()

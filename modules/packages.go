@@ -7,10 +7,12 @@ package modules
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/avast/apkverifier"
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -162,10 +164,14 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 	if err != nil {
 		if errors.Is(err, acquisition.ErrStreamingBufferMemoryLimit) {
 			if acq.ZipWriter != nil && acq.ZipWriter.IsEncrypted() {
-				zipPath, err := p.processLargeEncryptedAPK(packageFile, zipPath, acq, usedZipPaths)
+				zipPath, skipped, err := p.processLargeEncryptedAPK(packageFile, keepOption, zipPath, acq, usedZipPaths)
 				if err != nil {
 					packageFile.Error = err.Error()
 					return err
+				}
+				if skipped {
+					log.Debugf("Trusted APK skipped for streaming: %s", packageFile.Path)
+					return nil
 				}
 				log.Debugf("Streamed %s directly to archive as %s", packageFile.Path, zipPath)
 				return nil
@@ -207,23 +213,42 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 	return nil
 }
 
-func (p *Packages) processLargeEncryptedAPK(packageFile *adb.PackageFile, zipPath string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) (string, error) {
-	log.Debugf("APK %s exceeded streaming buffer limit; staging it before adding it to the encrypted archive without certificate check", packageFile.Path)
+func (p *Packages) processLargeEncryptedAPK(packageFile *adb.PackageFile, keepOption, zipPath string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) (string, bool, error) {
+	log.Debugf("APK %s exceeded streaming buffer limit; using encrypted random-access staging for certificate verification", packageFile.Path)
 
-	packageFile.CertificateError = "Skipped certificate check: APK exceeds streaming buffer limit"
-	packageFile.VerifiedCertificate = false
-
-	tempPath, err := acq.StreamingPuller.PullToTempFile(packageFile.Path)
+	staged, err := acq.StreamingPuller.PullToEncryptedTempFile(packageFile.Path)
 	if err != nil {
-		return "", fmt.Errorf("failed to pull APK to temporary file: %w", err)
+		return "", false, fmt.Errorf("failed to pull APK to encrypted temporary file: %w", err)
 	}
-	defer os.Remove(tempPath)
+	defer staged.Remove()
+
+	reader, err := staged.Open()
+	if err != nil {
+		return "", false, fmt.Errorf("failed to open encrypted temporary APK: %w", err)
+	}
+	shouldSkip, certErr := p.processCertificateFromReadSeeker(packageFile, keepOption, reader)
+	closeErr := reader.Close()
+	if certErr != nil {
+		return "", false, fmt.Errorf("certificate processing failed: %w", certErr)
+	}
+	if closeErr != nil {
+		return "", false, fmt.Errorf("failed to close encrypted temporary APK: %w", closeErr)
+	}
+	if shouldSkip {
+		return "", true, nil
+	}
+
+	reader, err = staged.Open()
+	if err != nil {
+		return "", false, fmt.Errorf("failed to reopen encrypted temporary APK: %w", err)
+	}
+	defer reader.Close()
 
 	zipPath = reserveUniqueZipPath(zipPath, usedZipPaths)
-	if err := acq.ZipWriter.CreateFileFromPath(zipPath, tempPath); err != nil {
-		return "", fmt.Errorf("failed to add APK to archive: %w", err)
+	if err := acq.ZipWriter.CreateFileFromReader(zipPath, reader); err != nil {
+		return "", false, fmt.Errorf("failed to add APK to archive: %w", err)
 	}
-	return zipPath, nil
+	return zipPath, false, nil
 }
 
 func (p *Packages) processLargeAPKFromTemp(packageFile *adb.PackageFile, keepOption, zipPath string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) (string, bool, error) {
@@ -252,6 +277,15 @@ func (p *Packages) processLargeAPKFromTemp(packageFile *adb.PackageFile, keepOpt
 
 func (p *Packages) processCertificateFromPath(packageFile *adb.PackageFile, keepOption, path string) (bool, error) {
 	verified, cert, err := utils.VerifyCertificate(path)
+	return p.applyCertificateResult(packageFile, keepOption, verified, cert, err)
+}
+
+func (p *Packages) processCertificateFromReadSeeker(packageFile *adb.PackageFile, keepOption string, reader io.ReadSeeker) (bool, error) {
+	verified, cert, err := utils.VerifyCertificateFromReadSeeker(reader)
+	return p.applyCertificateResult(packageFile, keepOption, verified, cert, err)
+}
+
+func (p *Packages) applyCertificateResult(packageFile *adb.PackageFile, keepOption string, verified bool, cert *apkverifier.CertInfo, err error) (bool, error) {
 	if cert == nil {
 		packageFile.CertificateError = "No certificate found"
 		if err != nil {
@@ -285,32 +319,5 @@ func (p *Packages) processCertificateFromPath(packageFile *adb.PackageFile, keep
 // processCertificate handles certificate verification and returns whether APK should be skipped
 func (p *Packages) processCertificate(packageFile *adb.PackageFile, keepOption string, buffer *acquisition.StreamingBuffer) (bool, error) {
 	verified, cert, err := utils.VerifyCertificateFromReader(buffer.Reader())
-	if cert == nil {
-		packageFile.CertificateError = "No certificate found"
-		if err != nil {
-			packageFile.CertificateError = err.Error()
-		}
-		packageFile.VerifiedCertificate = false
-		return false, nil
-	}
-
-	// Set certificate information
-	packageFile.Certificate = *cert
-	packageFile.VerifiedCertificate = verified
-
-	if err != nil {
-		packageFile.CertificateError = err.Error()
-	} else {
-		packageFile.CertificateError = ""
-	}
-
-	// Check if certificate is trusted and should be removed
-	if utils.IsTrusted(*cert) {
-		packageFile.TrustedCertificate = true
-		if keepOption == apkRemoveTrusted {
-			return true, nil // Skip this APK
-		}
-	}
-
-	return false, nil
+	return p.applyCertificateResult(packageFile, keepOption, verified, cert, err)
 }

@@ -4,9 +4,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -30,7 +32,9 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 		logBuffer:     bytes.NewBufferString("logged command\n"),
 	}
 
-	acq.Complete()
+	if err := acq.Complete(); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
 
 	if acq.Completed.IsZero() {
 		t.Fatal("Complete() left Completed unset")
@@ -72,10 +76,61 @@ func TestCompleteDoesNotOverwriteExistingCompletedTimestamp(t *testing.T) {
 		StreamingMode: true,
 	}
 
-	acq.Complete()
+	if err := acq.Complete(); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
 
 	if !acq.Completed.Equal(completed) {
 		t.Fatalf("Complete() changed Completed from %s to %s", completed, acq.Completed)
+	}
+}
+
+func TestCompleteReturnsArchiveWriteErrors(t *testing.T) {
+	outputDir := t.TempDir()
+	t.Chdir(outputDir)
+
+	zipWriter, err := NewStreamingZipWriter("test-acquisition", outputDir)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
+	}
+	if err := zipWriter.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	acq := &Acquisition{
+		UUID:      "test-acquisition",
+		ZipWriter: zipWriter,
+	}
+	if err := acq.Complete(); err == nil {
+		t.Fatal("Complete() error = nil, want archive finalization error")
+	}
+}
+
+type closeErrorWriter struct{}
+
+func (closeErrorWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (closeErrorWriter) Close() error                { return errors.New("close failed") }
+
+func TestCompleteReturnsArchiveFinalizationErrors(t *testing.T) {
+	outputFile, err := os.CreateTemp(t.TempDir(), "archive-*.zip.age")
+	if err != nil {
+		t.Fatalf("CreateTemp() error = %v", err)
+	}
+
+	var archive bytes.Buffer
+	zipWriter := &StreamingZipWriter{
+		file:      outputFile,
+		encWriter: closeErrorWriter{},
+		zipWriter: zip.NewWriter(&archive),
+	}
+	acq := &Acquisition{
+		UUID:      "test-acquisition",
+		ZipWriter: zipWriter,
+	}
+
+	err = acq.Complete()
+	if err == nil || !strings.Contains(err.Error(), "failed to close archive") {
+		t.Fatalf("Complete() error = %v, want archive close error", err)
 	}
 }
 

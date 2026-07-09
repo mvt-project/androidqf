@@ -86,7 +86,9 @@ func New(path string) (*Acquisition, error) {
 	return &acq, nil
 }
 
-func (a *Acquisition) Complete() {
+func (a *Acquisition) Complete() error {
+	var completionErr error
+
 	if a.Completed.IsZero() {
 		a.Completed = time.Now().UTC()
 	}
@@ -96,10 +98,12 @@ func (a *Acquisition) Complete() {
 		info, err := json.MarshalIndent(a, "", " ")
 		if err != nil {
 			log.Error("Failed to marshal acquisition info for archive")
+			completionErr = errors.Join(completionErr, fmt.Errorf("failed to marshal acquisition info: %w", err))
 		} else {
 			err = a.ZipWriter.CreateFileFromBytes("acquisition.json", info)
 			if err != nil {
 				log.ErrorExc("Failed to store acquisition info in archive", err)
+				completionErr = errors.Join(completionErr, fmt.Errorf("failed to store acquisition info: %w", err))
 			}
 		}
 
@@ -114,17 +118,20 @@ func (a *Acquisition) Complete() {
 			err = a.ZipWriter.CreateFileFromBytes("command.log", a.logBuffer.Bytes())
 			if err != nil {
 				log.ErrorExc("Failed to add command.log to archive", err)
+				completionErr = errors.Join(completionErr, fmt.Errorf("failed to add command.log: %w", err))
 			}
 		}
 
 		err = a.ZipWriter.CreateHashList()
 		if err != nil {
 			log.ErrorExc("Failed to add hashes.csv to archive", err)
+			completionErr = errors.Join(completionErr, fmt.Errorf("failed to add hashes.csv: %w", err))
 		}
 
 		err = a.ZipWriter.Close()
 		if err != nil {
 			log.ErrorExc("Failed to close archive", err)
+			completionErr = errors.Join(completionErr, fmt.Errorf("failed to close archive: %w", err))
 		}
 	} else {
 		// Ensure log file is closed before cleanup operations
@@ -142,6 +149,39 @@ func (a *Acquisition) Complete() {
 		adb.Client.KillServer()
 	}
 	assets.CleanAssets()
+
+	return completionErr
+}
+
+// PullToZipStaged validates a complete device pull before creating its ZIP
+// entry. Encrypted acquisitions use encrypted temporary storage so plaintext is
+// never staged on disk.
+func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+
+	if a.ZipWriter.IsEncrypted() {
+		staged, err := a.StreamingPuller.PullToEncryptedTempFile(remotePath)
+		if err != nil {
+			return err
+		}
+		defer staged.Remove()
+
+		reader, err := staged.Open()
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		return a.ZipWriter.CreateFileFromReader(zipPath, reader)
+	}
+
+	tempPath, err := a.StreamingPuller.PullToTempFile(remotePath)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tempPath)
+	return a.ZipWriter.CreateFileFromPath(zipPath, tempPath)
 }
 
 func (a *Acquisition) GetSystemInformation() error {
@@ -199,13 +239,7 @@ func (a *Acquisition) StreamAPKToZip(remotePath, zipPath string, processFunc fun
 	if err != nil {
 		if errors.Is(err, ErrStreamingBufferMemoryLimit) && processFunc == nil {
 			log.Debugf("APK %s exceeded streaming buffer limit; staging it before archiving", remotePath)
-			tempPath, err := a.StreamingPuller.PullToTempFile(remotePath)
-			if err != nil {
-				return fmt.Errorf("failed to pull APK %q to a temporary file: %w", remotePath, err)
-			}
-			defer os.Remove(tempPath)
-
-			if err := a.ZipWriter.CreateFileFromPath(zipPath, tempPath); err != nil {
+			if err := a.PullToZipStaged(remotePath, zipPath); err != nil {
 				return fmt.Errorf("failed to add APK %q to zip: %w", remotePath, err)
 			}
 			return nil

@@ -54,13 +54,7 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 		zipPath := fmt.Sprintf("logs%s", logFile)
 		log.Debugf("To archive as: %s", zipPath)
 
-		writer, err := acq.ZipWriter.CreateFile(zipPath)
-		if err != nil {
-			log.Errorf("Failed to create zip entry for log %s: %v\n", logFile, err)
-			continue
-		}
-
-		err = acq.StreamingPuller.PullToWriter(logFile, writer)
+		err := acq.PullToZipStaged(logFile, zipPath)
 		if err != nil {
 			if !text.ContainsNoCase(err.Error(), "Permission denied") {
 				log.Errorf("Failed to stream log file %s: %v\n", logFile, err)
@@ -68,7 +62,7 @@ func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
 			continue
 		}
 
-		log.Debugf("Streamed log file %s directly to archive", logFile)
+		log.Debugf("Staged and archived log file %s", logFile)
 	}
 
 	return nil

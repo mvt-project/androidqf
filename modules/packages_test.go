@@ -1,6 +1,12 @@
 package modules
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/avast/apkverifier"
+	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/utils"
+)
 
 func TestReserveUniqueZipPathAddsCounterForDuplicateAPKs(t *testing.T) {
 	used := make(map[string]struct{})
@@ -46,5 +52,28 @@ func TestGenerateZipPathWithReservationKeepsSplitAPKNamesUnique(t *testing.T) {
 		if got := reserveUniqueZipPath(zipPath, used); got != want[i] {
 			t.Fatalf("reserved zip path for %q = %q, want %q", file, got, want[i])
 		}
+	}
+}
+
+func TestApplyCertificateResultHonorsTrustedCertificateRemoval(t *testing.T) {
+	trustedCertificates := utils.ValidCertificates()
+	if len(trustedCertificates) == 0 {
+		t.Fatal("ValidCertificates() returned no trusted certificates")
+	}
+
+	packageFile := &adb.PackageFile{}
+	cert := &apkverifier.CertInfo{Sha1: trustedCertificates[0]}
+	skipped, err := NewPackages().applyCertificateResult(packageFile, apkRemoveTrusted, true, cert, nil)
+	if err != nil {
+		t.Fatalf("applyCertificateResult() error = %v", err)
+	}
+	if !skipped {
+		t.Fatal("applyCertificateResult() did not skip a trusted certificate")
+	}
+	if !packageFile.TrustedCertificate || !packageFile.VerifiedCertificate {
+		t.Fatalf("certificate flags = trusted:%v verified:%v, want both true", packageFile.TrustedCertificate, packageFile.VerifiedCertificate)
+	}
+	if packageFile.Certificate.Sha1 != cert.Sha1 {
+		t.Fatalf("stored certificate SHA-1 = %q, want %q", packageFile.Certificate.Sha1, cert.Sha1)
 	}
 }
