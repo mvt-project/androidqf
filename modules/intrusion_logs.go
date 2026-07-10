@@ -245,19 +245,12 @@ func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
 
 		zipPath := path.Join("intrusion_logs", rel)
 
-		writer, err := acq.ZipWriter.CreateFile(zipPath)
-		if err != nil {
-			log.Errorf("Failed to create zip entry for IL file %s: %v\n", file, err)
+		if err := acq.PullToZipStaged(file, zipPath); err != nil {
+			log.Errorf("Failed to stage IL file %s for archive: %v\n", file, err)
 			continue
 		}
 
-		err = acq.StreamingPuller.PullToWriter(file, writer)
-		if err != nil {
-			log.Errorf("Failed to stream IL file %s: %v\n", file, err)
-			continue
-		}
-
-		log.Debugf("Streamed IL file %s directly to archive as %s", file, zipPath)
+		log.Debugf("Staged IL file %s and added it to archive as %s", file, zipPath)
 	}
 
 	return nil

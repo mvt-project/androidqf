@@ -50,8 +50,8 @@ func (sb *StreamingBuffer) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Reader returns an io.Reader for the buffered data
-func (sb *StreamingBuffer) Reader() io.Reader {
+// Reader returns a seekable reader over the buffered data without copying it.
+func (sb *StreamingBuffer) Reader() *bytes.Reader {
 	return bytes.NewReader(sb.buffer.Bytes())
 }
 
@@ -258,6 +258,10 @@ func createEncryptedTempFile(writePlaintext func(io.Writer) error) (*EncryptedTe
 	if err := encryptedWriter.Close(); err != nil {
 		cleanup()
 		return nil, fmt.Errorf("failed to finalize encrypted temporary file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+		cleanup()
+		return nil, fmt.Errorf("failed to close encrypted temporary file: %w", err)
 	}
 
 	stat, err := os.Stat(staged.path)

@@ -305,8 +305,9 @@ func (p *Packages) applyCertificateResult(packageFile *adb.PackageFile, keepOpti
 		packageFile.CertificateError = ""
 	}
 
-	// Check if certificate is trusted and should be removed
-	if utils.IsTrusted(*cert) {
+	// Only trust certificates from APKs whose signatures verified successfully.
+	// A tampered APK may still expose the certificate used to sign the original.
+	if verified && err == nil && utils.IsTrusted(*cert) {
 		packageFile.TrustedCertificate = true
 		if keepOption == apkRemoveTrusted {
 			return true, nil // Skip this APK
@@ -318,6 +319,5 @@ func (p *Packages) applyCertificateResult(packageFile *adb.PackageFile, keepOpti
 
 // processCertificate handles certificate verification and returns whether APK should be skipped
 func (p *Packages) processCertificate(packageFile *adb.PackageFile, keepOption string, buffer *acquisition.StreamingBuffer) (bool, error) {
-	verified, cert, err := utils.VerifyCertificateFromReader(buffer.Reader())
-	return p.applyCertificateResult(packageFile, keepOption, verified, cert, err)
+	return p.processCertificateFromReadSeeker(packageFile, keepOption, buffer.Reader())
 }

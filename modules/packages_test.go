@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/avast/apkverifier"
@@ -75,5 +76,32 @@ func TestApplyCertificateResultHonorsTrustedCertificateRemoval(t *testing.T) {
 	}
 	if packageFile.Certificate.Sha1 != cert.Sha1 {
 		t.Fatalf("stored certificate SHA-1 = %q, want %q", packageFile.Certificate.Sha1, cert.Sha1)
+	}
+}
+
+func TestApplyCertificateResultKeepsUnverifiedTrustedAPK(t *testing.T) {
+	trustedCertificates := utils.ValidCertificates()
+	if len(trustedCertificates) == 0 {
+		t.Fatal("ValidCertificates() returned no trusted certificates")
+	}
+
+	verificationErr := errors.New("APK signature verification failed")
+	packageFile := &adb.PackageFile{}
+	cert := &apkverifier.CertInfo{Sha1: trustedCertificates[0]}
+	skipped, err := NewPackages().applyCertificateResult(packageFile, apkRemoveTrusted, false, cert, verificationErr)
+	if err != nil {
+		t.Fatalf("applyCertificateResult() error = %v", err)
+	}
+	if skipped {
+		t.Fatal("applyCertificateResult() skipped an APK whose signature did not verify")
+	}
+	if packageFile.TrustedCertificate {
+		t.Fatal("unverified certificate was marked trusted")
+	}
+	if packageFile.VerifiedCertificate {
+		t.Fatal("failed signature was marked verified")
+	}
+	if packageFile.CertificateError != verificationErr.Error() {
+		t.Fatalf("certificate error = %q, want %q", packageFile.CertificateError, verificationErr)
 	}
 }

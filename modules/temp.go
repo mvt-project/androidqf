@@ -45,19 +45,12 @@ func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
 
 		zipPath := path.Join("tmp", rel)
 
-		writer, err := acq.ZipWriter.CreateFile(zipPath)
-		if err != nil {
-			log.Errorf("Failed to create zip entry for temp file %s: %v\n", file, err)
+		if err := acq.PullToZipStaged(file, zipPath); err != nil {
+			log.Errorf("Failed to stage temp file %s for archive: %v\n", file, err)
 			continue
 		}
 
-		err = acq.StreamingPuller.PullToWriter(file, writer)
-		if err != nil {
-			log.Errorf("Failed to stream temp file %s: %v\n", file, err)
-			continue
-		}
-
-		log.Debugf("Streamed temp file %s directly to archive as %s", file, zipPath)
+		log.Debugf("Staged temp file %s and added it to archive as %s", file, zipPath)
 	}
 	return nil
 }

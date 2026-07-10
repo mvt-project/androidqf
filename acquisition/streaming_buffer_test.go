@@ -85,6 +85,32 @@ func TestEncryptedTempFileDoesNotStagePlaintextAndSupportsSeeking(t *testing.T) 
 	}
 }
 
+func TestEncryptedTempFileClosesStagingDescriptor(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("checks Linux process file descriptors")
+	}
+
+	staged, err := createEncryptedTempFile(func(writer io.Writer) error {
+		_, err := io.WriteString(writer, "encrypted staging content")
+		return err
+	})
+	if err != nil {
+		t.Fatalf("createEncryptedTempFile() error = %v", err)
+	}
+	defer staged.Remove()
+
+	fds, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatalf("ReadDir(/proc/self/fd) error = %v", err)
+	}
+	for _, fd := range fds {
+		target, err := os.Readlink(filepath.Join("/proc/self/fd", fd.Name()))
+		if err == nil && target == staged.path {
+			t.Fatalf("encrypted staging file descriptor %s is still open", fd.Name())
+		}
+	}
+}
+
 func TestEncryptedTempFileRejectsTampering(t *testing.T) {
 	staged, err := createEncryptedTempFile(func(writer io.Writer) error {
 		_, err := io.WriteString(writer, strings.Repeat("authenticated content", 10_000))
