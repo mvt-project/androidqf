@@ -108,10 +108,32 @@ func (p *Packages) generateZipPath(packageName, filePath string) (string, error)
 	return "apks/" + base, nil
 }
 
-func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
+func ParseDownloadOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "all":
+		return apkAll, nil
+	case "non-system":
+		return apkNotSystem, nil
+	case "none":
+		return apkNone, nil
+	}
+	return "", fmt.Errorf("invalid -download value %q (valid values: all, non-system, none)", value)
+}
+
+func ParseRemoveTrustedOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes":
+		return apkRemoveTrusted, nil
+	case "no":
+		return apkKeepAll, nil
+	}
+	return "", fmt.Errorf("invalid -remove-trusted value %q (valid values: yes, no)", value)
+}
+
+func (p *Packages) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting information on installed apps. This might take a while...")
 
-	packages, err := adb.Client.GetPackages(fast)
+	packages, err := adb.Client.GetPackages(opts.Fast)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
 	}
@@ -121,12 +143,15 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 		len(packages),
 	)
 
-	log.Info("Would you like to download copies of all apps or only non-system ones?")
-	downloadPrompt := promptui.Select{
-		Label: "Download",
-		Items: []string{apkAll, apkNotSystem, apkNone},
-	}
-	_, download, err := downloadPrompt.Run()
+	download, err := resolveOption(opts, opts.Download, "-download (all, non-system, none)", func() (string, error) {
+		log.Info("Would you like to download copies of all apps or only non-system ones?")
+		downloadPrompt := promptui.Select{
+			Label: "Download",
+			Items: []string{apkAll, apkNotSystem, apkNone},
+		}
+		_, selection, err := downloadPrompt.Run()
+		return selection, err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to make selection for download option: %v", err)
 	}
@@ -143,12 +168,15 @@ func (p *Packages) Run(acq *acquisition.Acquisition, fast bool) error {
 			keepOption = apkKeepAll
 		} else {
 			// Ask if the user want to remove trusted packages for unencrypted output
-			log.Info("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
-			promptAll := promptui.Select{
-				Label: "Remove",
-				Items: []string{apkRemoveTrusted, apkKeepAll},
-			}
-			_, keepOption, err = promptAll.Run()
+			keepOption, err = resolveOption(opts, opts.RemoveTrusted, "-remove-trusted (yes, no)", func() (string, error) {
+				log.Info("Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?")
+				promptAll := promptui.Select{
+					Label: "Remove",
+					Items: []string{apkRemoveTrusted, apkKeepAll},
+				}
+				_, selection, err := promptAll.Run()
+				return selection, err
+			})
 			if err != nil {
 				return fmt.Errorf("failed to make selection for download option: %v",
 					err)

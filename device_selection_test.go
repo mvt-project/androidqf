@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,6 +123,19 @@ func TestResolveADBSerialExplicitSerialDoesNotPrompt(t *testing.T) {
 	}
 	if called {
 		t.Fatal("selector was called for explicit serial")
+	}
+}
+
+func TestResolveADBSerialNonInteractiveMultipleDevicesErrors(t *testing.T) {
+	serial, prompted, err := resolveADBSerial("", []adb.DeviceInfo{{Serial: "device-1"}, {Serial: "device-2"}}, errorOnDeviceSelection, nil)
+	if err == nil || !strings.Contains(err.Error(), "-serial") {
+		t.Fatalf("err = %v, want error suggesting -serial", err)
+	}
+	if serial != "" {
+		t.Fatalf("serial = %q, want empty", serial)
+	}
+	if !prompted {
+		t.Fatal("prompted = false, want true")
 	}
 }
 

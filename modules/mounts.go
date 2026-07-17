@@ -31,7 +31,7 @@ func (m *Mounts) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
+func (m *Mounts) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting mount information")
 
 	var mountsData []string

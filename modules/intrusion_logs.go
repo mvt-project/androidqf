@@ -57,7 +57,17 @@ func (m *IL) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
+func ParseIntrusionLogsOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes":
+		return acquireIL, nil
+	case "no":
+		return skipIL, nil
+	}
+	return "", fmt.Errorf("invalid -intrusion-logs value %q (valid values: yes, no)", value)
+}
+
+func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 	// Check whether the device supports AAPM.
 	compatible, err := m.isAAPMCompatibleDevice()
 	if err != nil {
@@ -75,13 +85,15 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	// Ask user first
-	log.Info("Would you like to download Intrusion Logs from the device?")
-	promptIL := promptui.Select{
-		Label: "Intrusion Logs",
-		Items: []string{acquireIL, skipIL},
-	}
-
-	_, ILOption, err := promptIL.Run()
+	ILOption, err := resolveOption(opts, opts.IntrusionLogs, "-intrusion-logs (yes, no)", func() (string, error) {
+		log.Info("Would you like to download Intrusion Logs from the device?")
+		promptIL := promptui.Select{
+			Label: "Intrusion Logs",
+			Items: []string{acquireIL, skipIL},
+		}
+		_, selection, err := promptIL.Run()
+		return selection, err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to make selection for IL option: %v", err)
 	}

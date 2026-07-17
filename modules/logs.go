@@ -44,7 +44,7 @@ func (l *Logs) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
+func (l *Logs) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting system logs...")
 
 	logFiles := []string{

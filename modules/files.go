@@ -28,7 +28,7 @@ func (f *Files) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {
+func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting list of files... This might take a while...")
 	var fileFounds []string
 	var fileDetails []adb.FileInfo

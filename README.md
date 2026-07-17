@@ -102,7 +102,7 @@ Before launching androidqf you need to have the target Android device connected 
 
 Once USB debugging is enabled, you can proceed launching androidqf. It will first attempt to connect to the device over the USB bridge, which should result in the Android phone to prompt you to manually authorize the host keys. Make sure to authorize them, ideally permanently so that the prompt wouldn't appear again.
 
-Now androidqf should be executing and creating an acquisition folder in your current working directory. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention.
+Now androidqf should be executing and creating an acquisition folder in your current working directory. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention. Every prompt can also be answered ahead of time with a command-line flag, see [Unattended acquisitions](#unattended-acquisitions).
 
 The following data can be extracted:
 
@@ -163,6 +163,23 @@ Would you like to download copies of all apps or only non-system ones?
 | Only non-system packages | Don't download any packages listed in `adb pm list packages -s` |
 | Do not download any | Don't download any packages |
 
+### Removing apps signed with a trusted certificate
+
+Unless you chose `Do not download any`, androidqf asks whether downloaded APKs signed with a trusted certificate (for example by Google) should be deleted again to limit the size of the output folder:
+
+```
+Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?
+
+? Remove:
+  ▸ Yes
+    No
+```
+
+| Option | Explanation |
+|--------|-------------|
+| Yes | Downloaded APKs with a trusted signing certificate are removed from the output folder |
+| No | All downloaded APKs are kept |
+
 ### Intrusion Logs
 
 ```
@@ -177,6 +194,26 @@ Would you like to take the Intrusion Logs of the device?
 |--------|-------------|
 | Yes | Intrusion Logs will be retrieved from the phone. |
 | No | Intrusion Logs acquisition is skipped. |
+
+### Unattended acquisitions
+
+Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
+
+| Flag | Values | Prompt it answers |
+|------|--------|-------------------|
+| `-backup` / `-b` | `sms`, `all`, `none` | [Backup](#backup) |
+| `-download` / `-d` | `all`, `non-system`, `none` | [Downloading copies of apps](#downloading-copies-of-apps) |
+| `-remove-trusted` / `-r` | `yes`, `no` | [Removing apps signed with a trusted certificate](#removing-apps-signed-with-a-trusted-certificate), ignored with `-download none` |
+| `-intrusion-logs` / `-i` | `yes`, `no` | [Intrusion Logs](#intrusion-logs) |
+
+With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
+
+```bash
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -non-interactive
+```
+
+> [!NOTE]
+> `adb backup` requires manually authorizing the backup on the device, which androidqf cannot bypass. With `-backup sms` or `-backup all` someone still needs to confirm the backup on the phone; only `-backup none` runs fully unattended.
 
 ## Encryption & Potential Threats
 

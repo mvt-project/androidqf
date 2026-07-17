@@ -29,7 +29,7 @@ func (l *Logcat) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (l *Logcat) Run(acq *acquisition.Acquisition, fast bool) error {
+func (l *Logcat) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting logcat...")
 
 	out, err := adb.Client.Shell("logcat", "-d", "-b", "all", "\"*:V\"")

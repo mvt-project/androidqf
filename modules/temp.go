@@ -44,7 +44,7 @@ func (t *Temp) InitStorage(storagePath string) error {
 	return nil
 }
 
-func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
+func (t *Temp) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting files in tmp folder...")
 
 	streaming := acq.StreamingMode && acq.EncryptedWriter != nil
