@@ -133,7 +133,7 @@ func main() {
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
 	flag.BoolVar(&verbose, "v", false, "Verbose mode")
 	flag.BoolVar(&fast, "fast", false, "Fast mode")
-	flag.BoolVar(&verbose, "f", false, "Fast mode")
+	flag.BoolVar(&fast, "f", false, "Fast mode")
 	flag.BoolVar(&list_modules, "list", false, "List modules and exit")
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
