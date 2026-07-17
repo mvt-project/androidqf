@@ -213,7 +213,9 @@ androidqf -serial <serial> -backup none -download all -remove-trusted no -intrus
 ```
 
 > [!NOTE]
-> `adb backup` requires manually authorizing the backup on the device, which androidqf cannot bypass. With `-backup sms` or `-backup all` someone still needs to confirm the backup on the phone; only `-backup none` runs fully unattended.
+> `adb backup` requires manually authorizing the backup on the device, which androidqf cannot bypass. With `-backup sms` or `-backup all` someone still needs to confirm the backup on the phone; only `-backup none` makes the backup step fully unattended.
+>
+> Downloading new Intrusion Logs also requires interacting with the device: with `-intrusion-logs yes`, someone still needs to tap "Access Logs" and "Download and Decrypt" on the phone. Use `-intrusion-logs no` for a fully unattended run.
 
 ## Encryption & Potential Threats
 
