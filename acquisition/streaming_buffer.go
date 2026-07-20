@@ -7,11 +7,18 @@ package acquisition
 
 import (
 	"bytes"
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/minio/sio"
 )
+
+var ErrStreamingBufferMemoryLimit = errors.New("streaming buffer memory limit exceeded")
 
 // StreamingBuffer manages in-memory buffering for direct streaming operations
 type StreamingBuffer struct {
@@ -32,7 +39,7 @@ func NewStreamingBuffer(maxMemoryMB int) *StreamingBuffer {
 // Write implements io.Writer interface with memory limit enforcement
 func (sb *StreamingBuffer) Write(p []byte) (int, error) {
 	if sb.size+int64(len(p)) > sb.maxMem {
-		return 0, fmt.Errorf("write would exceed memory limit of %d bytes", sb.maxMem)
+		return 0, fmt.Errorf("%w: write would exceed memory limit of %d bytes", ErrStreamingBufferMemoryLimit, sb.maxMem)
 	}
 
 	n, err := sb.buffer.Write(p)
@@ -43,8 +50,8 @@ func (sb *StreamingBuffer) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Reader returns an io.Reader for the buffered data
-func (sb *StreamingBuffer) Reader() io.Reader {
+// Reader returns a seekable reader over the buffered data without copying it.
+func (sb *StreamingBuffer) Reader() *bytes.Reader {
 	return bytes.NewReader(sb.buffer.Bytes())
 }
 
@@ -69,6 +76,59 @@ type StreamingPuller struct {
 	adbPath string
 	serial  string
 	maxMem  int64
+}
+
+// EncryptedTempFile is a DARE-encrypted temporary file used to validate a
+// device pull before its plaintext is written to the acquisition archive. SIO
+// provides authenticated random access to support APK certificate verification.
+type EncryptedTempFile struct {
+	path          string
+	key           [32]byte
+	plaintextSize int64
+}
+
+type encryptedTempReader struct {
+	*io.SectionReader
+	file *os.File
+}
+
+func (r *encryptedTempReader) Close() error {
+	return r.file.Close()
+}
+
+// Open returns an authenticated, seekable plaintext view of the encrypted
+// staging file. The caller must close the returned reader.
+func (f *EncryptedTempFile) Open() (io.ReadSeekCloser, error) {
+	file, err := os.Open(f.path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open encrypted temporary file: %w", err)
+	}
+
+	readerAt, err := sio.DecryptReaderAt(file, f.sioConfig())
+	if err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("failed to decrypt temporary file: %w", err)
+	}
+	return &encryptedTempReader{
+		SectionReader: io.NewSectionReader(readerAt, 0, f.plaintextSize),
+		file:          file,
+	}, nil
+}
+
+// Remove deletes the encrypted staging file.
+func (f *EncryptedTempFile) Remove() error {
+	err := os.Remove(f.path)
+	clear(f.key[:])
+	return err
+}
+
+func (f *EncryptedTempFile) sioConfig() sio.Config {
+	return sio.Config{
+		MinVersion:   sio.Version20,
+		MaxVersion:   sio.Version20,
+		CipherSuites: []byte{sio.CHACHA20_POLY1305},
+		Key:          f.key[:],
+	}
 }
 
 // NewStreamingPuller creates a new streaming puller
@@ -98,7 +158,7 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 	err := cmd.Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to pull %q to buffer: %v", remotePath, err)
+		return nil, fmt.Errorf("failed to pull %q to buffer: %w", remotePath, err)
 	}
 
 	return buffer, nil
@@ -127,6 +187,96 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 	}
 
 	return nil
+}
+
+// PullToTempFile pulls a file from the device into a temporary file and
+// returns its path. The caller is responsible for removing the file.
+func (sp *StreamingPuller) PullToTempFile(remotePath string) (string, error) {
+	tempFile, err := os.CreateTemp("", "androidqf-pull-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+
+	if err := sp.PullToWriter(remotePath, tempFile); err != nil {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("failed to pull to temporary file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	return tempPath, nil
+}
+
+// PullToEncryptedTempFile pulls a device file into a ChaCha20-Poly1305 DARE
+// temporary file. Plaintext is only streamed through memory and is never
+// staged on disk.
+func (sp *StreamingPuller) PullToEncryptedTempFile(remotePath string) (*EncryptedTempFile, error) {
+	if remotePath == "" {
+		return nil, fmt.Errorf("remote path cannot be empty")
+	}
+	return createEncryptedTempFile(func(writer io.Writer) error {
+		return sp.PullToWriter(remotePath, writer)
+	})
+}
+
+func createEncryptedTempFile(writePlaintext func(io.Writer) error) (*EncryptedTempFile, error) {
+	if writePlaintext == nil {
+		return nil, fmt.Errorf("plaintext writer cannot be nil")
+	}
+
+	staged := &EncryptedTempFile{}
+	if _, err := io.ReadFull(rand.Reader, staged.key[:]); err != nil {
+		return nil, fmt.Errorf("failed to generate temporary encryption key: %w", err)
+	}
+
+	tempFile, err := os.CreateTemp("", "androidqf-pull-*.dare")
+	if err != nil {
+		clear(staged.key[:])
+		return nil, fmt.Errorf("failed to create encrypted temporary file: %w", err)
+	}
+	staged.path = tempFile.Name()
+	cleanup := func() {
+		_ = tempFile.Close()
+		_ = staged.Remove()
+	}
+
+	encryptedWriter, err := sio.EncryptWriter(tempFile, staged.sioConfig())
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to create temporary encryption writer: %w", err)
+	}
+
+	if err := writePlaintext(encryptedWriter); err != nil {
+		_ = encryptedWriter.Close()
+		cleanup()
+		return nil, fmt.Errorf("failed to pull to encrypted temporary file: %w", err)
+	}
+	if err := encryptedWriter.Close(); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("failed to finalize encrypted temporary file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+		cleanup()
+		return nil, fmt.Errorf("failed to close encrypted temporary file: %w", err)
+	}
+
+	stat, err := os.Stat(staged.path)
+	if err != nil {
+		_ = staged.Remove()
+		return nil, fmt.Errorf("failed to stat encrypted temporary file: %w", err)
+	}
+	plaintextSize, err := sio.DecryptedSize(uint64(stat.Size()))
+	if err != nil {
+		_ = staged.Remove()
+		return nil, fmt.Errorf("failed to determine encrypted temporary file size: %w", err)
+	}
+	staged.plaintextSize = int64(plaintextSize)
+
+	return staged, nil
 }
 
 // BackupToBuffer creates a backup directly into memory buffer using exec-out

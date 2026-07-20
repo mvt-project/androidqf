@@ -6,16 +6,10 @@ package modules
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
 )
-
-type pullToWriter interface {
-	PullToWriter(remotePath string, writer io.Writer) error
-}
 
 func relativeDeviceChild(deviceRoot, devicePath string) (string, error) {
 	if deviceRoot == "" {
@@ -46,40 +40,4 @@ func relativeDeviceChild(deviceRoot, devicePath string) (string, error) {
 	}
 
 	return rel, nil
-}
-
-func createRootFile(root *os.Root, rel string) (*os.File, error) {
-	localRel := filepath.FromSlash(rel)
-	if !filepath.IsLocal(localRel) {
-		return nil, fmt.Errorf("unsafe local path %q", rel)
-	}
-
-	if err := root.MkdirAll(filepath.Dir(localRel), 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create destination folders for %q: %v", rel, err)
-	}
-
-	file, err := root.OpenFile(localRel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create destination file %q: %v", rel, err)
-	}
-
-	return file, nil
-}
-
-func streamDeviceChildToRoot(root *os.Root, puller pullToWriter, rel, devicePath string) error {
-	file, err := createRootFile(root, rel)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if err := puller.PullToWriter(devicePath, file); err != nil {
-		return err
-	}
-
-	if err := file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync destination file %q: %v", rel, err)
-	}
-
-	return nil
 }

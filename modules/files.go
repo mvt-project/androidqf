@@ -11,9 +11,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Files struct {
-	StoragePath string
-}
+type Files struct{}
 
 func NewFiles() *Files {
 	return &Files{}
@@ -21,11 +19,6 @@ func NewFiles() *Files {
 
 func (f *Files) Name() string {
 	return "files"
-}
-
-func (f *Files) InitStorage(storagePath string) error {
-	f.StoragePath = storagePath
-	return nil
 }
 
 func (f *Files) Run(acq *acquisition.Acquisition, fast bool) error {

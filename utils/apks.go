@@ -8,6 +8,7 @@ package utils
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/avast/apkverifier"
@@ -350,8 +351,15 @@ func VerifyCertificateFromReader(reader io.Reader) (bool, *apkverifier.CertInfo,
 		return false, nil, err
 	}
 
-	// Create a ReadSeeker from the APK data for apkverifier library
-	readSeeker := bytes.NewReader(apkData)
+	return VerifyCertificateFromReadSeeker(bytes.NewReader(apkData))
+}
+
+// VerifyCertificateFromReadSeeker performs full certificate verification
+// without copying the APK into memory or a plaintext temporary file.
+func VerifyCertificateFromReadSeeker(readSeeker io.ReadSeeker) (bool, *apkverifier.CertInfo, error) {
+	if readSeeker == nil {
+		return false, nil, errors.New("APK reader cannot be nil")
+	}
 
 	// Extract certificates using the ReadSeeker-based function
 	certs, err := apkverifier.ExtractCertsReader(readSeeker, nil)
@@ -366,7 +374,9 @@ func VerifyCertificateFromReader(reader io.Reader) (bool, *apkverifier.CertInfo,
 	}
 
 	// Reset the ReadSeeker for verification
-	readSeeker.Seek(0, 0)
+	if _, err := readSeeker.Seek(0, io.SeekStart); err != nil {
+		return false, certInfo, fmt.Errorf("failed to seek APK for verification: %w", err)
+	}
 
 	// Perform full signature verification using ReadSeeker
 	_, err = apkverifier.VerifyReader(readSeeker, nil)

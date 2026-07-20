@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Dumpsys struct {
-	StoragePath string
-}
+type Dumpsys struct{}
 
 func NewDumpsys() *Dumpsys {
 	return &Dumpsys{}
@@ -22,11 +20,6 @@ func NewDumpsys() *Dumpsys {
 
 func (d *Dumpsys) Name() string {
 	return "dumpsys"
-}
-
-func (d *Dumpsys) InitStorage(storagePath string) error {
-	d.StoragePath = storagePath
-	return nil
 }
 
 func (d *Dumpsys) Run(acq *acquisition.Acquisition, fast bool) error {

@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/i582/cfmt v1.4.0
 	github.com/manifoldco/promptui v0.9.0
+	github.com/minio/sio v0.5.1
 )
 
 require (
@@ -17,6 +18,6 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 )
