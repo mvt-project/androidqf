@@ -118,7 +118,7 @@ The following data can be extracted:
 | A list of all packages installed and related distribution files. | |  `packages.json` |
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
-| A list of files on the system. | | `files.json` |
+| A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
 
@@ -200,6 +200,21 @@ Would you like to take the Intrusion Logs of the device?
 | Yes | Intrusion Logs will be retrieved from the phone. |
 | No | Intrusion Logs acquisition is skipped. |
 
+### Hashing files on the device
+
+```
+Would you like to hash files on the device? This is resource-intensive and may cause the collector to stop on some devices.
+
+? Hash files:
+  ▸ No
+    Yes
+```
+
+Selecting `Yes` adds MD5, SHA-1, SHA-256 and SHA-512 hashes to the entries in
+`files.json` where hashing is supported. This performs the hashing on the
+device and can take a long time or cause the collector to stop on devices with
+limited resources. The default `No` option only collects file metadata.
+
 ### Unattended acquisitions
 
 Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
@@ -210,11 +225,12 @@ Every prompt can be answered ahead of time with a command-line flag. A flag that
 | `-download` / `-d` | `all`, `non-system`, `none` | [Downloading copies of apps](#downloading-copies-of-apps) |
 | `-remove-trusted` / `-r` | `yes`, `no` | [Removing apps signed with a trusted certificate](#removing-apps-signed-with-a-trusted-certificate), ignored with `-download none` |
 | `-intrusion-logs` / `-i` | `yes`, `no` | [Intrusion Logs](#intrusion-logs) |
+| `-hash-files` / `-H` | `yes`, `no` | [Hashing files on the device](#hashing-files-on-the-device) |
 
 With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
 
 ```bash
-androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -non-interactive
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -non-interactive
 ```
 
 > [!NOTE]

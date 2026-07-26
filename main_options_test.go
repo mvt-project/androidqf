@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildOptionsNoFlagsKeepsInteractiveDefaults(t *testing.T) {
-	opts, err := buildOptions(false, false, "", "", "", "", "")
+	opts, err := buildOptions(false, false, "", "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -19,18 +19,19 @@ func TestBuildOptionsNoFlagsKeepsInteractiveDefaults(t *testing.T) {
 
 func TestBuildOptionsInvalidValueFails(t *testing.T) {
 	tests := []struct {
-		name                                           string
-		backup, download, removeTrusted, intrusionLogs string
-		wantErr                                        string
+		name                                                      string
+		backup, download, removeTrusted, intrusionLogs, hashFiles string
+		wantErr                                                   string
 	}{
-		{"backup", "maybe", "", "", "", "invalid -backup value"},
-		{"download", "", "some", "", "", "invalid -download value"},
-		{"remove-trusted", "", "", "nope", "", "invalid -remove-trusted value"},
-		{"intrusion-logs", "", "", "", "never", "invalid -intrusion-logs value"},
+		{"backup", "maybe", "", "", "", "", "invalid -backup value"},
+		{"download", "", "some", "", "", "", "invalid -download value"},
+		{"remove-trusted", "", "", "nope", "", "", "invalid -remove-trusted value"},
+		{"intrusion-logs", "", "", "", "never", "", "invalid -intrusion-logs value"},
+		{"hash-files", "", "", "", "", "maybe", "invalid -hash-files value"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := buildOptions(false, false, tt.backup, tt.download, tt.removeTrusted, tt.intrusionLogs, "")
+			_, err := buildOptions(false, false, tt.backup, tt.download, tt.removeTrusted, tt.intrusionLogs, tt.hashFiles, "")
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
 			}
@@ -39,28 +40,28 @@ func TestBuildOptionsInvalidValueFails(t *testing.T) {
 }
 
 func TestBuildOptionsNonInteractiveUnknownModuleFails(t *testing.T) {
-	_, err := buildOptions(false, true, "", "", "", "", "typo")
+	_, err := buildOptions(false, true, "", "", "", "", "", "typo")
 	if err == nil || !strings.Contains(err.Error(), "unknown -module value") {
 		t.Fatalf("err = %v, want unknown -module error", err)
 	}
 }
 
 func TestBuildOptionsNonInteractiveMissingFlagsFails(t *testing.T) {
-	_, err := buildOptions(false, true, "", "", "", "", "")
+	_, err := buildOptions(false, true, "", "", "", "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "-non-interactive requires") {
 		t.Fatalf("err = %v, want missing flags error", err)
 	}
 }
 
 func TestBuildOptionsNonInteractiveModuleFilter(t *testing.T) {
-	_, err := buildOptions(false, true, "none", "", "", "", "backup")
+	_, err := buildOptions(false, true, "none", "", "", "", "", "backup")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestBuildOptionsFullInvocation(t *testing.T) {
-	opts, err := buildOptions(true, true, "sms", "all", "no", "no", "")
+	opts, err := buildOptions(true, true, "sms", "all", "no", "no", "yes", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -76,6 +77,7 @@ func TestBuildOptionsFullInvocation(t *testing.T) {
 		{opts.Download, modules.ParseDownloadOption, "all"},
 		{opts.RemoveTrusted, modules.ParseRemoveTrustedOption, "no"},
 		{opts.IntrusionLogs, modules.ParseIntrusionLogsOption, "no"},
+		{opts.HashFiles, modules.ParseHashFilesOption, "yes"},
 	} {
 		want, err := check.parse(check.token)
 		if err != nil {

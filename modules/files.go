@@ -5,13 +5,27 @@
 package modules
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/botherder/go-savetime/slice"
+	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
 )
 
+const (
+	hashFiles  = "Yes"
+	skipHashes = "No"
+)
+
 type Files struct{}
+
+type fileFinder interface {
+	Find(path string) ([]adb.FileInfo, error)
+	FindHash(path string) ([]adb.FileInfo, error)
+}
 
 func NewFiles() *Files {
 	return &Files{}
@@ -21,7 +35,37 @@ func (f *Files) Name() string {
 	return "files"
 }
 
+func ParseHashFilesOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes":
+		return hashFiles, nil
+	case "no":
+		return skipHashes, nil
+	}
+	return "", fmt.Errorf("invalid -hash-files value %q (valid values: yes, no)", value)
+}
+
+func findFiles(collector fileFinder, path string, withHashes bool) ([]adb.FileInfo, error) {
+	if withHashes {
+		return collector.FindHash(path)
+	}
+	return collector.Find(path)
+}
+
 func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
+	hashOption, err := resolveOption(opts, opts.HashFiles, "-hash-files (yes, no)", func() (string, error) {
+		log.Info("Would you like to hash files on the device? This is resource-intensive and may cause the collector to stop on some devices.")
+		promptHash := promptui.Select{
+			Label: "Hash files",
+			Items: []string{skipHashes, hashFiles},
+		}
+		_, selection, err := promptHash.Run()
+		return selection, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to make selection for file hashing option: %v", err)
+	}
+
 	log.Info("Collecting list of files... This might take a while...")
 	var fileFounds []string
 	var fileDetails []adb.FileInfo
@@ -38,6 +82,9 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 		}
 	} else {
 		log.Debug("Using collector to collect list of files")
+	}
+	if hashOption == hashFiles && method != "collector" {
+		log.Warning("File hashing requires the collector, which is unavailable. Continuing without file hashes.")
 	}
 
 	folders := []string{
@@ -57,7 +104,7 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 		var out []adb.FileInfo
 		var err error
 		if method == "collector" {
-			out, err = acq.Collector.Find(folder)
+			out, err = findFiles(acq.Collector, folder, hashOption == hashFiles)
 		} else if method == "findfull" {
 			out, err = adb.Client.FindFullCommand(folder)
 		} else {

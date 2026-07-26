@@ -28,6 +28,9 @@ func TestParseOptions(t *testing.T) {
 		{"intrusion-logs yes", ParseIntrusionLogsOption, "yes", acquireIL, ""},
 		{"intrusion-logs no", ParseIntrusionLogsOption, "no", skipIL, ""},
 		{"intrusion-logs invalid", ParseIntrusionLogsOption, "never", "", "invalid -intrusion-logs value"},
+		{"hash-files yes", ParseHashFilesOption, "yes", hashFiles, ""},
+		{"hash-files no", ParseHashFilesOption, "no", skipHashes, ""},
+		{"hash-files invalid", ParseHashFilesOption, "maybe", "", "invalid -hash-files value"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -124,7 +127,7 @@ func TestValidateNonInteractive(t *testing.T) {
 			"nothing set",
 			&Options{NonInteractive: true},
 			"",
-			[]string{"-backup", "-download", "-intrusion-logs"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files"},
 			[]string{"-remove-trusted"},
 		},
 		{
@@ -136,7 +139,7 @@ func TestValidateNonInteractive(t *testing.T) {
 		},
 		{
 			"download none skips remove-trusted",
-			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL},
+			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes},
 			"",
 			nil,
 			nil,
@@ -146,11 +149,25 @@ func TestValidateNonInteractive(t *testing.T) {
 			&Options{NonInteractive: true},
 			"backup",
 			[]string{"-backup"},
-			[]string{"-download", "-intrusion-logs"},
+			[]string{"-download", "-intrusion-logs", "-hash-files"},
+		},
+		{
+			"files module requires hash choice",
+			&Options{NonInteractive: true},
+			"files",
+			[]string{"-hash-files"},
+			[]string{"-backup", "-download", "-intrusion-logs"},
+		},
+		{
+			"files module accepts hash choice",
+			&Options{NonInteractive: true, HashFiles: skipHashes},
+			"files",
+			nil,
+			nil,
 		},
 		{
 			"all set",
-			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL},
+			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles},
 			"",
 			nil,
 			nil,

@@ -20,6 +20,7 @@ type Options struct {
 	Download       string
 	RemoveTrusted  string
 	IntrusionLogs  string
+	HashFiles      string
 }
 
 func ModuleEnabled(name, filter string) bool {
@@ -57,6 +58,9 @@ func ValidateNonInteractive(opts *Options, moduleFilter string) error {
 	}
 	if ModuleEnabled(NewIL().Name(), moduleFilter) && opts.IntrusionLogs == "" {
 		missing = append(missing, "-intrusion-logs (yes, no)")
+	}
+	if ModuleEnabled(NewFiles().Name(), moduleFilter) && opts.HashFiles == "" {
+		missing = append(missing, "-hash-files (yes, no)")
 	}
 
 	if len(missing) == 0 {
