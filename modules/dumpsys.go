@@ -22,7 +22,7 @@ func (d *Dumpsys) Name() string {
 	return "dumpsys"
 }
 
-func (d *Dumpsys) Run(acq *acquisition.Acquisition, fast bool) error {
+func (d *Dumpsys) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting device diagnostic information. This might take a while...")
 
 	out, err := adb.Client.Shell("dumpsys")

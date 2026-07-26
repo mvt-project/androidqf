@@ -24,7 +24,7 @@ func (m *Mounts) Name() string {
 	return "mounts"
 }
 
-func (m *Mounts) Run(acq *acquisition.Acquisition, fast bool) error {
+func (m *Mounts) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting mount information")
 
 	var mountsData []string

@@ -23,7 +23,7 @@ func (r *RootBinaries) Name() string {
 	return "root_binaries"
 }
 
-func (r *RootBinaries) Run(acq *acquisition.Acquisition, fast bool) error {
+func (r *RootBinaries) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Checking for traces of rooting")
 	root_binaries := []string{
 		"su",

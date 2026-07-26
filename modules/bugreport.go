@@ -22,7 +22,7 @@ func (b *Bugreport) Name() string {
 	return "bugreport"
 }
 
-func (b *Bugreport) Run(acq *acquisition.Acquisition, fast bool) error {
+func (b *Bugreport) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info(
 		"Generating a bugreport for the device...",
 	)

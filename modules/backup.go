@@ -7,6 +7,7 @@ package modules
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
@@ -29,13 +30,28 @@ func (b *Backup) Name() string {
 	return "backup"
 }
 
-func (b *Backup) Run(acq *acquisition.Acquisition, fast bool) error {
-	log.Info("Would you like to take a backup of the device?")
-	promptBackup := promptui.Select{
-		Label: "Backup",
-		Items: []string{backupOnlySMS, backupEverything, backupNothing},
+func ParseBackupOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "sms":
+		return backupOnlySMS, nil
+	case "all":
+		return backupEverything, nil
+	case "none":
+		return backupNothing, nil
 	}
-	_, backupOption, err := promptBackup.Run()
+	return "", fmt.Errorf("invalid -backup value %q (valid values: sms, all, none)", value)
+}
+
+func (b *Backup) Run(acq *acquisition.Acquisition, opts *Options) error {
+	backupOption, err := resolveOption(opts, opts.Backup, "-backup (sms, all, none)", func() (string, error) {
+		log.Info("Would you like to take a backup of the device?")
+		promptBackup := promptui.Select{
+			Label: "Backup",
+			Items: []string{backupOnlySMS, backupEverything, backupNothing},
+		}
+		_, selection, err := promptBackup.Run()
+		return selection, err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to make selection for backup option: %v", err)
 	}

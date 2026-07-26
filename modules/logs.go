@@ -23,7 +23,7 @@ func (l *Logs) Name() string {
 	return "logs"
 }
 
-func (l *Logs) Run(acq *acquisition.Acquisition, fast bool) error {
+func (l *Logs) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting system logs...")
 
 	logFiles := []string{

@@ -22,7 +22,7 @@ func (s *Settings) Name() string {
 	return "settings"
 }
 
-func (s *Settings) Run(acq *acquisition.Acquisition, fast bool) error {
+func (s *Settings) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting device settings...")
 
 	for _, namespace := range []string{"system", "secure", "global"} {

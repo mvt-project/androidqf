@@ -22,7 +22,7 @@ func (s *SELinux) Name() string {
 	return "selinux"
 }
 
-func (s *SELinux) Run(acq *acquisition.Acquisition, fast bool) error {
+func (s *SELinux) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting SELinux status...")
 
 	out, err := adb.Client.Shell("getenforce")

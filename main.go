@@ -118,6 +118,39 @@ func resolveADBSerial(serial string, devices []adb.DeviceInfo, selectDevice func
 	return selectedSerial, true, err
 }
 
+func errorOnDeviceSelection([]deviceMenuItem) (string, error) {
+	return "", fmt.Errorf("multiple devices detected, use -serial to select one")
+}
+
+func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, moduleFilter string) (*modules.Options, error) {
+	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
+	var err error
+	if backup != "" {
+		if opts.Backup, err = modules.ParseBackupOption(backup); err != nil {
+			return nil, err
+		}
+	}
+	if download != "" {
+		if opts.Download, err = modules.ParseDownloadOption(download); err != nil {
+			return nil, err
+		}
+	}
+	if removeTrusted != "" {
+		if opts.RemoveTrusted, err = modules.ParseRemoveTrustedOption(removeTrusted); err != nil {
+			return nil, err
+		}
+	}
+	if intrusionLogs != "" {
+		if opts.IntrusionLogs, err = modules.ParseIntrusionLogsOption(intrusionLogs); err != nil {
+			return nil, err
+		}
+	}
+	if err = modules.ValidateNonInteractive(opts, moduleFilter); err != nil {
+		return nil, err
+	}
+	return opts, nil
+}
+
 func main() {
 	var err error
 	var verbose bool
@@ -128,6 +161,11 @@ func main() {
 	var output_folder string
 	var serial string
 	var tcpAddr string
+	var backupFlag string
+	var downloadFlag string
+	var removeTrustedFlag string
+	var intrusionLogsFlag string
+	var nonInteractive bool
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
@@ -144,6 +182,16 @@ func main() {
 	flag.StringVar(&serial, "s", "", "Phone serial number")
 	flag.StringVar(&tcpAddr, "connect", "", "Connect to device over network using ip:port")
 	flag.StringVar(&tcpAddr, "c", "", "Connect to device over network using ip:port")
+	flag.StringVar(&backupFlag, "backup", "", "Answer the backup prompt: sms, all or none (sms/all still require a tap on the device to authorize)")
+	flag.StringVar(&backupFlag, "b", "", "Answer the backup prompt: sms, all or none (sms/all still require a tap on the device to authorize)")
+	flag.StringVar(&downloadFlag, "download", "", "Answer the APK download prompt: all, non-system or none")
+	flag.StringVar(&downloadFlag, "d", "", "Answer the APK download prompt: all, non-system or none")
+	flag.StringVar(&removeTrustedFlag, "remove-trusted", "", "Answer the trusted-APK removal prompt: yes or no (ignored with -download none)")
+	flag.StringVar(&removeTrustedFlag, "r", "", "Answer the trusted-APK removal prompt: yes or no (ignored with -download none)")
+	flag.StringVar(&intrusionLogsFlag, "intrusion-logs", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
+	flag.StringVar(&intrusionLogsFlag, "i", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
+	flag.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
+	flag.BoolVar(&nonInteractive, "n", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
 
 	flag.Parse()
@@ -163,6 +211,11 @@ func main() {
 			log.Infof("- %s", mod.Name())
 		}
 		os.Exit(0)
+	}
+
+	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, module)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	log.Debug("Starting androidqf")
@@ -186,6 +239,11 @@ func main() {
 	}
 	specificDeviceRequested := serial != ""
 
+	selectDevice := selectADBDeviceFromMenu
+	if nonInteractive {
+		selectDevice = errorOnDeviceSelection
+	}
+
 	// Initialization
 	for {
 		if serial == "" {
@@ -193,8 +251,11 @@ func main() {
 			if err != nil {
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
 			} else {
-				serial, _, err = resolveADBSerial(serial, devices, selectADBDeviceFromMenu, activeRunningExtractionsBySerial())
+				serial, _, err = resolveADBSerial(serial, devices, selectDevice, activeRunningExtractionsBySerial())
 				if err != nil {
+					if nonInteractive {
+						log.Fatal("Error selecting ADB device: ", err)
+					}
 					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
 					time.Sleep(5 * time.Second)
 					continue
@@ -245,11 +306,11 @@ func main() {
 
 	mods := modules.List()
 	for _, mod := range mods {
-		if (module != "") && (module != mod.Name()) {
+		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
 		}
 
-		err = mod.Run(acq, fast)
+		err = mod.Run(acq, opts)
 		if err != nil {
 			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
 		}
@@ -265,5 +326,7 @@ func main() {
 	runningReleased = true
 	log.Info("Acquisition completed.")
 
-	systemPause()
+	if !nonInteractive {
+		systemPause()
+	}
 }

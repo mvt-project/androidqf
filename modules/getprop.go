@@ -22,7 +22,7 @@ func (g *GetProp) Name() string {
 	return "getprop"
 }
 
-func (g *GetProp) Run(acq *acquisition.Acquisition, fast bool) error {
+func (g *GetProp) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting device properties...")
 
 	out, err := adb.Client.Shell("getprop")

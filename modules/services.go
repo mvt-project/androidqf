@@ -22,7 +22,7 @@ func (s *Services) Name() string {
 	return "services"
 }
 
-func (s *Services) Run(acq *acquisition.Acquisition, fast bool) error {
+func (s *Services) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting list of services...")
 
 	out, err := adb.Client.Shell("service list")

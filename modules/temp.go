@@ -23,7 +23,7 @@ func (t *Temp) Name() string {
 	return "temp"
 }
 
-func (t *Temp) Run(acq *acquisition.Acquisition, fast bool) error {
+func (t *Temp) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting files in tmp folder...")
 
 	// TODO: Also check default tmp folders

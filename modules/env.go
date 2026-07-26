@@ -22,7 +22,7 @@ func (e *Environment) Name() string {
 	return "environment"
 }
 
-func (e *Environment) Run(acq *acquisition.Acquisition, fast bool) error {
+func (e *Environment) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting environment...")
 
 	out, err := adb.Client.Shell("env")
