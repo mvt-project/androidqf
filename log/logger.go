@@ -111,7 +111,7 @@ func (log *Logger) out(level LEVEL, format string, v ...any) {
 		}
 	}
 
-	// Print to writer if active (for streaming to encrypted archive)
+	// Print to writer if active (for streaming to the acquisition archive)
 	if log.writerActive && log.writer != nil {
 		var msg string
 		if level >= log.FileLogLevel {

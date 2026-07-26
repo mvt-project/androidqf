@@ -7,12 +7,10 @@ package modules
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
-	"github.com/mvt-project/androidqf/adb"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -22,9 +20,7 @@ const (
 	backupNothing    = "No backup"
 )
 
-type Backup struct {
-	StoragePath string
-}
+type Backup struct{}
 
 func NewBackup() *Backup {
 	return &Backup{}
@@ -32,11 +28,6 @@ func NewBackup() *Backup {
 
 func (b *Backup) Name() string {
 	return "backup"
-}
-
-func (b *Backup) InitStorage(storagePath string) error {
-	b.StoragePath = storagePath
-	return nil
 }
 
 func ParseBackupOption(value string) (string, error) {
@@ -80,20 +71,9 @@ func (b *Backup) Run(acq *acquisition.Acquisition, opts *Options) error {
 		arg,
 	)
 
-	if acq.StreamingMode && acq.EncryptedWriter != nil {
-		// Streaming mode: stream backup directly to encrypted zip without temp files
-		err = acq.StreamBackupToZip(arg, "backup.ab")
-		if err != nil {
-			return fmt.Errorf("failed to stream backup to encrypted archive: %v", err)
-		}
-	} else {
-		// Traditional mode: write backup directly into acquisition directory
-		backupPath := filepath.Join(b.StoragePath, "backup.ab")
-		err = adb.Client.Backup(backupPath, arg)
-		if err != nil {
-			log.Debugf("Impossible to get backup: %v", err)
-			return err
-		}
+	err = acq.StreamBackupToZip(arg, "backup.ab")
+	if err != nil {
+		return fmt.Errorf("failed to stream backup to archive: %v", err)
 	}
 
 	log.Info("Backup completed!")

@@ -96,13 +96,13 @@ docker build --build-arg VERSION=1.8.3 -t androidqf .
 ## How to use
 
 > [!TIP]
-> We have not yet provided extensive official documentation of the output bundle androidqf produces. You might consider referring to the third-party androidqf documentation that has been developed by our friends at [SocialTIC](https://socialtic.org), in conjunction with their mobile forensics guide: [SocialTIC Forensics - AndroidQF output file dictionary](https://forensics.socialtic.org/en/references/01-reference-androidqf-dictionary/01-reference-androidqf-dictionary.html)
+> See [Acquisition archives](docs/acquisition-archives.md) for the archive format, integrity hashes, encryption and large-file handling. For a dictionary of collected files, see the third-party [SocialTIC AndroidQF output file dictionary](https://forensics.socialtic.org/en/references/01-reference-androidqf-dictionary/01-reference-androidqf-dictionary.html).
 
 Before launching androidqf you need to have the target Android device connected to your computer via USB, and you will need to have enabled USB debugging. Please refer to the [official documentation](https://developer.android.com/studio/debug/dev-options#enable) on how to do this, but also be mindful that Android phones from different manufacturers might require different navigation steps than the defaults.
 
 Once USB debugging is enabled, you can proceed launching androidqf. It will first attempt to connect to the device over the USB bridge, which should result in the Android phone to prompt you to manually authorize the host keys. Make sure to authorize them, ideally permanently so that the prompt wouldn't appear again.
 
-Now androidqf should be executing and creating an acquisition folder in your current working directory. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention. Every prompt can also be answered ahead of time with a command-line flag, see [Unattended acquisitions](#unattended-acquisitions).
+Now androidqf should be executing and creating an acquisition zip archive in your current working directory, or in the directory provided with `-output`. At some point in the execution, androidqf will prompt you some choices: these prompts will pause the acquisition until you provide a selection, so pay attention. Every prompt can also be answered ahead of time with a command-line flag, see [Unattended acquisitions](#unattended-acquisitions).
 
 The following data can be extracted:
 
@@ -122,6 +122,11 @@ The following data can be extracted:
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
 
+Every acquisition also contains `acquisition.json`, `command.log` when log output
+was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
+preceding plaintext archive entry and does not include itself. Failed device
+pulls are not committed as archive entries. See [Acquisition
+archives](docs/acquisition-archives.md) for details.
 
 ### About optional data collection
 
@@ -165,10 +170,10 @@ Would you like to download copies of all apps or only non-system ones?
 
 ### Removing apps signed with a trusted certificate
 
-Unless you chose `Do not download any`, androidqf asks whether downloaded APKs signed with a trusted certificate (for example by Google) should be deleted again to limit the size of the output folder:
+Unless you chose `Do not download any`, androidqf asks whether downloaded APKs signed with a trusted certificate (for example by Google) should be omitted to limit the size of the output archive:
 
 ```
-Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output folder?
+Would you like to remove copies of apps signed with a trusted certificate to limit the size of the output archive?
 
 ? Remove:
   ▸ Yes
@@ -177,7 +182,7 @@ Would you like to remove copies of apps signed with a trusted certificate to lim
 
 | Option | Explanation |
 |--------|-------------|
-| Yes | Downloaded APKs with a trusted signing certificate are removed from the output folder |
+| Yes | Downloaded APKs with a trusted signing certificate are omitted from the output archive |
 | No | All downloaded APKs are kept |
 
 ### Intrusion Logs
@@ -225,7 +230,13 @@ Ideally you should have the drive fully encrypted, but that might not always be 
 
 Alternatively, androidqf allows to encrypt each acquisition with a provided [age](https://age-encryption.org) public key. Preferably, this public key belongs to a keypair for which the end-user does not possess, or at least carry, the private key. In this way, the end-user would not be able to decrypt the acquired data even under duress.
 
-If you place a file called `key.txt` in the current working directory, androidqf will automatically attempt to compress and encrypt each acquisition and delete the original unencrypted copies. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
+androidqf streams each acquisition into a zip archive. If you place a file called `key.txt` in the current working directory, androidqf will encrypt the zip stream with age and write `<UUID>.zip.age`; otherwise, it writes an unencrypted `<UUID>.zip`. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
+
+Encrypted acquisitions do not create a plaintext acquisition archive. Device
+files that must be validated before they are added to an encrypted archive are
+temporarily staged with authenticated ChaCha20-Poly1305 encryption. See
+[Acquisition archives](docs/acquisition-archives.md#encrypted-acquisitions) for
+the complete data flow and large-APK behavior.
 
 Once you have retrieved an encrypted acquisition file, you can decrypt it with age like so:
 

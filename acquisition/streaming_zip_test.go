@@ -17,7 +17,7 @@ import (
 
 func TestCreateHashListTracksPlaintextZipEntries(t *testing.T) {
 	var archive bytes.Buffer
-	ezw := &EncryptedZipWriter{
+	ezw := &StreamingZipWriter{
 		zipWriter: zip.NewWriter(&archive),
 	}
 
@@ -111,17 +111,20 @@ func writeTestAgeKey(t *testing.T, dir string) {
 	}
 }
 
-func TestNewEncryptedZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
+func TestNewStreamingZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 	writeTestAgeKey(t, cwd)
 
-	ezw, err := NewEncryptedZipWriter("test-acquisition")
+	ezw, err := NewStreamingZipWriter("test-acquisition", cwd)
 	if err != nil {
-		t.Fatalf("NewEncryptedZipWriter() error = %v", err)
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
 	}
 	defer os.Remove(ezw.GetOutputPath())
 
+	if !ezw.IsEncrypted() {
+		t.Fatal("writer is not encrypted with key.txt present")
+	}
 	if err := ezw.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
