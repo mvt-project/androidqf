@@ -138,6 +138,64 @@ func TestNewStreamingZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestNewStreamingZipWriterUsesRestrictivePermissions(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "output")
+
+	ezw, err := NewStreamingZipWriter("test-acquisition", outputDir)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
+	}
+
+	dirInfo, err := os.Stat(outputDir)
+	if err != nil {
+		t.Fatalf("Stat(output directory) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got&0o077 != 0 {
+		t.Fatalf("output directory permissions = %o, want no group or world permissions", got)
+	}
+
+	fileInfo, err := os.Stat(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("Stat(output file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("output file permissions during acquisition = %o, want 600", got)
+	}
+
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	fileInfo, err = os.Stat(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("Stat(closed output file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o400 {
+		t.Fatalf("closed output file permissions = %o, want 400", got)
+	}
+}
+
+func TestNewStreamingZipWriterDoesNotOverwriteExistingOutput(t *testing.T) {
+	outputDir := t.TempDir()
+	outputPath := filepath.Join(outputDir, "test-acquisition.zip")
+	original := []byte("existing evidence")
+	if err := os.WriteFile(outputPath, original, 0o600); err != nil {
+		t.Fatalf("WriteFile(existing output) error = %v", err)
+	}
+
+	if _, err := NewStreamingZipWriter("test-acquisition", outputDir); err == nil {
+		t.Fatal("NewStreamingZipWriter() returned nil error for existing output")
+	}
+
+	got, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(existing output) error = %v", err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("existing output content = %q, want %q", got, original)
+	}
+}
+
 func TestValidateZipEntryName(t *testing.T) {
 	tests := []struct {
 		name    string

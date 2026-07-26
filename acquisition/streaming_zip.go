@@ -67,7 +67,7 @@ func NewStreamingZipWriter(uuid, outputDir string) (*StreamingZipWriter, error) 
 
 	stat, err := os.Stat(outputDir)
 	if os.IsNotExist(err) {
-		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		if err := os.MkdirAll(outputDir, 0o700); err != nil {
 			return nil, fmt.Errorf("failed to create output folder: %v", err)
 		}
 	} else if err != nil {
@@ -87,7 +87,7 @@ func NewStreamingZipWriter(uuid, outputDir string) (*StreamingZipWriter, error) 
 	}
 	outputPath := filepath.Join(outputDir, fileName)
 
-	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create output file: %v", err)
 	}
@@ -305,6 +305,12 @@ func (ezw *StreamingZipWriter) Close() error {
 	if err := ezw.file.Close(); err != nil {
 		if lastErr == nil {
 			lastErr = fmt.Errorf("failed to close output file: %v", err)
+		}
+	}
+
+	if lastErr == nil {
+		if err := os.Chmod(ezw.outputPath, 0o400); err != nil {
+			lastErr = fmt.Errorf("failed to make output file read-only: %v", err)
 		}
 	}
 
