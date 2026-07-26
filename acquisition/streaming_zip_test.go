@@ -138,6 +138,74 @@ func TestNewStreamingZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestNewStreamingZipWriterEncryptsForEveryRecipient(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+
+	var identities []*age.X25519Identity
+	var recipientFile strings.Builder
+	recipientFile.WriteString("# Acquisition recipients\n\n")
+	for range 2 {
+		identity, err := age.GenerateX25519Identity()
+		if err != nil {
+			t.Fatalf("GenerateX25519Identity() error = %v", err)
+		}
+		identities = append(identities, identity)
+		recipientFile.WriteString(identity.Recipient().String())
+		recipientFile.WriteByte('\n')
+	}
+	if err := os.WriteFile(
+		filepath.Join(cwd, keyFileName),
+		[]byte(recipientFile.String()),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(key.txt) error = %v", err)
+	}
+
+	ezw, err := NewStreamingZipWriter("test-acquisition", cwd)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
+	}
+	if err := ezw.CreateFileFromString("evidence.txt", "collected evidence"); err != nil {
+		t.Fatalf("CreateFileFromString() error = %v", err)
+	}
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	encrypted, err := os.ReadFile(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("ReadFile(encrypted archive) error = %v", err)
+	}
+	for i, identity := range identities {
+		decrypted, err := age.Decrypt(bytes.NewReader(encrypted), identity)
+		if err != nil {
+			t.Fatalf("age.Decrypt() for recipient %d error = %v", i+1, err)
+		}
+		archive, err := io.ReadAll(decrypted)
+		if err != nil {
+			t.Fatalf("ReadAll(decrypted archive) for recipient %d error = %v", i+1, err)
+		}
+
+		reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+		if err != nil {
+			t.Fatalf("zip.NewReader() for recipient %d error = %v", i+1, err)
+		}
+		entry, err := reader.File[0].Open()
+		if err != nil {
+			t.Fatalf("Open(evidence.txt) for recipient %d error = %v", i+1, err)
+		}
+		content, err := io.ReadAll(entry)
+		entry.Close()
+		if err != nil {
+			t.Fatalf("ReadAll(evidence.txt) for recipient %d error = %v", i+1, err)
+		}
+		if string(content) != "collected evidence" {
+			t.Fatalf("evidence.txt for recipient %d = %q", i+1, content)
+		}
+	}
+}
+
 func TestValidateZipEntryName(t *testing.T) {
 	tests := []struct {
 		name    string

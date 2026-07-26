@@ -13,10 +13,12 @@ acquisition UUID:
 | Configuration | Output |
 |---|---|
 | No `key.txt` found | `<UUID>.zip` |
-| Valid age recipient in `key.txt` | `<UUID>.zip.age` |
+| One or more valid age recipients in `key.txt` | `<UUID>.zip.age` |
 
 androidqf looks for `key.txt` in the current working directory and then beside
-the executable. A key in the current working directory takes precedence.
+the executable. A key in the current working directory takes precedence. The
+file accepts one age recipient per line; empty lines and lines beginning with
+`#` are ignored. Every listed recipient can decrypt the resulting acquisition.
 
 The archive contains the collected module outputs documented in the main
 [README](../README.md#how-to-use), plus these acquisition-level entries:
@@ -50,8 +52,8 @@ finalized.
 
 ## Encrypted acquisitions
 
-When `key.txt` is present, the ZIP stream is passed directly through age into
-`<UUID>.zip.age`:
+When a valid `key.txt` is present, the ZIP stream is encrypted to every
+recipient in the file and passed directly through age into `<UUID>.zip.age`:
 
 ```text
 device data -> ZIP writer -> age encryption -> <UUID>.zip.age
