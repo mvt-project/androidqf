@@ -160,9 +160,39 @@ func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
 	if err := a.validateStreamingMode(); err != nil {
 		return err
 	}
+	if a.StreamingPuller == nil {
+		return fmt.Errorf("streaming puller cannot be nil")
+	}
+	if remotePath == "" {
+		return fmt.Errorf("remote path cannot be empty")
+	}
 
+	return a.pullToZipStaged(zipPath, func(writer io.Writer) error {
+		return a.StreamingPuller.PullToWriter(remotePath, writer)
+	})
+}
+
+// SyncPullToZipStaged retrieves a device file through ADB's sync service and
+// adds it to the acquisition archive only after the complete pull succeeds.
+func (a *Acquisition) SyncPullToZipStaged(remotePath, zipPath string) error {
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+	if adb.Client == nil {
+		return fmt.Errorf("ADB client cannot be nil")
+	}
+	if remotePath == "" {
+		return fmt.Errorf("remote path cannot be empty")
+	}
+
+	return a.pullToZipStaged(zipPath, func(writer io.Writer) error {
+		return adb.Client.SyncPullToWriter(remotePath, writer)
+	})
+}
+
+func (a *Acquisition) pullToZipStaged(zipPath string, pull func(io.Writer) error) error {
 	if a.ZipWriter.IsEncrypted() {
-		staged, err := a.StreamingPuller.PullToEncryptedTempFile(remotePath)
+		staged, err := createEncryptedTempFile(pull)
 		if err != nil {
 			return err
 		}
@@ -176,12 +206,26 @@ func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
 		return a.ZipWriter.CreateFileFromReader(zipPath, reader)
 	}
 
-	tempPath, err := a.StreamingPuller.PullToTempFile(remotePath)
+	tempFile, err := os.CreateTemp("", "androidqf-pull-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	if err := pull(tempFile); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
+	err = a.ZipWriter.CreateFileFromPath(zipPath, tempPath)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tempPath)
-	return a.ZipWriter.CreateFileFromPath(zipPath, tempPath)
+	return nil
 }
 
 func (a *Acquisition) GetSystemInformation() error {
