@@ -122,7 +122,7 @@ func errorOnDeviceSelection([]deviceMenuItem) (string, error) {
 	return "", fmt.Errorf("multiple devices detected, use -serial to select one")
 }
 
-func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, moduleFilter string) (*modules.Options, error) {
+func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, moduleFilter string) (*modules.Options, error) {
 	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
 	var err error
 	if backup != "" {
@@ -142,6 +142,11 @@ func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, in
 	}
 	if intrusionLogs != "" {
 		if opts.IntrusionLogs, err = modules.ParseIntrusionLogsOption(intrusionLogs); err != nil {
+			return nil, err
+		}
+	}
+	if hashFiles != "" {
+		if opts.HashFiles, err = modules.ParseHashFilesOption(hashFiles); err != nil {
 			return nil, err
 		}
 	}
@@ -165,6 +170,7 @@ func main() {
 	var downloadFlag string
 	var removeTrustedFlag string
 	var intrusionLogsFlag string
+	var hashFilesFlag string
 	var nonInteractive bool
 
 	// Command line options
@@ -190,6 +196,8 @@ func main() {
 	flag.StringVar(&removeTrustedFlag, "r", "", "Answer the trusted-APK removal prompt: yes or no (ignored with -download none)")
 	flag.StringVar(&intrusionLogsFlag, "intrusion-logs", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
 	flag.StringVar(&intrusionLogsFlag, "i", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
+	flag.StringVar(&hashFilesFlag, "hash-files", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
+	flag.StringVar(&hashFilesFlag, "H", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
 	flag.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&nonInteractive, "n", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
@@ -213,7 +221,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, module)
+	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, module)
 	if err != nil {
 		log.Fatal(err)
 	}
