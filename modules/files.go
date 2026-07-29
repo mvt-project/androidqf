@@ -5,10 +5,10 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/botherder/go-savetime/slice"
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -67,8 +67,9 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 	}
 
 	log.Info("Collecting list of files... This might take a while...")
-	var fileFounds []string
+	fileFound := make(map[string]struct{})
 	var fileDetails []adb.FileInfo
+	var collectionErr error
 
 	method := "collector"
 	if acq.Collector == nil {
@@ -111,15 +112,19 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 			out, err = adb.Client.FindLimitedCommand(folder)
 		}
 
-		if err == nil {
-			for _, s := range out {
-				if !slice.Contains(fileFounds, s.Path) {
-					fileFounds = append(fileFounds, s.Path)
-					fileDetails = append(fileDetails, s)
-				}
+		if err != nil {
+			log.Warningf("Failed to collect files under %s: %v", folder, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", folder, err))
+			continue
+		}
+		for _, s := range out {
+			if _, exists := fileFound[s.Path]; !exists {
+				fileFound[s.Path] = struct{}{}
+				fileDetails = append(fileDetails, s)
 			}
 		}
 	}
 
-	return saveDataToAcquisition(acq, "files.json", &fileDetails)
+	saveErr := saveDataToAcquisition(acq, "files.json", &fileDetails)
+	return errors.Join(collectionErr, saveErr)
 }
