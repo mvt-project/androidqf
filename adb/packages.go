@@ -221,6 +221,9 @@ func parsePackageList(out string, withInstaller bool) ([]packageListEntry, error
 		entry.uid = uid
 		entries = append(entries, entry)
 	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("package-list output contained no package records")
+	}
 	return entries, nil
 }
 

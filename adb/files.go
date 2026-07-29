@@ -58,12 +58,12 @@ func parseFullFindOutput(out string) ([]FileInfo, error) {
 
 func (a *ADB) FindLimitedCommand(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	out, err := a.Shell("find", quoteRemoteShellArg(path), "-type", "f", "-print0", "2>", "/dev/null")
+	out, err := a.Shell("find", quoteRemoteShellArg(path), "-type", "f", "2>", "/dev/null")
 	if err != nil {
 		return results, err
 	}
 
-	for _, filePath := range strings.Split(out, "\x00") {
+	for _, filePath := range strings.Split(out, "\n") {
 		if filePath != "" {
 			results = append(results, FileInfo{Path: filePath})
 		}

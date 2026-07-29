@@ -139,9 +139,13 @@ func processFile(filePath string, fileInfo os.FileInfo, getHash bool) FileInfo {
 		for i, h := range hashes {
 			writers[i] = h
 		}
-		if _, err := io.Copy(io.MultiWriter(writers...), file); err != nil {
+		bytesRead, err := io.Copy(io.MultiWriter(writers...), file)
+		if err != nil {
 			f.Error = err.Error()
 			return f
+		}
+		if bytesRead != f.Size {
+			f.Error = fmt.Sprintf("file size changed during hashing: expected %d bytes, read %d", f.Size, bytesRead)
 		}
 
 		f.MD5 = hex.EncodeToString(hashes[0].Sum(nil))

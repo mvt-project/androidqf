@@ -156,7 +156,6 @@ func collectorNameForArchitecture(architecture string) (string, error) {
 // List files on the phone at the given path (no hash).
 func (c *Collector) Find(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	var file FileInfo
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
@@ -170,10 +169,14 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		return results, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		err = json.Unmarshal([]byte(line), &file)
-		if err == nil {
-			results = append(results, file)
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		var file FileInfo
+		if err := json.Unmarshal([]byte(line), &file); err != nil {
+			return results, fmt.Errorf("failed to parse collector file record: %w", err)
+		}
+		results = append(results, file)
 	}
 
 	return results, nil
@@ -182,7 +185,6 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 // List files with their hash on the phone at the given path.
 func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	var file FileInfo
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
@@ -196,10 +198,14 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 		return results, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		err = json.Unmarshal([]byte(line), &file)
-		if err == nil {
-			results = append(results, file)
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		var file FileInfo
+		if err := json.Unmarshal([]byte(line), &file); err != nil {
+			return results, fmt.Errorf("failed to parse collector file record: %w", err)
+		}
+		results = append(results, file)
 	}
 
 	return results, nil

@@ -26,13 +26,9 @@ func TestParsePackageListWithoutInstaller(t *testing.T) {
 	}
 }
 
-func TestParsePackageListHandlesEmptyOutput(t *testing.T) {
-	entries, err := parsePackageList("", true)
-	if err != nil {
-		t.Fatalf("parsePackageList() error = %v", err)
-	}
-	if len(entries) != 0 {
-		t.Fatalf("entries = %+v, want none", entries)
+func TestParsePackageListRejectsEmptyOutput(t *testing.T) {
+	if _, err := parsePackageList("", true); err == nil {
+		t.Fatal("parsePackageList() error = nil")
 	}
 }
 
