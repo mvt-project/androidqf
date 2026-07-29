@@ -230,7 +230,7 @@ Ideally you should have the drive fully encrypted, but that might not always be 
 
 Alternatively, androidqf allows to encrypt each acquisition with a provided [age](https://age-encryption.org) public key. Preferably, this public key belongs to a keypair for which the end-user does not possess, or at least carry, the private key. In this way, the end-user would not be able to decrypt the acquired data even under duress.
 
-androidqf streams each acquisition into a zip archive. If you place a file called `key.txt` in the current working directory, androidqf will encrypt the zip stream with age and write `<UUID>.zip.age`; otherwise, it writes an unencrypted `<UUID>.zip`. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
+androidqf streams each acquisition into a zip archive. If you place a file called `key.txt` in the current working directory, androidqf will encrypt the zip stream with age and write `<UUID>.zip.age`; otherwise, it writes an unencrypted `<UUID>.zip`. Put one age recipient per line in `key.txt`; each recipient can decrypt the resulting acquisition. Empty lines and lines beginning with `#` are ignored. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
 
 Encrypted acquisitions do not create a plaintext acquisition archive. Device
 files that must be validated before they are added to an encrypted archive are

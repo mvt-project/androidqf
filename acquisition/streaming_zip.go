@@ -55,7 +55,8 @@ func (hw *hashingWriter) Write(p []byte) (int, error) {
 }
 
 // NewStreamingZipWriter creates a streaming zip writer in outputDir. If key.txt
-// exists, the zip stream is age-encrypted and written as .zip.age.
+// exists, the zip stream is age-encrypted for every recipient in the file and
+// written as .zip.age.
 func NewStreamingZipWriter(uuid, outputDir string) (*StreamingZipWriter, error) {
 	if outputDir == "" {
 		cwd, err := os.Getwd()
@@ -95,24 +96,29 @@ func NewStreamingZipWriter(uuid, outputDir string) (*StreamingZipWriter, error) 
 	var encWriter io.WriteCloser
 	var zipSink io.Writer = file
 	if ok {
-		log.Info("Found age public key, streaming to encrypted zip archive.")
+		log.Info("Found age recipient file, streaming to encrypted zip archive.")
 
-		publicKey, err := os.ReadFile(keyFilePath)
+		keyFile, err := os.Open(keyFilePath)
 		if err != nil {
 			file.Close()
 			os.Remove(outputPath)
-			return nil, fmt.Errorf("failed to read public key: %v", err)
+			return nil, fmt.Errorf("failed to open age recipient file: %v", err)
 		}
-		publicKeyStr := strings.TrimSpace(string(publicKey))
 
-		recipient, err := age.ParseX25519Recipient(publicKeyStr)
+		recipients, err := age.ParseRecipients(keyFile)
+		closeErr := keyFile.Close()
 		if err != nil {
 			file.Close()
 			os.Remove(outputPath)
-			return nil, fmt.Errorf("failed to parse public key %q: %v", publicKeyStr, err)
+			return nil, fmt.Errorf("failed to parse age recipient file: %v", err)
+		}
+		if closeErr != nil {
+			file.Close()
+			os.Remove(outputPath)
+			return nil, fmt.Errorf("failed to close age recipient file: %v", closeErr)
 		}
 
-		encWriter, err = age.Encrypt(file, recipient)
+		encWriter, err = age.Encrypt(file, recipients...)
 		if err != nil {
 			file.Close()
 			os.Remove(outputPath)
