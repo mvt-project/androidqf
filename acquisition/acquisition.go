@@ -39,7 +39,16 @@ type Acquisition struct {
 	ZipWriter        *StreamingZipWriter `json:"-"`
 	StreamingMode    bool                `json:"streaming_mode"`
 	StreamingPuller  *StreamingPuller    `json:"-"`
+	ModuleResults    []ModuleResult      `json:"module_results"`
 	logBuffer        *bytes.Buffer       `json:"-"`
+}
+
+type ModuleResult struct {
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	Error     string    `json:"error,omitempty"`
+	Started   time.Time `json:"started"`
+	Completed time.Time `json:"completed"`
 }
 
 // New returns a new Acquisition instance.

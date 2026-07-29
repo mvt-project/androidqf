@@ -30,7 +30,14 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 		Started:       started,
 		ZipWriter:     zipWriter,
 		StreamingMode: true,
-		logBuffer:     bytes.NewBufferString("logged command\n"),
+		ModuleResults: []ModuleResult{{
+			Name:      "files",
+			Status:    "failed",
+			Error:     "partial collection",
+			Started:   started,
+			Completed: started.Add(time.Second),
+		}},
+		logBuffer: bytes.NewBufferString("logged command\n"),
 	}
 
 	if err := acq.Complete(); err != nil {
@@ -55,6 +62,9 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 	}
 	if stored.Completed.IsZero() {
 		t.Fatal("acquisition.json contains a zero completed timestamp")
+	}
+	if len(stored.ModuleResults) != 1 || stored.ModuleResults[0].Status != "failed" || stored.ModuleResults[0].Error != "partial collection" {
+		t.Fatalf("module results = %+v", stored.ModuleResults)
 	}
 }
 

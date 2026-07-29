@@ -313,15 +313,27 @@ func main() {
 	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
 	mods := modules.List()
+	failedModules := 0
 	for _, mod := range mods {
 		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
 		}
 
+		moduleStarted := time.Now().UTC()
 		err = mod.Run(acq, opts)
+		result := acquisition.ModuleResult{
+			Name:      mod.Name(),
+			Status:    "completed",
+			Started:   moduleStarted,
+			Completed: time.Now().UTC(),
+		}
 		if err != nil {
+			result.Status = "failed"
+			result.Error = err.Error()
+			failedModules++
 			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
 		}
+		acq.ModuleResults = append(acq.ModuleResults, result)
 	}
 
 	log.Info("Finalizing acquisition archive...")
@@ -332,6 +344,9 @@ func main() {
 	}
 	releaseRunning()
 	runningReleased = true
+	if failedModules > 0 {
+		log.Fatalf("Acquisition finalized with %d failed module(s). Review acquisition.json and command.log for details.", failedModules)
+	}
 	log.Info("Acquisition completed.")
 
 	if !nonInteractive {
