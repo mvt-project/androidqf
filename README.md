@@ -34,7 +34,7 @@ This will create binaries for all platforms in the `dist/` directory, including 
 
 ### Building with Make (Legacy)
 
-You can still use the traditional Makefile approach. You will need Go 1.23+ installed, along with `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
+You can still use the traditional Makefile approach. You will need Go 1.23+ installed, along with `make`, `git`, `unzip` and `curl`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
 
 First build the `collector` module:
 

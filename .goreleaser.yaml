@@ -7,19 +7,18 @@ before:
         - sh -c 'cd android-collector && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" -o ../assets/collector_arm . && upx --best ../assets/collector_arm'
         - sh -c 'cd android-collector && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../assets/collector_arm64 . && upx --best ../assets/collector_arm64'
         # Download platform tools for different OSes
-        - mkdir -p /tmp/platform-tools-downloads
         # Windows platform tools
-        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-windows.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-windows.zip -O /tmp/platform-tools-downloads/platform-tools-latest-windows.zip; fi'
+        - ./scripts/download_platform_tools.sh windows
         - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-windows.zip'
         - cp /tmp/platform-tools/AdbWinApi.dll assets/
         - cp /tmp/platform-tools/AdbWinUsbApi.dll assets/
         - cp /tmp/platform-tools/adb.exe assets/
         # macOS platform tools
-        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-darwin.zip -O /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip; fi'
+        - ./scripts/download_platform_tools.sh darwin
         - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-darwin.zip'
         - cp /tmp/platform-tools/adb assets/adb_darwin
         # Linux platform tools
-        - bash -c 'if [ ! -f /tmp/platform-tools-downloads/platform-tools-latest-linux.zip ]; then wget https://dl.google.com/android/repository/platform-tools-latest-linux.zip -O /tmp/platform-tools-downloads/platform-tools-latest-linux.zip; fi'
+        - ./scripts/download_platform_tools.sh linux
         - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-linux.zip'
         - cp /tmp/platform-tools/adb assets/adb_linux
 
