@@ -18,6 +18,8 @@ import (
 	"github.com/mvt-project/androidqf/assets"
 )
 
+var createCollectorTemp = os.CreateTemp
+
 type Collector struct {
 	ExePath      string
 	Installed    bool
@@ -99,16 +101,9 @@ func (c *Collector) Install() error {
 		}
 	}
 
-	collectorName := ""
-	switch {
-	case strings.HasPrefix(c.Architecture, "armeabi-v"):
-		collectorName = "collector_arm"
-	case strings.HasPrefix(c.Architecture, "armeabi-v7"):
-		collectorName = "collector_arm"
-	case strings.HasPrefix(c.Architecture, "arm64-v8"):
-		collectorName = "collector_arm64"
-	default:
-		return fmt.Errorf("unsupported architecture for collector: %s", c.Architecture)
+	collectorName, err := collectorNameForArchitecture(c.Architecture)
+	if err != nil {
+		return err
 	}
 
 	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
@@ -118,7 +113,7 @@ func (c *Collector) Install() error {
 		return errors.New("couldn't find the collector binary")
 	}
 
-	collectorTemp, _ := os.CreateTemp("", "collector_")
+	collectorTemp, err := createCollectorTemp("", "collector_")
 	if err != nil {
 		return err
 	}
@@ -127,6 +122,9 @@ func (c *Collector) Install() error {
 	// Write collector binary out to temporary path
 	if _, err := collectorTemp.Write(collectorBinary); err != nil {
 		collectorTemp.Close()
+		return err
+	}
+	if err := collectorTemp.Close(); err != nil {
 		return err
 	}
 
@@ -140,6 +138,19 @@ func (c *Collector) Install() error {
 	}
 
 	return nil
+}
+
+func collectorNameForArchitecture(architecture string) (string, error) {
+	switch {
+	case strings.HasPrefix(architecture, "armeabi-v"):
+		return "collector_arm", nil
+	case strings.HasPrefix(architecture, "arm64-v8"):
+		return "collector_arm64", nil
+	case strings.HasPrefix(architecture, "x86_64"):
+		return "collector_amd64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture for collector: %s", architecture)
+	}
 }
 
 // List files on the phone at the given path (no hash).
@@ -197,7 +208,7 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 func (c *Collector) Processes() ([]ProcessInfo, error) {
 	var results []ProcessInfo
 
-	if c.isInstalled() {
+	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
 			log.Debugf("Impossible to install collector: %v", err)
