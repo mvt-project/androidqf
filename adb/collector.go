@@ -45,16 +45,16 @@ type FileInfo struct {
 }
 
 type ProcessInfo struct {
-	Pid              uint32   `json:"pid"`
-	Uid              uint32   `json:"uid"`
-	Ppid             uint32   `json:"ppid"`
-	Pgroup           uint32   `json:"pgroup"`
-	Psid             uint32   `json:"psid"`
+	Pid              int      `json:"pid"`
+	Uid              int      `json:"uid"`
+	Ppid             int      `json:"ppid"`
+	Pgroup           int      `json:"pgroup"`
+	Psid             int      `json:"psid"`
 	Filename         string   `json:"filename"`
-	Priority         uint32   `json:"priority"`
+	Priority         int      `json:"priority"`
 	State            string   `json:"state"`
-	UserTime         uint32   `json:"user_time"`
-	KernelTime       uint32   `json:"kernel_time"`
+	UserTime         int64    `json:"user_time"`
+	KernelTime       int64    `json:"kernel_time"`
 	Path             string   `json:"path"`
 	Context          string   `json:"context"`
 	PreviousContext  string   `json:"previous_context"`
