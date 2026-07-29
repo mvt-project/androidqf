@@ -257,6 +257,9 @@ func main() {
 		if serial == "" {
 			devices, err := adb.Client.DeviceInfos()
 			if err != nil {
+				if nonInteractive {
+					log.Fatal("Error listing ADB devices: ", err)
+				}
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
 			} else {
 				serial, _, err = resolveADBSerial(serial, devices, selectDevice, activeRunningExtractionsBySerial())
@@ -273,6 +276,9 @@ func main() {
 
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
+			if nonInteractive {
+				log.Fatal("Error trying to connect over ADB: ", err)
+			}
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
 			if !specificDeviceRequested {
 				serial = ""
@@ -283,6 +289,9 @@ func main() {
 				break
 			}
 			log.Debug(err)
+			if nonInteractive {
+				log.Fatal("Unable to get device state: ", err)
+			}
 			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 			if !specificDeviceRequested {
 				serial = ""
