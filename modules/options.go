@@ -37,12 +37,11 @@ func moduleExists(name string) bool {
 }
 
 func ValidateNonInteractive(opts *Options, moduleFilter string) error {
-	if opts == nil || !opts.NonInteractive {
-		return nil
-	}
-
 	if moduleFilter != "" && !moduleExists(moduleFilter) {
 		return fmt.Errorf("unknown -module value %q, use -list to see available modules", moduleFilter)
+	}
+	if opts == nil || !opts.NonInteractive {
+		return nil
 	}
 
 	var missing []string

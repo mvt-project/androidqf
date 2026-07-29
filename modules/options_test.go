@@ -115,7 +115,13 @@ func TestValidateNonInteractive(t *testing.T) {
 		wantMissing []string
 	}{
 		{"interactive", &Options{}, "", nil, nil},
-		{"interactive ignores unknown module", &Options{}, "typo", nil, nil},
+		{
+			"interactive rejects unknown module",
+			&Options{},
+			"typo",
+			[]string{"unknown -module value"},
+			nil,
+		},
 		{
 			"unknown module filter",
 			&Options{NonInteractive: true},
