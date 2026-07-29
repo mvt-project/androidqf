@@ -300,7 +300,13 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
-	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, "")
+	acq, err := acquisition.New(output_folder)
+	if err != nil {
+		log.Debug(err)
+		log.FatalExc("Impossible to initialise the acquisition", err)
+	}
+
+	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, acq.StoragePath)
 	if err != nil {
 		log.Warningf("Unable to record running extraction state: %v", err)
 		releaseRunning = func() {}
@@ -311,12 +317,6 @@ func main() {
 			releaseRunning()
 		}
 	}()
-
-	acq, err := acquisition.New(output_folder)
-	if err != nil {
-		log.Debug(err)
-		log.FatalExc("Impossible to initialise the acquisition", err)
-	}
 
 	// Start acquisitions
 	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
