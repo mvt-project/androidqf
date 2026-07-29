@@ -63,6 +63,7 @@ func New(path string) (*Acquisition, error) {
 	// Get system information first to get tmp folder
 	err := acq.GetSystemInformation()
 	if err != nil {
+		acq.cleanupRuntime()
 		return nil, err
 	}
 
@@ -75,6 +76,7 @@ func New(path string) (*Acquisition, error) {
 
 	zipWriter, err := NewStreamingZipWriter(acq.UUID, path)
 	if err != nil {
+		acq.cleanupRuntime()
 		return nil, err
 	}
 	acq.ZipWriter = zipWriter
@@ -88,11 +90,24 @@ func New(path string) (*Acquisition, error) {
 
 	closeLog, err := log.EnableWriterLog(log.DEBUG, acq.logBuffer)
 	if err != nil {
+		_ = zipWriter.Close()
+		_ = os.Remove(zipWriter.GetOutputPath())
+		acq.cleanupRuntime()
 		return nil, fmt.Errorf("failed to enable writer logging: %v", err)
 	}
 	acq.closeLog = closeLog
 
 	return &acq, nil
+}
+
+func (a *Acquisition) cleanupRuntime() {
+	if a.Collector != nil {
+		_ = a.Collector.Clean()
+	}
+	if adb.Client != nil {
+		_, _ = adb.Client.KillServer()
+	}
+	_ = assets.CleanAssets()
 }
 
 func (a *Acquisition) Complete() error {
@@ -149,15 +164,7 @@ func (a *Acquisition) Complete() error {
 		}
 	}
 
-	if a.Collector != nil {
-		a.Collector.Clean()
-	}
-
-	// Stop ADB server before trying to remove extracted assets
-	if adb.Client != nil {
-		adb.Client.KillServer()
-	}
-	assets.CleanAssets()
+	a.cleanupRuntime()
 
 	return completionErr
 }

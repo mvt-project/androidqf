@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	saveSlice "github.com/botherder/go-savetime/slice"
+	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -43,6 +44,8 @@ func New() (*ADB, error) {
 	// Confirm that we can call "adb devices" without errors
 	_, err = adb.Devices()
 	if err != nil {
+		_, _ = adb.KillServer()
+		_ = assets.CleanAssets()
 		return nil, err
 	}
 	return &adb, nil
