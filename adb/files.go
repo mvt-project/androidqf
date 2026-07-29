@@ -12,50 +12,66 @@ import (
 )
 
 func (a *ADB) FindFullCommand(path string) ([]FileInfo, error) {
-	var results []FileInfo
-	out, err := a.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "-printf", "'%T@ %m %s %u %g %p\n'", "2>", "/dev/null")
-
+	out, err := a.Shell(
+		"find",
+		quoteRemoteShellArg(path),
+		"-type", "f",
+		"-printf", `'%T@\t%m\t%s\t%u\t%g\t%p\0'`,
+		"2>", "/dev/null",
+	)
 	if err != nil {
-		return results, err
+		return nil, err
 	}
+	return parseFullFindOutput(out)
+}
 
-	for _, line := range strings.Split(out, "\n") {
-		var new_file FileInfo
-		s := strings.Fields(line)
-		if len(s) == 0 {
+func parseFullFindOutput(out string) ([]FileInfo, error) {
+	var results []FileInfo
+	for _, record := range strings.Split(out, "\x00") {
+		if record == "" {
 			continue
 		}
-		time, err := strconv.ParseFloat(s[0], 64)
-		if err == nil {
-			new_file.ModifiedTime = int64(time)
+		fields := strings.SplitN(record, "\t", 6)
+		if len(fields) != 6 {
+			return nil, fmt.Errorf("malformed find output record %q", record)
 		}
-		new_file.Mode = s[1]
-		size, err := strconv.ParseInt(s[2], 10, 64)
-		if err == nil {
-			new_file.Size = size
-		}
-		new_file.UserName = s[3]
-		new_file.GroupName = s[4]
-		new_file.Path = strings.Join(s[5:], "/")
 
-		results = append(results, new_file)
+		modified, err := strconv.ParseFloat(fields[0], 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid modification time in find output %q: %w", record, err)
+		}
+		size, err := strconv.ParseInt(fields[2], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid size in find output %q: %w", record, err)
+		}
+		results = append(results, FileInfo{
+			ModifiedTime: int64(modified),
+			Mode:         fields[1],
+			Size:         size,
+			UserName:     fields[3],
+			GroupName:    fields[4],
+			Path:         fields[5],
+		})
 	}
-
 	return results, nil
 }
 
 func (a *ADB) FindLimitedCommand(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	out, err := a.Shell("find", fmt.Sprintf("'%s'", path), "-type", "f", "2>", "/dev/null")
+	out, err := a.Shell("find", quoteRemoteShellArg(path), "-type", "f", "-print0", "2>", "/dev/null")
 	if err != nil {
 		return results, err
 	}
 
-	for _, line := range strings.Split(out, "\n") {
-		var new_file FileInfo
-		new_file.Path = line
-		results = append(results, new_file)
+	for _, filePath := range strings.Split(out, "\x00") {
+		if filePath != "" {
+			results = append(results, FileInfo{Path: filePath})
+		}
 	}
 
 	return results, nil
+}
+
+func quoteRemoteShellArg(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }
