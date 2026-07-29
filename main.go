@@ -19,6 +19,7 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/modules"
 	"github.com/mvt-project/androidqf/utils"
@@ -125,6 +126,25 @@ func errorOnDeviceSelection([]deviceMenuItem) (string, error) {
 	return "", fmt.Errorf("multiple devices detected, use -serial to select one")
 }
 
+func waitForConnectionRetry(signals <-chan os.Signal, delay time.Duration) os.Signal {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case received := <-signals:
+		return received
+	case <-timer.C:
+		return nil
+	}
+}
+
+func abortBeforeAcquisition(received os.Signal) {
+	if adb.Client != nil {
+		_, _ = adb.Client.KillServer()
+	}
+	_ = assets.CleanAssets()
+	log.Fatal("Interrupted before acquisition started: ", received)
+}
+
 func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, moduleFilter string) (*modules.Options, error) {
 	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
 	var err error
@@ -229,6 +249,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	opts.Signals = signals
+
 	log.Debug("Starting androidqf")
 	adb.Client, err = adb.New()
 	if err != nil {
@@ -271,7 +296,9 @@ func main() {
 						log.Fatal("Error selecting ADB device: ", err)
 					}
 					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
-					time.Sleep(5 * time.Second)
+					if received := waitForConnectionRetry(signals, 5*time.Second); received != nil {
+						abortBeforeAcquisition(received)
+					}
 					continue
 				}
 			}
@@ -300,7 +327,9 @@ func main() {
 				serial = ""
 			}
 		}
-		time.Sleep(5 * time.Second)
+		if received := waitForConnectionRetry(signals, 5*time.Second); received != nil {
+			abortBeforeAcquisition(received)
+		}
 	}
 
 	acq, err := acquisition.New(output_folder)
@@ -324,15 +353,19 @@ func main() {
 	// Start acquisitions
 	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
-	signals := make(chan os.Signal, 2)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(signals)
-	opts.Signals = signals
-
 	mods := modules.List()
 	failedModules := 0
 	interrupted := false
+	select {
+	case received := <-signals:
+		log.Warningf("Received %s; finalizing without running acquisition modules.", received)
+		interrupted = true
+	default:
+	}
 	for _, mod := range mods {
+		if interrupted {
+			break
+		}
 		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
 		}
