@@ -14,7 +14,7 @@ import (
 func (a *ADB) FindFullCommand(path string) ([]FileInfo, error) {
 	out, err := a.Shell(
 		"find",
-		quoteRemoteShellArg(path),
+		QuoteRemoteShellArg(path),
 		"-type", "f",
 		"-printf", `'%T@\t%m\t%s\t%u\t%g\t%p\0'`,
 		"2>", "/dev/null",
@@ -58,7 +58,7 @@ func parseFullFindOutput(out string) ([]FileInfo, error) {
 
 func (a *ADB) FindLimitedCommand(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	out, err := a.Shell("find", quoteRemoteShellArg(path), "-type", "f", "2>", "/dev/null")
+	out, err := a.Shell("find", QuoteRemoteShellArg(path), "-type", "f", "2>", "/dev/null")
 	if err != nil {
 		return results, err
 	}
@@ -72,6 +72,8 @@ func (a *ADB) FindLimitedCommand(path string) ([]FileInfo, error) {
 	return results, nil
 }
 
-func quoteRemoteShellArg(value string) string {
+// QuoteRemoteShellArg quotes a value for use as one argument in an adb shell
+// command.
+func QuoteRemoteShellArg(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

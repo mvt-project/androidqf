@@ -32,9 +32,9 @@ func TestParseFullFindOutputRejectsMalformedRecords(t *testing.T) {
 }
 
 func TestQuoteRemoteShellArgEscapesApostrophes(t *testing.T) {
-	got := quoteRemoteShellArg("/sdcard/user's files")
+	got := QuoteRemoteShellArg("/sdcard/user's files")
 	want := `'/sdcard/user'"'"'s files'`
 	if got != want {
-		t.Fatalf("quoteRemoteShellArg() = %q, want %q", got, want)
+		t.Fatalf("QuoteRemoteShellArg() = %q, want %q", got, want)
 	}
 }

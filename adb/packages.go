@@ -51,7 +51,7 @@ type packageListEntry struct {
 }
 
 func (a *ADB) getPackageFiles(packageName string, fast bool) []PackageFile {
-	out, err := a.Shell("pm", "path", packageName)
+	out, err := a.Shell("pm", "path", QuoteRemoteShellArg(packageName))
 	if err != nil {
 		log.Errorf("Failed to get file paths for package %s: %v: %s", packageName, err, out)
 		return []PackageFile{}
@@ -71,19 +71,20 @@ func (a *ADB) getPackageFiles(packageName string, fast bool) []PackageFile {
 		if !fast {
 			// Not sure if this is useful or not considering packages may
 			// be downloaded later on
-			md5Out, err := a.Shell("md5sum", packagePath)
+			quotedPackagePath := QuoteRemoteShellArg(packagePath)
+			md5Out, err := a.Shell("md5sum", quotedPackagePath)
 			if err == nil {
 				packageFile.MD5 = strings.SplitN(md5Out, " ", 2)[0]
 			}
-			sha1Out, err := a.Shell("sha1sum", packagePath)
+			sha1Out, err := a.Shell("sha1sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA1 = strings.SplitN(sha1Out, " ", 2)[0]
 			}
-			sha256Out, err := a.Shell("sha256sum", packagePath)
+			sha256Out, err := a.Shell("sha256sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA256 = strings.SplitN(sha256Out, " ", 2)[0]
 			}
-			sha512Out, err := a.Shell("sha512sum", packagePath)
+			sha512Out, err := a.Shell("sha512sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA512 = strings.SplitN(sha512Out, " ", 2)[0]
 			}
@@ -230,7 +231,7 @@ func parsePackageList(out string, withInstaller bool) ([]packageListEntry, error
 // GetPackagePaths returns a list of file paths associated with the provided
 // package name.
 func (a *ADB) GetPackagePaths(packageName string) ([]string, error) {
-	out, err := a.Shell("pm", "path", packageName)
+	out, err := a.Shell("pm", "path", QuoteRemoteShellArg(packageName))
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to launch `pm path` command: %v",
 			err)

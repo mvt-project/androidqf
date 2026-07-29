@@ -256,7 +256,7 @@ func (a *ADB) IL() error {
 
 // check if file exists
 func (a *ADB) FileExists(path string) (bool, error) {
-	out, err := a.Shell("[", "-f", path, "] || echo 1")
+	out, err := a.Shell("[", "-f", QuoteRemoteShellArg(path), "] || echo 1")
 	if err != nil {
 		return false, err
 	}
@@ -270,8 +270,8 @@ func (a *ADB) FileExists(path string) (bool, error) {
 func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	var remoteFiles []string
 
-	// Quote remotePath so files with spaces on their name work
-	qPath := fmt.Sprintf("'%s'", remotePath)
+	// Quote remotePath so shell metacharacters remain part of the path.
+	qPath := QuoteRemoteShellArg(remotePath)
 
 	if recursive {
 		out, _ := a.Shell("find", qPath, "2>", "/dev/null")
@@ -285,7 +285,7 @@ func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 			}
 		}
 	} else {
-		out, err := a.Shell("ls", remotePath)
+		out, err := a.Shell("ls", qPath)
 		if err != nil {
 			return remoteFiles, err
 		}

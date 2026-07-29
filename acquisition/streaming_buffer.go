@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/minio/sio"
+	"github.com/mvt-project/androidqf/adb"
 )
 
 var ErrStreamingBufferMemoryLimit = errors.New("streaming buffer memory limit exceeded")
@@ -148,7 +149,7 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	args := []string{"exec-out", "cat", remotePath}
+	args := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(remotePath)}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
@@ -173,7 +174,7 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 		return fmt.Errorf("writer cannot be nil")
 	}
 
-	args := []string{"exec-out", "cat", remotePath}
+	args := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(remotePath)}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
@@ -341,7 +342,7 @@ func (sp *StreamingPuller) BugreportToBuffer() (*StreamingBuffer, error) {
 	// Stream the bugreport file to buffer
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	streamArgs := []string{"exec-out", "cat", filename}
+	streamArgs := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(filename)}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
@@ -372,7 +373,7 @@ func (sp *StreamingPuller) BugreportToWriter(writer io.Writer) error {
 	defer sp.cleanupDeviceFile(filename)
 
 	// Stream the bugreport file to writer
-	streamArgs := []string{"exec-out", "cat", filename}
+	streamArgs := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(filename)}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
@@ -418,7 +419,7 @@ func (sp *StreamingPuller) cleanupDeviceFile(filename string) {
 		return
 	}
 
-	cleanupArgs := []string{"shell", "rm", filename}
+	cleanupArgs := []string{"shell", "rm", adb.QuoteRemoteShellArg(filename)}
 	if sp.serial != "" {
 		cleanupArgs = append([]string{"-s", sp.serial}, cleanupArgs...)
 	}

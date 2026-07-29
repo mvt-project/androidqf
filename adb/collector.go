@@ -88,14 +88,14 @@ func (c *Collector) isInstalled() bool {
 
 // Clean the phone.
 func (c *Collector) Clean() error {
-	_, err := c.Adb.Shell("rm", c.ExePath)
+	_, err := c.Adb.Shell("rm", QuoteRemoteShellArg(c.ExePath))
 	return err
 }
 
 // Install the collector.
 func (c *Collector) Install() error {
 	if c.isInstalled() {
-		_, err := c.Adb.Shell("rm", c.ExePath)
+		_, err := c.Adb.Shell("rm", QuoteRemoteShellArg(c.ExePath))
 		if err != nil {
 			return err
 		}
@@ -132,7 +132,7 @@ func (c *Collector) Install() error {
 	if err != nil {
 		return err
 	}
-	_, err = c.Adb.Shell("chmod", "+x", c.ExePath)
+	_, err = c.Adb.Shell("chmod", "+x", QuoteRemoteShellArg(c.ExePath))
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", path)
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "find", QuoteRemoteShellArg(path))
 	if err != nil {
 		return results, err
 	}
@@ -193,7 +193,7 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", "-H", path)
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "find", "-H", QuoteRemoteShellArg(path))
 	if err != nil {
 		return results, err
 	}
@@ -222,7 +222,7 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "ps")
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "ps")
 	if err != nil {
 		return results, err
 	}
