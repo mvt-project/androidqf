@@ -6,10 +6,13 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
@@ -321,8 +324,14 @@ func main() {
 	// Start acquisitions
 	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	opts.Signals = signals
+
 	mods := modules.List()
 	failedModules := 0
+	interrupted := false
 	for _, mod := range mods {
 		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
@@ -343,6 +352,20 @@ func main() {
 			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
 		}
 		acq.ModuleResults = append(acq.ModuleResults, result)
+
+		if errors.Is(err, modules.ErrAcquisitionInterrupted) {
+			interrupted = true
+		} else {
+			select {
+			case received := <-signals:
+				log.Warningf("Received %s; stopping after module %s and finalizing the partial acquisition.", received, mod.Name())
+				interrupted = true
+			default:
+			}
+		}
+		if interrupted {
+			break
+		}
 	}
 
 	log.Info("Finalizing acquisition archive...")
@@ -353,6 +376,9 @@ func main() {
 	}
 	releaseRunning()
 	runningReleased = true
+	if interrupted {
+		log.Fatal("Acquisition was interrupted and finalized as partial.")
+	}
 	if failedModules > 0 {
 		log.Fatalf("Acquisition finalized with %d failed module(s). Review acquisition.json and command.log for details.", failedModules)
 	}

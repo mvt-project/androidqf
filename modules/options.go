@@ -6,9 +6,13 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 )
+
+var ErrAcquisitionInterrupted = errors.New("acquisition interrupted")
 
 // Options carries per-run module configuration. An empty string field means
 // no answer was provided on the command line, so the module prompts
@@ -21,6 +25,7 @@ type Options struct {
 	RemoveTrusted  string
 	IntrusionLogs  string
 	HashFiles      string
+	Signals        <-chan os.Signal
 }
 
 func ModuleEnabled(name, filter string) bool {

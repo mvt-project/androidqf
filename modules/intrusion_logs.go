@@ -7,9 +7,9 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path"
 	"strings"
 	"time"
@@ -115,12 +115,11 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
 
 		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
-		// Watch directory (Ctrl+C cancels watch but continues acquisition)
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-
 		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
-		watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		watchErr := m.waitForNewFiles(context.Background(), opts.Signals, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		if errors.Is(watchErr, ErrAcquisitionInterrupted) {
+			return watchErr
+		}
 		if watchErr != nil {
 			// If user Ctrl+C, context is canceled and acquisition continues
 			log.Info("Stopped waiting, continuing with acquisition...")
@@ -201,6 +200,7 @@ func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
 // Watch for new files until Ctrl+C or timeout.
 func (m *IL) waitForNewFiles(
 	ctx context.Context,
+	signals <-chan os.Signal,
 	dir string,
 	before map[string]struct{},
 	pollEvery time.Duration,
@@ -218,6 +218,13 @@ func (m *IL) waitForNewFiles(
 			// Ctrl+C => continue acquisition (non-fatal)
 			log.Info("Ctrl+C detected. Continuing acquisition...")
 			return nil
+
+		case received := <-signals:
+			if received == os.Interrupt {
+				log.Info("Ctrl+C detected. Continuing acquisition...")
+				return nil
+			}
+			return fmt.Errorf("%w: received %s", ErrAcquisitionInterrupted, received)
 
 		case <-timeout.C:
 			log.Info("Finished waiting for intrusion logs (15 minute timeout reached).")
