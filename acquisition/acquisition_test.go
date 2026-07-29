@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -183,5 +184,43 @@ func TestNewStreamingZipWriterWithoutKeyCreatesPlainZip(t *testing.T) {
 	}
 	if _, err := os.Stat(wantPath); err != nil {
 		t.Fatalf("Stat(output) error = %v", err)
+	}
+}
+
+func TestStageStreamToZipDoesNotCreateEntryForFailedProducer(t *testing.T) {
+	for _, encrypted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("encrypted=%v", encrypted), func(t *testing.T) {
+			outputDir := t.TempDir()
+			zipWriter, err := NewStreamingZipWriter("failed-stream", outputDir)
+			if err != nil {
+				t.Fatalf("NewStreamingZipWriter() error = %v", err)
+			}
+			zipWriter.encrypted = encrypted
+
+			acq := &Acquisition{ZipWriter: zipWriter}
+			err = acq.stageStreamToZip("backup.ab", func(writer io.Writer) error {
+				if _, err := io.WriteString(writer, "partial evidence"); err != nil {
+					return err
+				}
+				return errors.New("producer failed")
+			})
+			if err == nil {
+				t.Fatal("stageStreamToZip() error = nil")
+			}
+			if err := zipWriter.Close(); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+
+			reader, err := zip.OpenReader(zipWriter.GetOutputPath())
+			if err != nil {
+				t.Fatalf("zip.OpenReader() error = %v", err)
+			}
+			defer reader.Close()
+			for _, file := range reader.File {
+				if file.Name == "backup.ab" {
+					t.Fatal("failed producer left backup.ab in archive")
+				}
+			}
+		})
 	}
 }
