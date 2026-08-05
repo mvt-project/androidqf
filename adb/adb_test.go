@@ -33,6 +33,8 @@ func fakeADB() {
 				}
 			}
 		}
+	case "pubkey":
+		fmt.Println(os.Getenv("ANDROIDQF_FAKE_ADB_PUBLIC_KEY"))
 	default:
 		os.Exit(2)
 	}

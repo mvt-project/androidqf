@@ -26,8 +26,15 @@ The archive contains the collected module outputs documented in the main
 | Entry | Purpose |
 |---|---|
 | `acquisition.json` | Acquisition UUID, timestamps, androidqf version and device information. |
+| `adb_host_key.pub` | Public half of the ADB host key available to androidqf during the acquisition. |
 | `command.log` | Debug-level command and acquisition log, when log output was produced. |
 | `hashes.csv` | SHA-256 integrity records for preceding plaintext archive entries. |
+
+The ADB public key is also recorded in `acquisition.json`. It can be compared
+with ADB authorization records without exposing the private host key. It
+identifies the ADB host identity, not the program that initiated a connection:
+androidqf, the `adb` command-line client and other tools normally share the
+same per-user ADB key.
 
 `hashes.csv` has two CSV fields per row: the ZIP entry name and its lowercase
 SHA-256 digest. The digest covers the plaintext, uncompressed entry content.
