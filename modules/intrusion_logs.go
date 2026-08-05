@@ -66,6 +66,29 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		return nil
 	}
 
+	// Check whether AAPM is enabled before offering to create a new log download.
+	// If it is disabled, existing logs can still be collected, but we must not
+	// launch the download activity or wait for new files.
+	aapmEnabled, err := m.isAAPMEnabled()
+	if err != nil {
+		log.Debugf("Failed to check AAPM enabled state: %v", err)
+		aapmEnabled = false
+	}
+
+	var existingFiles []string
+	if !aapmEnabled {
+		existingFiles, err = adb.Client.ListFiles(m.DirOnDevice, true)
+		if err != nil {
+			log.Errorf("IL: failed to list files in %s: %v", m.DirOnDevice, err)
+			return nil
+		}
+		existingFiles = m.deviceFiles(existingFiles)
+		if len(existingFiles) == 0 {
+			log.Info("Intrusion Logging is disabled and no existing Intrusion Logs were found.")
+			return nil
+		}
+	}
+
 	// Ask user first
 	ILOption, err := resolveOption(opts, opts.IntrusionLogs, "-intrusion-logs (yes, no)", func() (string, error) {
 		log.Info("Would you like to download Intrusion Logs from the device?")
@@ -86,47 +109,43 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		return nil
 	}
 
-	// Check whether AAPM is enabled right now. If disabled, don't start the activity
-	// or wait for a new file just pull whatever is already present.
-	// We still proceed with acquisition because older IL files may remain on disk
-	// and should be collected with user consent.
-	aapmEnabled, err := m.isAAPMEnabled()
-	if err != nil {
-		log.Debugf("Failed to check AAPM enabled state: %v", err)
-		aapmEnabled = false
-	}
-
-	if aapmEnabled {
-		// Snapshot of Intrusion Logs folder before triggering new log download
-		before, err := m.listDirSet(m.DirOnDevice)
-
-		if err != nil {
-			log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
+	if !aapmEnabled {
+		if err := m.pullAll(acq, existingFiles); err != nil {
+			log.Errorf("IL: failed pulling IL files: %v", err)
 			return nil
 		}
+		log.Infof("Downloaded %d Intrusion Logging files from the phone.", len(existingFiles))
+		log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
+		return nil
+	}
 
-		// Start the Activity to prompt the user to download a new Intrusion Log
-		if err := adb.Client.IL(); err != nil {
-			log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
-			// Still allow pulling existing files if user wants; continue anyway.
-		}
+	// Snapshot of Intrusion Logs folder before triggering new log download
+	before, err := m.listDirSet(m.DirOnDevice)
 
-		log.Info("Launched the Intrusion Logging settings page.")
-		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
+	if err != nil {
+		log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
+		return nil
+	}
 
-		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
-		// Watch directory (Ctrl+C cancels watch but continues acquisition)
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
+	// Start the Activity to prompt the user to download a new Intrusion Log
+	if err := adb.Client.IL(); err != nil {
+		log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
+		// Still allow pulling existing files if user wants; continue anyway.
+	}
 
-		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
-		watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
-		if watchErr != nil {
-			// If user Ctrl+C, context is canceled and acquisition continues
-			log.Info("Stopped waiting, continuing with acquisition...")
-		}
-	} else {
-		log.Debug("AAPM is disabled, skipping activity launch and new file watcher (pulling existing files only).")
+	log.Info("Launched the Intrusion Logging settings page.")
+	log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
+
+	log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
+	// Watch directory (Ctrl+C cancels watch but continues acquisition)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
+	watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+	if watchErr != nil {
+		// If user Ctrl+C, context is canceled and acquisition continues
+		log.Info("Stopped waiting, continuing with acquisition...")
 	}
 
 	// Pull all files (old + new)
@@ -135,6 +154,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		log.Errorf("IL: failed to list files for pull in %s: %v", m.DirOnDevice, err)
 		return nil
 	}
+	files = m.deviceFiles(files)
 	if len(files) == 0 {
 		log.Info("No files found in " + m.DirOnDevice)
 		return nil
@@ -145,9 +165,20 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		// continue acquisition
 		return nil
 	}
-	log.Infof("Downloaded %d Instrusion Logging files from the phone.", len(files))
+	log.Infof("Downloaded %d Intrusion Logging files from the phone.", len(files))
 	log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
 	return nil
+}
+
+// deviceFiles excludes the root directory returned by `find` when no logs exist.
+func (m *IL) deviceFiles(paths []string) []string {
+	files := make([]string, 0, len(paths))
+	for _, devicePath := range paths {
+		if _, err := relativeDeviceChild(m.DirOnDevice, devicePath); err == nil {
+			files = append(files, devicePath)
+		}
+	}
+	return files
 }
 
 func (m *IL) isAAPMCompatibleDevice() (bool, error) {
