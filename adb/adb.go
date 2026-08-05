@@ -6,18 +6,24 @@
 package adb
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os/exec"
+	"strconv"
 	"strings"
+	"time"
 
 	saveSlice "github.com/botherder/go-savetime/slice"
 	"github.com/mvt-project/androidqf/log"
 )
 
 type ADB struct {
-	ExePath string
-	Serial  string
+	ExePath       string
+	Serial        string
+	serverAddress string
 }
 
 type DeviceInfo struct {
@@ -29,6 +35,12 @@ type DeviceInfo struct {
 }
 
 var Client *ADB
+
+const (
+	defaultADBServerAddress = "127.0.0.1:5037"
+	maxSyncFrameSize        = 1024 * 1024
+	adbDialTimeout          = 10 * time.Second
+)
 
 // New returns a new ADB instance.
 func New() (*ADB, error) {
@@ -198,6 +210,165 @@ func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// SyncPullToWriter retrieves a device file through ADB's sync service and
+// writes it directly to writer. Unlike shell-based streaming, the sync service
+// can retrieve files such as /sys/fs/selinux/policy that are exposed to
+// `adb pull` but cannot be read from an ADB shell.
+func (a *ADB) SyncPullToWriter(remotePath string, writer io.Writer) error {
+	if remotePath == "" {
+		return fmt.Errorf("remote path cannot be empty")
+	}
+	if writer == nil {
+		return fmt.Errorf("writer cannot be nil")
+	}
+
+	serverAddress := a.serverAddress
+	if serverAddress == "" {
+		serverAddress = defaultADBServerAddress
+	}
+
+	conn, err := net.DialTimeout("tcp", serverAddress, adbDialTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to connect to ADB server: %w", err)
+	}
+	defer conn.Close()
+
+	transport := "host:transport-any"
+	if a.Serial != "" {
+		transport = "host:transport:" + a.Serial
+	}
+	if err := sendADBHostRequest(conn, transport); err != nil {
+		return fmt.Errorf("failed to select ADB transport: %w", err)
+	}
+	if err := sendADBHostRequest(conn, "sync:"); err != nil {
+		return fmt.Errorf("failed to start ADB sync service: %w", err)
+	}
+
+	if err := writeSyncRequest(conn, "RECV", remotePath); err != nil {
+		return fmt.Errorf("failed to request %q from ADB sync service: %w", remotePath, err)
+	}
+	if err := receiveSyncFile(conn, writer); err != nil {
+		return fmt.Errorf("failed to pull %q through ADB sync service: %w", remotePath, err)
+	}
+	return nil
+}
+
+func sendADBHostRequest(conn io.ReadWriter, request string) error {
+	if len(request) > 0xffff {
+		return fmt.Errorf("ADB request is too long")
+	}
+	header := fmt.Sprintf("%04x", len(request))
+	if err := writeString(conn, header+request); err != nil {
+		return err
+	}
+
+	status := make([]byte, 4)
+	if _, err := io.ReadFull(conn, status); err != nil {
+		return err
+	}
+	switch string(status) {
+	case "OKAY":
+		return nil
+	case "FAIL":
+		message, err := readADBHostFailure(conn)
+		if err != nil {
+			return err
+		}
+		return errors.New(message)
+	default:
+		return fmt.Errorf("unexpected ADB status %q", status)
+	}
+}
+
+func readADBHostFailure(reader io.Reader) (string, error) {
+	lengthBytes := make([]byte, 4)
+	if _, err := io.ReadFull(reader, lengthBytes); err != nil {
+		return "", err
+	}
+	length, err := strconv.ParseUint(string(lengthBytes), 16, 16)
+	if err != nil {
+		return "", fmt.Errorf("invalid ADB failure length %q", lengthBytes)
+	}
+	message := make([]byte, int(length))
+	if _, err := io.ReadFull(reader, message); err != nil {
+		return "", err
+	}
+	return string(message), nil
+}
+
+func writeSyncRequest(writer io.Writer, id, path string) error {
+	if len(id) != 4 {
+		return fmt.Errorf("sync request ID must be four bytes")
+	}
+	if len(path) > maxSyncFrameSize {
+		return fmt.Errorf("sync request path is too long")
+	}
+
+	header := make([]byte, 8)
+	copy(header[:4], id)
+	binary.LittleEndian.PutUint32(header[4:], uint32(len(path)))
+	if err := writeBytes(writer, header); err != nil {
+		return err
+	}
+	return writeString(writer, path)
+}
+
+func writeBytes(writer io.Writer, data []byte) error {
+	written, err := writer.Write(data)
+	if err != nil {
+		return err
+	}
+	if written != len(data) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+func writeString(writer io.Writer, data string) error {
+	written, err := io.WriteString(writer, data)
+	if err != nil {
+		return err
+	}
+	if written != len(data) {
+		return io.ErrShortWrite
+	}
+	return nil
+}
+
+func receiveSyncFile(reader io.Reader, writer io.Writer) error {
+	header := make([]byte, 8)
+	for {
+		if _, err := io.ReadFull(reader, header); err != nil {
+			return err
+		}
+
+		id := string(header[:4])
+		length := binary.LittleEndian.Uint32(header[4:])
+		switch id {
+		case "DATA":
+			if length > maxSyncFrameSize {
+				return fmt.Errorf("ADB sync DATA frame is too large: %d bytes", length)
+			}
+			if _, err := io.CopyN(writer, reader, int64(length)); err != nil {
+				return err
+			}
+		case "DONE":
+			return nil
+		case "FAIL":
+			if length > maxSyncFrameSize {
+				return fmt.Errorf("ADB sync FAIL frame is too large: %d bytes", length)
+			}
+			message := make([]byte, int(length))
+			if _, err := io.ReadFull(reader, message); err != nil {
+				return err
+			}
+			return errors.New(string(message))
+		default:
+			return fmt.Errorf("unexpected ADB sync response %q", id)
+		}
+	}
 }
 
 // Push a file on the phone

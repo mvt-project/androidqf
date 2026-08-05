@@ -141,6 +141,84 @@ func TestCompleteReturnsArchiveFinalizationErrors(t *testing.T) {
 	}
 }
 
+func TestPullToZipStagedWithWriterSupportsEncryptedStaging(t *testing.T) {
+	var archive bytes.Buffer
+	writer := &StreamingZipWriter{
+		zipWriter: zip.NewWriter(&archive),
+		encrypted: true,
+	}
+	acq := &Acquisition{
+		ZipWriter:     writer,
+		StreamingMode: true,
+	}
+	content := bytes.Repeat([]byte("sensitive policy data\n"), 4096)
+
+	err := acq.pullToZipStaged("selinux/sys/fs/selinux/policy", func(destination io.Writer) error {
+		_, err := destination.Write(content)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("pullToZipStaged() error = %v", err)
+	}
+	if err := writer.zipWriter.Close(); err != nil {
+		t.Fatalf("zip Close() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(archive.Bytes()), int64(archive.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader() error = %v", err)
+	}
+	if len(reader.File) != 1 || reader.File[0].Name != "selinux/sys/fs/selinux/policy" {
+		t.Fatalf("archive entries = %#v, want active SELinux policy", reader.File)
+	}
+	fileReader, err := reader.File[0].Open()
+	if err != nil {
+		t.Fatalf("Open(policy) error = %v", err)
+	}
+	got, err := io.ReadAll(fileReader)
+	_ = fileReader.Close()
+	if err != nil {
+		t.Fatalf("ReadAll(policy) error = %v", err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Fatal("archived policy does not match pulled content")
+	}
+}
+
+func TestPullToZipStagedWithWriterDoesNotArchiveFailedEncryptedPull(t *testing.T) {
+	var archive bytes.Buffer
+	writer := &StreamingZipWriter{
+		zipWriter: zip.NewWriter(&archive),
+		encrypted: true,
+	}
+	acq := &Acquisition{
+		ZipWriter:     writer,
+		StreamingMode: true,
+	}
+	pullErr := errors.New("partial sync failure")
+
+	err := acq.pullToZipStaged("selinux/sys/fs/selinux/policy", func(destination io.Writer) error {
+		if _, err := io.WriteString(destination, "partial policy"); err != nil {
+			return err
+		}
+		return pullErr
+	})
+	if !errors.Is(err, pullErr) {
+		t.Fatalf("pullToZipStaged() error = %v, want %v", err, pullErr)
+	}
+	if err := writer.zipWriter.Close(); err != nil {
+		t.Fatalf("zip Close() error = %v", err)
+	}
+
+	reader, err := zip.NewReader(bytes.NewReader(archive.Bytes()), int64(archive.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader() error = %v", err)
+	}
+	if len(reader.File) != 0 {
+		t.Fatalf("archive contains entries after failed pull: %#v", reader.File)
+	}
+}
+
 func readZipFiles(t *testing.T, archivePath string) map[string]string {
 	t.Helper()
 
