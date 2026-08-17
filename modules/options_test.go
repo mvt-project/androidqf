@@ -31,6 +31,9 @@ func TestParseOptions(t *testing.T) {
 		{"hash-files yes", ParseHashFilesOption, "yes", hashFiles, ""},
 		{"hash-files no", ParseHashFilesOption, "no", skipHashes, ""},
 		{"hash-files invalid", ParseHashFilesOption, "maybe", "", "invalid -hash-files value"},
+		{"browser-history yes", ParseBrowserHistoryOption, "yes", acquireBrowserHistory, ""},
+		{"browser-history no", ParseBrowserHistoryOption, "no", skipBrowserHistory, ""},
+		{"browser-history invalid", ParseBrowserHistoryOption, "maybe", "", "invalid -browser-history value"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,7 +130,7 @@ func TestValidateNonInteractive(t *testing.T) {
 			"nothing set",
 			&Options{NonInteractive: true},
 			"",
-			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history"},
 			[]string{"-remove-trusted"},
 		},
 		{
@@ -139,7 +142,7 @@ func TestValidateNonInteractive(t *testing.T) {
 		},
 		{
 			"download none skips remove-trusted",
-			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes},
+			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes, BrowserHistory: skipBrowserHistory},
 			"",
 			nil,
 			nil,
@@ -149,14 +152,14 @@ func TestValidateNonInteractive(t *testing.T) {
 			&Options{NonInteractive: true},
 			"backup",
 			[]string{"-backup"},
-			[]string{"-download", "-intrusion-logs", "-hash-files"},
+			[]string{"-download", "-intrusion-logs", "-hash-files", "-browser-history"},
 		},
 		{
 			"files module requires hash choice",
 			&Options{NonInteractive: true},
 			"files",
 			[]string{"-hash-files"},
-			[]string{"-backup", "-download", "-intrusion-logs"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-browser-history"},
 		},
 		{
 			"files module accepts hash choice",
@@ -166,8 +169,15 @@ func TestValidateNonInteractive(t *testing.T) {
 			nil,
 		},
 		{
+			"browser history module requires choice",
+			&Options{NonInteractive: true},
+			"browser_history",
+			[]string{"-browser-history"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files"},
+		},
+		{
 			"all set",
-			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles},
+			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles, BrowserHistory: acquireBrowserHistory},
 			"",
 			nil,
 			nil,

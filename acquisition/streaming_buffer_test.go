@@ -188,3 +188,32 @@ func TestPullToZipStagedDoesNotCreateEntryForFailedPull(t *testing.T) {
 		}
 	}
 }
+
+func TestPullRootToWriterUsesSuAndQuotesPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixture is Unix-specific")
+	}
+
+	fakeADB := filepath.Join(t.TempDir(), "adb")
+	script := `#!/bin/sh
+[ "$1" = "-s" ] || exit 2
+[ "$2" = "serial-1" ] || exit 2
+[ "$3" = "exec-out" ] || exit 2
+[ "$4" = "su" ] || exit 2
+[ "$5" = "-c" ] || exit 2
+[ "$6" = "cat -- '/data/data/example'\"'\"'s/History'" ] || exit 2
+printf 'history data'
+`
+	if err := os.WriteFile(fakeADB, []byte(script), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake adb) error = %v", err)
+	}
+
+	var output bytes.Buffer
+	puller := NewStreamingPuller(fakeADB, "serial-1", 1)
+	if err := puller.PullRootToWriter("/data/data/example's/History", &output); err != nil {
+		t.Fatalf("PullRootToWriter() error = %v", err)
+	}
+	if got := output.String(); got != "history data" {
+		t.Fatalf("output = %q, want history data", got)
+	}
+}

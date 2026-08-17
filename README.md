@@ -215,6 +215,20 @@ Selecting `Yes` adds MD5, SHA-1, SHA-256 and SHA-512 hashes to the entries in
 device and can take a long time or cause the collector to stop on devices with
 limited resources. The default `No` option only collects file metadata.
 
+### Browser history
+
+AndroidQF can optionally collect Chromium `History` databases from supported
+browsers when the device already provides working root access through `su`.
+AndroidQF does not root the device, stop browser processes, or copy the files
+through shared storage. The default `No` option skips this collection.
+
+When enabled, AndroidQF streams each database and any present `-wal` and `-shm`
+sidecars directly to host-side staging before adding them under
+`browser_history/` in the acquisition. A `browser_history/manifest.json` file
+records the browser, package, profile, original device path, and archive path.
+The currently supported packages are Chrome, Brave, Microsoft Edge, and
+Samsung Internet.
+
 ### Unattended acquisitions
 
 Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
@@ -226,11 +240,12 @@ Every prompt can be answered ahead of time with a command-line flag. A flag that
 | `-remove-trusted` / `-r` | `yes`, `no` | [Removing apps signed with a trusted certificate](#removing-apps-signed-with-a-trusted-certificate), ignored with `-download none` |
 | `-intrusion-logs` / `-i` | `yes`, `no` | [Intrusion Logs](#intrusion-logs) |
 | `-hash-files` / `-H` | `yes`, `no` | [Hashing files on the device](#hashing-files-on-the-device) |
+| `-browser-history` | `yes`, `no` | [Browser history](#browser-history) |
 
 With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
 
 ```bash
-androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -non-interactive
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -non-interactive
 ```
 
 > [!NOTE]

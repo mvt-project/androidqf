@@ -27,6 +27,7 @@ func List() []Module {
 		NewServices(),
 		NewBugreport(),
 		NewFiles(),
+		NewBrowserHistory(),
 		NewSettings(),
 		NewSELinux(),
 		NewEnvironment(),

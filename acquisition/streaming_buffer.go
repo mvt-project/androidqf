@@ -166,6 +166,17 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 // PullToWriter pulls a file from device and streams it directly to a writer
 func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) error {
+	return sp.pullToWriter(remotePath, writer, false)
+}
+
+// PullRootToWriter pulls a file that is only readable as root and streams it
+// directly to a writer. It requires an already-functional su binary and never
+// attempts to alter the device's root state.
+func (sp *StreamingPuller) PullRootToWriter(remotePath string, writer io.Writer) error {
+	return sp.pullToWriter(remotePath, writer, true)
+}
+
+func (sp *StreamingPuller) pullToWriter(remotePath string, writer io.Writer, root bool) error {
 	if remotePath == "" {
 		return fmt.Errorf("remote path cannot be empty")
 	}
@@ -174,6 +185,9 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 	}
 
 	args := []string{"exec-out", "cat", remotePath}
+	if root {
+		args = []string{"exec-out", "su", "-c", "cat -- " + shellQuote(remotePath)}
+	}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
@@ -189,16 +203,34 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 	return nil
 }
 
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 // PullToTempFile pulls a file from the device into a temporary file and
 // returns its path. The caller is responsible for removing the file.
 func (sp *StreamingPuller) PullToTempFile(remotePath string) (string, error) {
+	return sp.pullToTempFile(remotePath, false)
+}
+
+// PullRootToTempFile stages a root-readable device file in a host temporary
+// file. The caller is responsible for removing the returned path.
+func (sp *StreamingPuller) PullRootToTempFile(remotePath string) (string, error) {
+	return sp.pullToTempFile(remotePath, true)
+}
+
+func (sp *StreamingPuller) pullToTempFile(remotePath string, root bool) (string, error) {
 	tempFile, err := os.CreateTemp("", "androidqf-pull-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	tempPath := tempFile.Name()
 
-	if err := sp.PullToWriter(remotePath, tempFile); err != nil {
+	pull := sp.PullToWriter
+	if root {
+		pull = sp.PullRootToWriter
+	}
+	if err := pull(remotePath, tempFile); err != nil {
 		_ = tempFile.Close()
 		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to pull to temporary file: %w", err)
@@ -220,6 +252,17 @@ func (sp *StreamingPuller) PullToEncryptedTempFile(remotePath string) (*Encrypte
 	}
 	return createEncryptedTempFile(func(writer io.Writer) error {
 		return sp.PullToWriter(remotePath, writer)
+	})
+}
+
+// PullRootToEncryptedTempFile stages a root-readable device file encrypted on
+// the host. Plaintext is never written to host storage.
+func (sp *StreamingPuller) PullRootToEncryptedTempFile(remotePath string) (*EncryptedTempFile, error) {
+	if remotePath == "" {
+		return nil, fmt.Errorf("remote path cannot be empty")
+	}
+	return createEncryptedTempFile(func(writer io.Writer) error {
+		return sp.PullRootToWriter(remotePath, writer)
 	})
 }
 

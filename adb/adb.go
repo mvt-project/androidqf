@@ -190,6 +190,38 @@ func (a *ADB) Shell(cmd ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// RootShell executes a command through an already-functional su binary. It
+// does not attempt to enable or install root access.
+func (a *ADB) RootShell(command string) (string, error) {
+	if strings.TrimSpace(command) == "" {
+		return "", fmt.Errorf("root shell command cannot be empty")
+	}
+	return a.Shell("su", "-c", command)
+}
+
+// HasRoot reports whether su can execute commands as UID 0.
+func (a *ADB) HasRoot() bool {
+	out, err := a.RootShell("id -u")
+	return err == nil && strings.TrimSpace(out) == "0"
+}
+
+// FileExistsAsRoot checks a fixed device path without exposing it to shell
+// expansion.
+func (a *ADB) FileExistsAsRoot(devicePath string) (bool, error) {
+	if devicePath == "" {
+		return false, fmt.Errorf("device path cannot be empty")
+	}
+	out, err := a.RootShell("if [ -f " + shellQuote(devicePath) + " ]; then printf 1; else printf 0; fi")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "1", nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 // Pull downloads a file from the device to a local path.
 func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 	out, err := a.Exec("pull", remotePath, localPath)
