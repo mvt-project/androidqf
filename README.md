@@ -118,6 +118,7 @@ The following data can be extracted:
 | A list of all packages installed and related distribution files. | |  `packages.json` |
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
+| Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
 | A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
@@ -233,6 +234,20 @@ records the browser, package, profile, original device path, and archive path.
 The currently supported packages are Chrome, Brave, Microsoft Edge, and
 Samsung Internet.
 
+### Magisk modules
+
+AndroidQF can optionally collect metadata for modules installed under
+`/data/adb/modules` when the device already provides working root access
+through `su`. AndroidQF does not attempt to root the device. The default `No`
+option skips this collection.
+
+When enabled, AndroidQF records each module directory and the presence of the
+Magisk `disable`, `remove`, and `update` state files. It also streams each
+available `module.prop` directly to host-side staging before adding it under
+`magisk_modules/` in the acquisition. The accompanying manifest records
+whether property and state collection completed, so an unavailable artifact is
+not silently treated as an enabled module.
+
 ### Unattended acquisitions
 
 Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
@@ -245,11 +260,12 @@ Every prompt can be answered ahead of time with a command-line flag. A flag that
 | `-intrusion-logs` / `-i` | `yes`, `no` | [Intrusion Logs](#intrusion-logs) |
 | `-hash-files` / `-H` | `yes`, `no` | [Hashing files on the device](#hashing-files-on-the-device) |
 | `-browser-history` | `yes`, `no` | [Browser history](#browser-history) |
+| `-magisk-modules` | `yes`, `no` | [Magisk modules](#magisk-modules) |
 
 With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
 
 ```bash
-androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -non-interactive
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -magisk-modules no -non-interactive
 ```
 
 > [!NOTE]

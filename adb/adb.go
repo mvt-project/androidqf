@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -250,6 +251,26 @@ func (a *ADB) FileExistsAsRoot(devicePath string) (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(out) == "1", nil
+}
+
+// FileSizeAsRoot returns the size of a root-readable file without copying it.
+func (a *ADB) FileSizeAsRoot(devicePath string) (int64, error) {
+	if devicePath == "" {
+		return 0, fmt.Errorf("device path cannot be empty")
+	}
+	out, err := a.RootShell("wc -c < " + shellQuote(devicePath))
+	if err != nil {
+		return 0, err
+	}
+	size, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+	if err != nil || size < 0 {
+		return 0, fmt.Errorf("invalid file size %q", out)
+	}
+	return size, nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 // Pull downloads a file from the device to a local path.
