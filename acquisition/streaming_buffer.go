@@ -7,6 +7,7 @@ package acquisition
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/minio/sio"
 	"github.com/mvt-project/androidqf/adb"
@@ -77,6 +79,8 @@ type StreamingPuller struct {
 	adbPath string
 	serial  string
 	maxMem  int64
+	ctxMu   sync.RWMutex
+	ctx     context.Context
 }
 
 // EncryptedTempFile is a DARE-encrypted temporary file used to validate a
@@ -138,7 +142,28 @@ func NewStreamingPuller(adbPath, serial string, maxMemoryMB int) *StreamingPulle
 		adbPath: adbPath,
 		serial:  serial,
 		maxMem:  int64(maxMemoryMB) * 1024 * 1024,
+		ctx:     context.Background(),
 	}
+}
+
+// SetContext changes the context used by subsequent streaming ADB commands.
+func (sp *StreamingPuller) SetContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sp.ctxMu.Lock()
+	sp.ctx = ctx
+	sp.ctxMu.Unlock()
+}
+
+func (sp *StreamingPuller) command(args ...string) *exec.Cmd {
+	sp.ctxMu.RLock()
+	ctx := sp.ctx
+	sp.ctxMu.RUnlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return exec.CommandContext(ctx, sp.adbPath, args...)
 }
 
 // PullToBuffer pulls a file from device directly into memory buffer
@@ -154,7 +179,7 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -179,7 +204,7 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -293,7 +318,7 @@ func (sp *StreamingPuller) BackupToBuffer(arg string) (*StreamingBuffer, error) 
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -318,7 +343,7 @@ func (sp *StreamingPuller) BackupToWriter(arg string, writer io.Writer) error {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -347,7 +372,7 @@ func (sp *StreamingPuller) BugreportToBuffer() (*StreamingBuffer, error) {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
 
-	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd := sp.command(streamArgs...)
 	streamCmd.Stdout = buffer
 
 	err = streamCmd.Run()
@@ -378,7 +403,7 @@ func (sp *StreamingPuller) BugreportToWriter(writer io.Writer) error {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
 
-	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd := sp.command(streamArgs...)
 	streamCmd.Stdout = writer
 
 	err = streamCmd.Run()
@@ -396,7 +421,7 @@ func (sp *StreamingPuller) generateBugreport() (string, error) {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate bugreport with bugreportz: %v", err)

@@ -115,7 +115,6 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 		if err != nil {
 			log.Warningf("Failed to collect files under %s: %v", folder, err)
 			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", folder, err))
-			continue
 		}
 		for _, s := range out {
 			if _, exists := fileFound[s.Path]; !exists {
@@ -126,5 +125,8 @@ func (f *Files) Run(acq *acquisition.Acquisition, opts *Options) error {
 	}
 
 	saveErr := saveDataToAcquisition(acq, "files.json", &fileDetails)
-	return errors.Join(collectionErr, saveErr)
+	if saveErr != nil {
+		return errors.Join(collectionErr, saveErr)
+	}
+	return partialCollectionError(collectionErr)
 }

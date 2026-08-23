@@ -55,10 +55,11 @@ print the acquisition-success message for an archive that could not be
 finalized.
 
 `acquisition.json` includes a `module_results` list with the status, start and
-completion timestamps, and any error for each selected module. If a module
-fails, androidqf still finalizes the partial archive so successfully collected
-evidence remains available, but exits unsuccessfully and clearly reports that
-the acquisition contains failed modules.
+completion timestamps, and any error for each selected module. Status is
+`completed`, `partial` when some requested evidence could not be collected, or
+`failed`. If a module is partial or fails, androidqf still finalizes the archive
+so successfully collected evidence remains available, but exits unsuccessfully
+and clearly reports that the acquisition contains incomplete modules.
 
 ## Encrypted acquisitions
 

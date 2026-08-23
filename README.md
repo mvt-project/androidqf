@@ -126,7 +126,8 @@ Every acquisition also contains `acquisition.json`, `command.log` when log outpu
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
 transfers are not committed as archive entries. `acquisition.json` records the
-status, timing, and error (if any) for every module that ran. A finalized
+status (`completed`, `partial`, or `failed`), timing, and error (if any) for
+every module that ran. A finalized
 partial acquisition exits unsuccessfully instead of printing the normal
 completion message. See [Acquisition
 archives](docs/acquisition-archives.md) for details.

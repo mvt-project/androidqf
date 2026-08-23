@@ -1,10 +1,13 @@
 package adb
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -35,8 +38,68 @@ func fakeADB() {
 		}
 	case "pubkey":
 		fmt.Println(os.Getenv("ANDROIDQF_FAKE_ADB_PUBLIC_KEY"))
+	case "wait":
+		_ = os.WriteFile(os.Getenv("ANDROIDQF_FAKE_ADB_MARKER"), []byte("started"), 0o600)
+		select {}
+	case "shell":
+		if os.Getenv("ANDROIDQF_FAKE_ADB_REQUIRE_TYPE_FILE") == "1" && !strings.Contains(strings.Join(os.Args[2:], " "), "-type f") {
+			os.Exit(2)
+		}
+		fmt.Print(os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_OUTPUT"))
+		if os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL") == "1" {
+			os.Exit(1)
+		}
 	default:
 		os.Exit(2)
+	}
+}
+
+func TestExecCancelsActiveADBCommand(t *testing.T) {
+	client := newFakeADB(t, "")
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("ANDROIDQF_FAKE_ADB_MARKER", marker)
+	ctx, cancel := context.WithCancel(context.Background())
+	client.SetContext(ctx)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.Exec("wait")
+		done <- err
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("fake adb did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Exec() error = nil after cancellation")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Exec() did not stop after cancellation")
+	}
+}
+
+func TestListFilesReturnsPartialOutputAndError(t *testing.T) {
+	client := newFakeADB(t, "")
+	t.Setenv("ANDROIDQF_FAKE_ADB_REQUIRE_TYPE_FILE", "1")
+	t.Setenv("ANDROIDQF_FAKE_ADB_SHELL_OUTPUT", "/sdcard/one\n/sdcard/two\n")
+	t.Setenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL", "1")
+
+	files, err := client.ListFiles("/sdcard", true)
+	if err == nil {
+		t.Fatal("ListFiles() error = nil")
+	}
+	if len(files) != 2 || files[0] != "/sdcard/one" || files[1] != "/sdcard/two" {
+		t.Fatalf("ListFiles() files = %v", files)
 	}
 }
 

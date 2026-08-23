@@ -1,9 +1,22 @@
 package modules
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestPartialCollectionError(t *testing.T) {
+	want := errors.New("missing evidence")
+	err := partialCollectionError(want)
+	if !errors.Is(err, ErrPartialCollection) {
+		t.Fatalf("partialCollectionError() = %v, want ErrPartialCollection", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), want.Error()) {
+		t.Fatalf("partialCollectionError() = %v, want original detail", err)
+	}
+}
 
 func TestParseOptions(t *testing.T) {
 	tests := []struct {
@@ -91,6 +104,26 @@ func TestResolveOptionInteractivePrompts(t *testing.T) {
 	}
 	if got != backupOnlySMS {
 		t.Fatalf("got %q, want %q", got, backupOnlySMS)
+	}
+}
+
+func TestResolveOptionStopsWaitingWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		<-started
+		cancel()
+	}()
+
+	_, err := resolveOption(&Options{Context: ctx}, "", "-backup", func() (string, error) {
+		close(started)
+		<-release
+		return backupOnlySMS, nil
+	})
+	close(release)
+	if !errors.Is(err, ErrAcquisitionInterrupted) {
+		t.Fatalf("resolveOption() error = %v, want ErrAcquisitionInterrupted", err)
 	}
 }
 

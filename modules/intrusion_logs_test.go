@@ -28,3 +28,13 @@ func TestWaitForNewFilesPropagatesTermination(t *testing.T) {
 		t.Fatalf("waitForNewFiles() error = %v, want ErrAcquisitionInterrupted", err)
 	}
 }
+
+func TestWaitForNewFilesPropagatesContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := NewIL().waitForNewFiles(ctx, nil, "/unused", nil, time.Hour, time.Hour)
+	if !errors.Is(err, ErrAcquisitionInterrupted) {
+		t.Fatalf("waitForNewFiles() error = %v, want ErrAcquisitionInterrupted", err)
+	}
+}

@@ -80,7 +80,7 @@ darwin:
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_DARWIN)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_darwin
 
 	@echo "[builder] Building Darwin binary for amd64"
 
@@ -96,7 +96,7 @@ linux:
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_LINUX)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_linux
 
 	@echo "[builder] Building Linux binary for amd64"
 
@@ -118,7 +118,13 @@ download:
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
 	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_DARWIN)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_darwin
+
+	@./scripts/download_platform_tools.sh linux
+
+	@rm -rf $(PLATFORMTOOLS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_LINUX)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_linux
 
 all: collector windows darwin linux
 

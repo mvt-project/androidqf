@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -138,11 +139,109 @@ func waitForConnectionRetry(signals <-chan os.Signal, delay time.Duration) os.Si
 }
 
 func abortBeforeAcquisition(received os.Signal) {
+	cleanupBeforeAcquisition()
+	message := "Interrupted before acquisition started."
+	if received != nil {
+		message = fmt.Sprintf("Interrupted before acquisition started: %s", received)
+	}
+	log.Fatal(message)
+}
+
+func cleanupBeforeAcquisition() {
 	if adb.Client != nil {
 		_, _ = adb.Client.KillServer()
 	}
 	_ = assets.CleanAssets()
-	log.Fatal("Interrupted before acquisition started: ", received)
+}
+
+func fatalBeforeAcquisition(v ...any) {
+	cleanupBeforeAcquisition()
+	log.Fatal(v...)
+}
+
+func pendingSignal(signals <-chan os.Signal) os.Signal {
+	select {
+	case received := <-signals:
+		return received
+	default:
+		return nil
+	}
+}
+
+func runModule(mod modules.Module, acq *acquisition.Acquisition, opts *modules.Options, signals <-chan os.Signal) (error, bool) {
+	if mod == nil {
+		return fmt.Errorf("module cannot be nil"), false
+	}
+	if opts == nil {
+		return fmt.Errorf("module options cannot be nil"), false
+	}
+
+	moduleCtx, cancel := context.WithCancel(context.Background())
+	moduleSignals := make(chan os.Signal, 1)
+	opts.Context = moduleCtx
+	opts.Signals = moduleSignals
+	if adb.Client != nil {
+		adb.Client.SetContext(moduleCtx)
+	}
+	if acq != nil && acq.StreamingPuller != nil {
+		acq.StreamingPuller.SetContext(moduleCtx)
+	}
+	defer func() {
+		cancel()
+		opts.Context = nil
+		opts.Signals = nil
+		if adb.Client != nil {
+			adb.Client.SetContext(context.Background())
+		}
+		if acq != nil && acq.StreamingPuller != nil {
+			acq.StreamingPuller.SetContext(context.Background())
+		}
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- mod.Run(acq, opts)
+	}()
+
+	intrusionWaitSkipped := false
+	for {
+		select {
+		case err := <-done:
+			return err, false
+		case received, ok := <-signals:
+			if !ok {
+				signals = nil
+				continue
+			}
+			if received == nil {
+				continue
+			}
+			if received == os.Interrupt && mod.Name() == modules.NewIL().Name() && !intrusionWaitSkipped {
+				moduleSignals <- received
+				intrusionWaitSkipped = true
+				continue
+			}
+
+			log.Warningf("Received %s; canceling module %s before finalizing the partial acquisition.", received, mod.Name())
+			cancel()
+			moduleErr := <-done
+			interruptErr := fmt.Errorf("%w: received %s", modules.ErrAcquisitionInterrupted, received)
+			return errors.Join(moduleErr, interruptErr), true
+		}
+	}
+}
+
+func moduleResultStatus(err error) string {
+	if err == nil {
+		return "completed"
+	}
+	if errors.Is(err, modules.ErrAcquisitionInterrupted) {
+		return "failed"
+	}
+	if errors.Is(err, modules.ErrPartialCollection) {
+		return "partial"
+	}
+	return "failed"
 }
 
 func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, moduleFilter string) (*modules.Options, error) {
@@ -252,11 +351,15 @@ func main() {
 	signals := make(chan os.Signal, 2)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signals)
-	opts.Signals = signals
+	setupCtx, stopSetupSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSetupSignals()
 
 	log.Debug("Starting androidqf")
-	adb.Client, err = adb.New()
+	adb.Client, err = adb.NewWithContext(setupCtx)
 	if err != nil {
+		if setupCtx.Err() != nil {
+			abortBeforeAcquisition(pendingSignal(signals))
+		}
 		log.Fatal("Impossible to initialize ADB: ", err)
 	}
 
@@ -286,14 +389,14 @@ func main() {
 			devices, err := adb.Client.DeviceInfos()
 			if err != nil {
 				if nonInteractive {
-					log.Fatal("Error listing ADB devices: ", err)
+					fatalBeforeAcquisition("Error listing ADB devices: ", err)
 				}
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
 			} else {
 				serial, _, err = resolveADBSerial(serial, devices, selectDevice, activeRunningExtractionsBySerial())
 				if err != nil {
 					if nonInteractive {
-						log.Fatal("Error selecting ADB device: ", err)
+						fatalBeforeAcquisition("Error selecting ADB device: ", err)
 					}
 					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
 					if received := waitForConnectionRetry(signals, 5*time.Second); received != nil {
@@ -307,7 +410,7 @@ func main() {
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
 			if nonInteractive {
-				log.Fatal("Error trying to connect over ADB: ", err)
+				fatalBeforeAcquisition("Error trying to connect over ADB: ", err)
 			}
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
 			if !specificDeviceRequested {
@@ -320,7 +423,7 @@ func main() {
 			}
 			log.Debug(err)
 			if nonInteractive {
-				log.Fatal("Unable to get device state: ", err)
+				fatalBeforeAcquisition("Unable to get device state: ", err)
 			}
 			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 			if !specificDeviceRequested {
@@ -332,11 +435,20 @@ func main() {
 		}
 	}
 
+	if setupCtx.Err() != nil {
+		abortBeforeAcquisition(pendingSignal(signals))
+	}
 	acq, err := acquisition.New(output_folder)
 	if err != nil {
+		if setupCtx.Err() != nil {
+			abortBeforeAcquisition(pendingSignal(signals))
+		}
 		log.Debug(err)
 		log.FatalExc("Impossible to initialise the acquisition", err)
 	}
+	stopSetupSignals()
+	adb.Client.SetContext(context.Background())
+	acq.StreamingPuller.SetContext(context.Background())
 
 	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, acq.StoragePath)
 	if err != nil {
@@ -354,7 +466,7 @@ func main() {
 	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
 	mods := modules.List()
-	failedModules := 0
+	incompleteModules := 0
 	interrupted := false
 	select {
 	case received := <-signals:
@@ -369,32 +481,31 @@ func main() {
 		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
 		}
+		select {
+		case received := <-signals:
+			log.Warningf("Received %s; finalizing before module %s.", received, mod.Name())
+			interrupted = true
+			continue
+		default:
+		}
 
 		moduleStarted := time.Now().UTC()
-		err = mod.Run(acq, opts)
+		err, interrupted = runModule(mod, acq, opts, signals)
 		result := acquisition.ModuleResult{
 			Name:      mod.Name(),
-			Status:    "completed",
+			Status:    moduleResultStatus(err),
 			Started:   moduleStarted,
 			Completed: time.Now().UTC(),
 		}
 		if err != nil {
-			result.Status = "failed"
 			result.Error = err.Error()
-			failedModules++
-			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
+			incompleteModules++
+			log.Infof("ERROR: module %s completed with status %s: %v", mod.Name(), result.Status, err)
 		}
 		acq.ModuleResults = append(acq.ModuleResults, result)
 
 		if errors.Is(err, modules.ErrAcquisitionInterrupted) {
 			interrupted = true
-		} else {
-			select {
-			case received := <-signals:
-				log.Warningf("Received %s; stopping after module %s and finalizing the partial acquisition.", received, mod.Name())
-				interrupted = true
-			default:
-			}
 		}
 		if interrupted {
 			break
@@ -412,12 +523,13 @@ func main() {
 	if interrupted {
 		log.Fatal("Acquisition was interrupted and finalized as partial.")
 	}
-	if failedModules > 0 {
-		log.Fatalf("Acquisition finalized with %d failed module(s). Review acquisition.json and command.log for details.", failedModules)
+	if incompleteModules > 0 {
+		log.Fatalf("Acquisition finalized with %d incomplete module(s). Review acquisition.json and command.log for details.", incompleteModules)
 	}
 	log.Info("Acquisition completed.")
 
 	if !nonInteractive {
+		signal.Stop(signals)
 		systemPause()
 	}
 }
