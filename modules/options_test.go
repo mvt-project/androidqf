@@ -34,6 +34,9 @@ func TestParseOptions(t *testing.T) {
 		{"browser-history yes", ParseBrowserHistoryOption, "yes", acquireBrowserHistory, ""},
 		{"browser-history no", ParseBrowserHistoryOption, "no", skipBrowserHistory, ""},
 		{"browser-history invalid", ParseBrowserHistoryOption, "maybe", "", "invalid -browser-history value"},
+		{"magisk-modules yes", ParseMagiskModulesOption, "yes", acquireMagiskModules, ""},
+		{"magisk-modules no", ParseMagiskModulesOption, "no", skipMagiskModules, ""},
+		{"magisk-modules invalid", ParseMagiskModulesOption, "maybe", "", "invalid -magisk-modules value"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -130,7 +133,7 @@ func TestValidateNonInteractive(t *testing.T) {
 			"nothing set",
 			&Options{NonInteractive: true},
 			"",
-			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules"},
 			[]string{"-remove-trusted"},
 		},
 		{
@@ -142,7 +145,7 @@ func TestValidateNonInteractive(t *testing.T) {
 		},
 		{
 			"download none skips remove-trusted",
-			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes, BrowserHistory: skipBrowserHistory},
+			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes, BrowserHistory: skipBrowserHistory, MagiskModules: skipMagiskModules},
 			"",
 			nil,
 			nil,
@@ -152,14 +155,14 @@ func TestValidateNonInteractive(t *testing.T) {
 			&Options{NonInteractive: true},
 			"backup",
 			[]string{"-backup"},
-			[]string{"-download", "-intrusion-logs", "-hash-files", "-browser-history"},
+			[]string{"-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules"},
 		},
 		{
 			"files module requires hash choice",
 			&Options{NonInteractive: true},
 			"files",
 			[]string{"-hash-files"},
-			[]string{"-backup", "-download", "-intrusion-logs", "-browser-history"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-browser-history", "-magisk-modules"},
 		},
 		{
 			"files module accepts hash choice",
@@ -173,11 +176,18 @@ func TestValidateNonInteractive(t *testing.T) {
 			&Options{NonInteractive: true},
 			"browser_history",
 			[]string{"-browser-history"},
-			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-magisk-modules"},
+		},
+		{
+			"magisk modules module requires choice",
+			&Options{NonInteractive: true},
+			"magisk_modules",
+			[]string{"-magisk-modules"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history"},
 		},
 		{
 			"all set",
-			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles, BrowserHistory: acquireBrowserHistory},
+			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles, BrowserHistory: acquireBrowserHistory, MagiskModules: acquireMagiskModules},
 			"",
 			nil,
 			nil,

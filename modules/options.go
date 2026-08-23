@@ -22,6 +22,7 @@ type Options struct {
 	IntrusionLogs  string
 	HashFiles      string
 	BrowserHistory string
+	MagiskModules  string
 }
 
 func ModuleEnabled(name, filter string) bool {
@@ -65,6 +66,9 @@ func ValidateNonInteractive(opts *Options, moduleFilter string) error {
 	}
 	if ModuleEnabled(NewBrowserHistory().Name(), moduleFilter) && opts.BrowserHistory == "" {
 		missing = append(missing, "-browser-history (yes, no)")
+	}
+	if ModuleEnabled(NewMagiskModules().Name(), moduleFilter) && opts.MagiskModules == "" {
+		missing = append(missing, "-magisk-modules (yes, no)")
 	}
 
 	if len(missing) == 0 {

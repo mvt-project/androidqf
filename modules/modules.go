@@ -28,6 +28,7 @@ func List() []Module {
 		NewBugreport(),
 		NewFiles(),
 		NewBrowserHistory(),
+		NewMagiskModules(),
 		NewSettings(),
 		NewSELinux(),
 		NewEnvironment(),
