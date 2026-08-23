@@ -25,11 +25,12 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 
 	started := time.Now().UTC()
 	acq := &Acquisition{
-		UUID:          "test-acquisition",
-		StoragePath:   zipWriter.GetOutputPath(),
-		Started:       started,
-		ZipWriter:     zipWriter,
-		StreamingMode: true,
+		UUID:             "test-acquisition",
+		ADBHostPublicKey: "AAAA-test-adb-public-key user@host",
+		StoragePath:      zipWriter.GetOutputPath(),
+		Started:          started,
+		ZipWriter:        zipWriter,
+		StreamingMode:    true,
 		ModuleResults: []ModuleResult{{
 			Name:      "files",
 			Status:    "failed",
@@ -52,6 +53,9 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 	if files["command.log"] != "logged command\n" {
 		t.Fatalf("command.log = %q", files["command.log"])
 	}
+	if files["adb_host_key.pub"] != "AAAA-test-adb-public-key user@host\n" {
+		t.Fatalf("adb_host_key.pub = %q", files["adb_host_key.pub"])
+	}
 	if _, ok := files["hashes.csv"]; !ok {
 		t.Fatal("hashes.csv missing from archive")
 	}
@@ -65,6 +69,9 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 	}
 	if len(stored.ModuleResults) != 1 || stored.ModuleResults[0].Status != "failed" || stored.ModuleResults[0].Error != "partial collection" {
 		t.Fatalf("module results = %+v", stored.ModuleResults)
+	}
+	if stored.ADBHostPublicKey != acq.ADBHostPublicKey {
+		t.Fatalf("acquisition.json ADB host public key = %q, want %q", stored.ADBHostPublicKey, acq.ADBHostPublicKey)
 	}
 }
 

@@ -28,6 +28,7 @@ const streamingPullerMemoryLimitMB = 500
 type Acquisition struct {
 	UUID             string              `json:"uuid"`
 	AndroidQFVersion string              `json:"androidqf_version"`
+	ADBHostPublicKey string              `json:"adb_host_public_key,omitempty"`
 	StoragePath      string              `json:"storage_path"`
 	Started          time.Time           `json:"started"`
 	Completed        time.Time           `json:"completed"`
@@ -58,6 +59,11 @@ func New(path string) (*Acquisition, error) {
 		Started:          time.Now().UTC(),
 		AndroidQFVersion: utils.Version,
 		StreamingMode:    true,
+	}
+	if hostKey, err := adb.Client.HostPublicKey(); err != nil {
+		log.Warningf("Unable to record ADB host public key: %v", err)
+	} else {
+		acq.ADBHostPublicKey = hostKey
 	}
 
 	// Get system information first to get tmp folder
@@ -118,6 +124,14 @@ func (a *Acquisition) Complete() error {
 	}
 
 	if a.ZipWriter != nil {
+		if a.ADBHostPublicKey != "" {
+			err := a.ZipWriter.CreateFileFromString("adb_host_key.pub", a.ADBHostPublicKey+"\n")
+			if err != nil {
+				log.ErrorExc("Failed to store ADB host public key in archive", err)
+				completionErr = errors.Join(completionErr, fmt.Errorf("failed to store ADB host public key: %w", err))
+			}
+		}
+
 		// Store acquisition info in the zip
 		info, err := json.MarshalIndent(a, "", " ")
 		if err != nil {
