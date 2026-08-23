@@ -5,10 +5,12 @@ set -eu
 download_dir=${ANDROIDQF_PLATFORM_TOOLS_DOWNLOAD_DIR:-/tmp/platform-tools-downloads}
 platform=${1:-all}
 base_url=https://dl.google.com/android/repository
+platform_tools_version=37.0.1
 
 download() {
     platform_name=$1
-    expected_hash=$2
+    archive_platform_name=$2
+    expected_hash=$3
     archive="$download_dir/platform-tools-latest-$platform_name.zip"
 
     umask 077
@@ -22,7 +24,7 @@ download() {
     temporary=$(mktemp "$archive.XXXXXX")
     trap 'rm -f "$temporary"' EXIT HUP INT TERM
     curl --fail --location --silent --show-error \
-        "$base_url/platform-tools-latest-$platform_name.zip" \
+        "$base_url/platform-tools_r$platform_tools_version-$archive_platform_name.zip" \
         --output "$temporary"
     printf '%s  %s\n' "$expected_hash" "$temporary" | sha256sum -c -
     mv "$temporary" "$archive"
@@ -32,13 +34,13 @@ download() {
 
 case "$platform" in
     windows)
-        download windows 4fe305812db074cea32903a489d061eb4454cbc90a49e8fea677f4b7af764918
+        download windows win 45f4d63113e895ebde0c90f194099a4676b6ac653bd28d54314a9e022bbc1a99
         ;;
     darwin)
-        download darwin 094a1395683c509fd4d48667da0d8b5ef4d42b2abfcd29f2e8149e2f989357c7
+        download darwin darwin ee39ad5967e95c2a07f04dbcbde96b1a0c916ba376096db5d2f498b7727a5d1d
         ;;
     linux)
-        download linux 198ae156ab285fa555987219af237b31102fefe8b9d2bc274708a8d4f2865a07
+        download linux linux d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1
         ;;
     all)
         "$0" windows
