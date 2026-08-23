@@ -8,7 +8,6 @@ package adb
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -36,7 +35,7 @@ func (a *ADB) hostPublicKey(privateKeyPath string) (string, error) {
 
 	// ADB normally creates adbkey.pub alongside adbkey. Derive it from the
 	// private key if the public file is missing, without exposing private data.
-	publicKey, err = exec.Command(a.ExePath, "pubkey", privateKeyPath).Output()
+	publicKey, err = a.command("pubkey", privateKeyPath).Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to derive ADB host public key: %w", err)
 	}

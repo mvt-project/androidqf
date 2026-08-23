@@ -1,9 +1,22 @@
 package modules
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 )
+
+func TestPartialCollectionError(t *testing.T) {
+	want := errors.New("missing evidence")
+	err := partialCollectionError(want)
+	if !errors.Is(err, ErrPartialCollection) {
+		t.Fatalf("partialCollectionError() = %v, want ErrPartialCollection", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), want.Error()) {
+		t.Fatalf("partialCollectionError() = %v, want original detail", err)
+	}
+}
 
 func TestParseOptions(t *testing.T) {
 	tests := []struct {
@@ -94,6 +107,26 @@ func TestResolveOptionInteractivePrompts(t *testing.T) {
 	}
 }
 
+func TestResolveOptionStopsWaitingWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		<-started
+		cancel()
+	}()
+
+	_, err := resolveOption(&Options{Context: ctx}, "", "-backup", func() (string, error) {
+		close(started)
+		<-release
+		return backupOnlySMS, nil
+	})
+	close(release)
+	if !errors.Is(err, ErrAcquisitionInterrupted) {
+		t.Fatalf("resolveOption() error = %v, want ErrAcquisitionInterrupted", err)
+	}
+}
+
 func TestModuleEnabled(t *testing.T) {
 	if !ModuleEnabled("backup", "") {
 		t.Fatal("empty filter should enable every module")
@@ -115,7 +148,13 @@ func TestValidateNonInteractive(t *testing.T) {
 		wantMissing []string
 	}{
 		{"interactive", &Options{}, "", nil, nil},
-		{"interactive ignores unknown module", &Options{}, "typo", nil, nil},
+		{
+			"interactive rejects unknown module",
+			&Options{},
+			"typo",
+			[]string{"unknown -module value"},
+			nil,
+		},
 		{
 			"unknown module filter",
 			&Options{NonInteractive: true},

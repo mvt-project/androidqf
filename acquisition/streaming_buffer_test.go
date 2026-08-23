@@ -3,6 +3,7 @@ package acquisition
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStreamingBufferMemoryLimitError(t *testing.T) {
@@ -45,6 +47,53 @@ func TestPullToBufferPreservesMemoryLimitError(t *testing.T) {
 	_, err := puller.PullToBuffer("/data/app/large.apk")
 	if !errors.Is(err, ErrStreamingBufferMemoryLimit) {
 		t.Fatalf("PullToBuffer() error = %v, want ErrStreamingBufferMemoryLimit", err)
+	}
+}
+
+func TestPullToWriterCancelsActiveADBCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell script as a fake adb executable")
+	}
+
+	fakeADB := filepath.Join(t.TempDir(), "adb")
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("ANDROIDQF_FAKE_ADB_MARKER", marker)
+	if err := os.WriteFile(fakeADB, []byte("#!/bin/sh\n: > \"$ANDROIDQF_FAKE_ADB_MARKER\"\nexec sleep 3600\n"), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake adb) error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	puller := NewStreamingPuller(fakeADB, "", 1)
+	puller.SetContext(ctx)
+	writer := new(bytes.Buffer)
+	done := make(chan error, 1)
+	go func() {
+		done <- puller.PullToWriter("/data/local/tmp/file", writer)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("fake adb stopped before cancellation: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("fake adb did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("PullToWriter() error = nil after cancellation")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("PullToWriter() did not stop after cancellation")
 	}
 }
 

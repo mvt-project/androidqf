@@ -38,7 +38,6 @@ func (l *Logs) Run(acq *acquisition.Acquisition, opts *Options) error {
 		files, err := adb.Client.ListFiles(logFolder, true)
 		if err != nil {
 			log.Debugf("Impossible to get files from %s", logFolder)
-			continue
 		}
 		if len(files) == 0 {
 			continue

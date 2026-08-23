@@ -112,6 +112,7 @@ func ParseRemoveTrustedOption(value string) (string, error) {
 
 func (p *Packages) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting information on installed apps. This might take a while...")
+	var collectionErr error
 
 	packages, err := adb.Client.GetPackages(opts.Fast)
 	if err != nil {
@@ -171,13 +172,18 @@ func (p *Packages) Run(acq *acquisition.Acquisition, opts *Options) error {
 
 				if err := p.processAPKStreaming(packages[ip].Name, packageFile, keepOption, acq, usedZipPaths); err != nil {
 					log.Debugf("ERROR: failed to process APK %s: %v", packageFile.Path, err)
+					collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", packageFile.Path, err))
 					continue
 				}
 			}
 		}
 	}
 
-	return saveDataToAcquisition(acq, "packages.json", &packages)
+	saveErr := saveDataToAcquisition(acq, "packages.json", &packages)
+	if saveErr != nil {
+		return errors.Join(collectionErr, saveErr)
+	}
+	return partialCollectionError(collectionErr)
 }
 
 func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.PackageFile, keepOption string, acq *acquisition.Acquisition, usedZipPaths map[string]struct{}) error {
@@ -185,7 +191,7 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 	if err != nil {
 		log.Errorf("Skipping APK with unsafe path %q: %v", packageFile.Path, err)
 		packageFile.Error = err.Error()
-		return nil
+		return err
 	}
 
 	buffer, err := acq.StreamingPuller.PullToBuffer(packageFile.Path)

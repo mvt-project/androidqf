@@ -40,7 +40,16 @@ type Acquisition struct {
 	ZipWriter        *StreamingZipWriter `json:"-"`
 	StreamingMode    bool                `json:"streaming_mode"`
 	StreamingPuller  *StreamingPuller    `json:"-"`
+	ModuleResults    []ModuleResult      `json:"module_results"`
 	logBuffer        *bytes.Buffer       `json:"-"`
+}
+
+type ModuleResult struct {
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	Error     string    `json:"error,omitempty"`
+	Started   time.Time `json:"started"`
+	Completed time.Time `json:"completed"`
 }
 
 // New returns a new Acquisition instance.
@@ -60,6 +69,7 @@ func New(path string) (*Acquisition, error) {
 	// Get system information first to get tmp folder
 	err := acq.GetSystemInformation()
 	if err != nil {
+		acq.cleanupRuntime()
 		return nil, err
 	}
 
@@ -72,6 +82,7 @@ func New(path string) (*Acquisition, error) {
 
 	zipWriter, err := NewStreamingZipWriter(acq.UUID, path)
 	if err != nil {
+		acq.cleanupRuntime()
 		return nil, err
 	}
 	acq.ZipWriter = zipWriter
@@ -85,11 +96,24 @@ func New(path string) (*Acquisition, error) {
 
 	closeLog, err := log.EnableWriterLog(log.DEBUG, acq.logBuffer)
 	if err != nil {
+		_ = zipWriter.Close()
+		_ = os.Remove(zipWriter.GetOutputPath())
+		acq.cleanupRuntime()
 		return nil, fmt.Errorf("failed to enable writer logging: %v", err)
 	}
 	acq.closeLog = closeLog
 
 	return &acq, nil
+}
+
+func (a *Acquisition) cleanupRuntime() {
+	if a.Collector != nil {
+		_ = a.Collector.Clean()
+	}
+	if adb.Client != nil {
+		_, _ = adb.Client.KillServer()
+	}
+	_ = assets.CleanAssets()
 }
 
 func (a *Acquisition) Complete() error {
@@ -154,15 +178,7 @@ func (a *Acquisition) Complete() error {
 		}
 	}
 
-	if a.Collector != nil {
-		a.Collector.Clean()
-	}
-
-	// Stop ADB server before trying to remove extracted assets
-	if adb.Client != nil {
-		adb.Client.KillServer()
-	}
-	assets.CleanAssets()
+	a.cleanupRuntime()
 
 	return completionErr
 }
@@ -175,8 +191,20 @@ func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
 		return err
 	}
 
+	return a.stageStreamToZip(zipPath, func(writer io.Writer) error {
+		return a.StreamingPuller.PullToWriter(remotePath, writer)
+	})
+}
+
+// stageStreamToZip completes and validates a producer before creating its ZIP
+// entry. Encrypted acquisitions use authenticated encrypted temporary storage.
+func (a *Acquisition) stageStreamToZip(zipPath string, produce func(io.Writer) error) error {
+	if produce == nil {
+		return fmt.Errorf("stream producer cannot be nil")
+	}
+
 	if a.ZipWriter.IsEncrypted() {
-		staged, err := a.StreamingPuller.PullToEncryptedTempFile(remotePath)
+		staged, err := createEncryptedTempFile(produce)
 		if err != nil {
 			return err
 		}
@@ -190,11 +218,21 @@ func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
 		return a.ZipWriter.CreateFileFromReader(zipPath, reader)
 	}
 
-	tempPath, err := a.StreamingPuller.PullToTempFile(remotePath)
+	tempFile, err := os.CreateTemp("", "androidqf-stream-*")
 	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	if err := produce(tempFile); err != nil {
+		_ = tempFile.Close()
 		return err
 	}
-	defer os.Remove(tempPath)
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file: %w", err)
+	}
+
 	return a.ZipWriter.CreateFileFromPath(zipPath, tempPath)
 }
 
@@ -290,14 +328,9 @@ func (a *Acquisition) StreamBackupToZip(arg, zipPath string) error {
 		return fmt.Errorf("zip path cannot be empty")
 	}
 
-	// Create zip entry writer
-	writer, err := a.ZipWriter.CreateFile(zipPath)
-	if err != nil {
-		return fmt.Errorf("failed to create zip entry for backup: %v", err)
-	}
-
-	// Stream backup directly to zip
-	err = a.StreamingPuller.BackupToWriter(arg, writer)
+	err := a.stageStreamToZip(zipPath, func(writer io.Writer) error {
+		return a.StreamingPuller.BackupToWriter(arg, writer)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to stream backup %q to zip: %v", arg, err)
 	}
@@ -315,14 +348,7 @@ func (a *Acquisition) StreamBugreportToZip(zipPath string) error {
 		return fmt.Errorf("zip path cannot be empty")
 	}
 
-	// Create zip entry writer
-	writer, err := a.ZipWriter.CreateFile(zipPath)
-	if err != nil {
-		return fmt.Errorf("failed to create zip entry for bugreport: %v", err)
-	}
-
-	// Stream bugreport directly to zip
-	err = a.StreamingPuller.BugreportToWriter(writer)
+	err := a.stageStreamToZip(zipPath, a.StreamingPuller.BugreportToWriter)
 	if err != nil {
 		return fmt.Errorf("failed to stream bugreport to zip: %v", err)
 	}
