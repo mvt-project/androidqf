@@ -246,7 +246,7 @@ func (a *ADB) FileExistsAsRoot(devicePath string) (bool, error) {
 	if devicePath == "" {
 		return false, fmt.Errorf("device path cannot be empty")
 	}
-	out, err := a.RootShell("if [ -f " + shellQuote(devicePath) + " ]; then printf 1; else printf 0; fi")
+	out, err := a.RootShell("if [ -f " + QuoteRemoteShellArg(devicePath) + " ]; then printf 1; else printf 0; fi")
 	if err != nil {
 		return false, err
 	}
