@@ -5,6 +5,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 	"path"
 
@@ -25,11 +26,12 @@ func (t *Temp) Name() string {
 
 func (t *Temp) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting files in tmp folder...")
+	var collectionErr error
 
 	// TODO: Also check default tmp folders
 	tmpFiles, err := adb.Client.ListFiles(acq.TmpDir, true)
 	if err != nil {
-		return fmt.Errorf("failed to list files in tmp: %v", err)
+		collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to list files in tmp: %w", err))
 	}
 
 	for _, file := range tmpFiles {
@@ -40,6 +42,7 @@ func (t *Temp) Run(acq *acquisition.Acquisition, opts *Options) error {
 		rel, err := relativeDeviceChild(acq.TmpDir, file)
 		if err != nil {
 			log.Errorf("Skipping temp file with unsafe path %s: %v\n", file, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", file, err))
 			continue
 		}
 
@@ -47,10 +50,11 @@ func (t *Temp) Run(acq *acquisition.Acquisition, opts *Options) error {
 
 		if err := acq.PullToZipStaged(file, zipPath); err != nil {
 			log.Errorf("Failed to stage temp file %s for archive: %v\n", file, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", file, err))
 			continue
 		}
 
 		log.Debugf("Staged temp file %s and added it to archive as %s", file, zipPath)
 	}
-	return nil
+	return partialCollectionError(collectionErr)
 }

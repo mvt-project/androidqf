@@ -16,21 +16,28 @@ LD_FLAGS = -s -w -X ${PACKAGE_PATH}/utils.Version=${VERSION}
 # Set if binaries should be compressed with UPX. Zero disables UPX
 UPX_COMPRESS ?= "0"
 
-PLATFORMTOOLS_URL     = https://dl.google.com/android/repository/
 PLATFORMTOOLS_WINDOWS = platform-tools-latest-windows.zip
 PLATFORMTOOLS_DARWIN  = platform-tools-latest-darwin.zip
 PLATFORMTOOLS_LINUX   = platform-tools-latest-linux.zip
 PLATFORMTOOLS_FOLDER  = /tmp/platform-tools
+PLATFORMTOOLS_DOWNLOAD_FOLDER = /tmp/platform-tools-downloads
 
 check:
 	@echo "[lint] Running go vet"
 	go vet ./...
-	@echo "[lint] Running staticheck on codebase"
+	cd android-collector && go vet ./...
+	@echo "[lint] Running staticcheck on codebase"
 	@staticcheck ./...
+	cd android-collector && staticcheck ./...
 
 vuln:
 	@echo "Running go vuln check"
 	@govulncheck ./...
+	cd android-collector && govulncheck ./...
+
+test:
+	go test -race ./...
+	cd android-collector && go test -race ./...
 
 fmt:
 	gofumpt -l -w .
@@ -52,13 +59,10 @@ collector:
 windows:
 	@mkdir -p $(BUILD_FOLDER)
 
-	@if [ ! -f /tmp/$(PLATFORMTOOLS_WINDOWS) ]; then \
-		echo "Downloading Windows Android Platform Tools..."; \
-		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_WINDOWS) -O /tmp/$(PLATFORMTOOLS_WINDOWS); \
-	fi
+	@./scripts/download_platform_tools.sh windows
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
-	@cd /tmp && unzip -u $(PLATFORMTOOLS_WINDOWS)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_WINDOWS)
 	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)
 	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinUsbApi.dll $(ASSETS_FOLDER)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb.exe $(ASSETS_FOLDER)
@@ -72,14 +76,11 @@ windows:
 darwin:
 	@mkdir -p $(BUILD_FOLDER)
 
-	@if [ ! -f /tmp/$(PLATFORMTOOLS_DARWIN) ]; then \
-		echo "Downloading Darwin Android Platform Tools..."; \
-		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_DARWIN) -O /tmp/$(PLATFORMTOOLS_DARWIN); \
-	fi
+	@./scripts/download_platform_tools.sh darwin
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
-	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_DARWIN)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_darwin
 
 	@echo "[builder] Building Darwin binary for amd64"
 
@@ -91,14 +92,11 @@ darwin:
 linux:
 	@mkdir -p $(BUILD_FOLDER)
 
-	@if [ ! -f /tmp/$(PLATFORMTOOLS_LINUX) ]; then \
-		echo "Downloading Linux Android Platform Tools..."; \
-		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_LINUX) -O /tmp/$(PLATFORMTOOLS_LINUX); \
-	fi
+	@./scripts/download_platform_tools.sh linux
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
-	@cd /tmp && unzip -u $(PLATFORMTOOLS_LINUX)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_LINUX)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_linux
 
 	@echo "[builder] Building Linux binary for amd64"
 
@@ -108,25 +106,25 @@ linux:
 	@echo "[builder] Done!"
 
 download:
-	@if [ ! -f /tmp/$(PLATFORMTOOLS_WINDOWS) ]; then \
-		echo "Downloading Windows Android Platform Tools..."; \
-		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_WINDOWS) -O /tmp/$(PLATFORMTOOLS_WINDOWS); \
-	fi
+	@./scripts/download_platform_tools.sh windows
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
-	@cd /tmp && unzip -u $(PLATFORMTOOLS_WINDOWS)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_WINDOWS)
 	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinApi.dll $(ASSETS_FOLDER)
 	@cp $(PLATFORMTOOLS_FOLDER)/AdbWinUsbApi.dll $(ASSETS_FOLDER)
 	@cp $(PLATFORMTOOLS_FOLDER)/adb.exe $(ASSETS_FOLDER)
 
-	@if [ ! -f /tmp/$(PLATFORMTOOLS_DARWIN) ]; then \
-		echo "Downloading Darwin Android Platform Tools..."; \
-		wget $(PLATFORMTOOLS_URL)$(PLATFORMTOOLS_DARWIN) -O /tmp/$(PLATFORMTOOLS_DARWIN); \
-	fi
+	@./scripts/download_platform_tools.sh darwin
 
 	@rm -rf $(PLATFORMTOOLS_FOLDER)
-	@cd /tmp && unzip -u $(PLATFORMTOOLS_DARWIN)
-	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_DARWIN)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_darwin
+
+	@./scripts/download_platform_tools.sh linux
+
+	@rm -rf $(PLATFORMTOOLS_FOLDER)
+	@cd /tmp && unzip -u $(PLATFORMTOOLS_DOWNLOAD_FOLDER)/$(PLATFORMTOOLS_LINUX)
+	@cp $(PLATFORMTOOLS_FOLDER)/adb $(ASSETS_FOLDER)/adb_linux
 
 all: collector windows darwin linux
 
