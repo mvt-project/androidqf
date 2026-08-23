@@ -244,7 +244,7 @@ func moduleResultStatus(err error) string {
 	return "failed"
 }
 
-func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, moduleFilter string) (*modules.Options, error) {
+func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, browserHistory, moduleFilter string) (*modules.Options, error) {
 	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
 	var err error
 	if backup != "" {
@@ -272,6 +272,11 @@ func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, in
 			return nil, err
 		}
 	}
+	if browserHistory != "" {
+		if opts.BrowserHistory, err = modules.ParseBrowserHistoryOption(browserHistory); err != nil {
+			return nil, err
+		}
+	}
 	if err = modules.ValidateNonInteractive(opts, moduleFilter); err != nil {
 		return nil, err
 	}
@@ -293,6 +298,7 @@ func main() {
 	var removeTrustedFlag string
 	var intrusionLogsFlag string
 	var hashFilesFlag string
+	var browserHistoryFlag string
 	var nonInteractive bool
 
 	// Command line options
@@ -320,6 +326,7 @@ func main() {
 	flag.StringVar(&intrusionLogsFlag, "i", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
 	flag.StringVar(&hashFilesFlag, "hash-files", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
 	flag.StringVar(&hashFilesFlag, "H", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
+	flag.StringVar(&browserHistoryFlag, "browser-history", "", "Collect supported browser History databases when existing root access is available: yes or no")
 	flag.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&nonInteractive, "n", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
@@ -343,7 +350,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, module)
+	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, browserHistoryFlag, module)
 	if err != nil {
 		log.Fatal(err)
 	}

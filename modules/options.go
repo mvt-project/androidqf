@@ -27,6 +27,7 @@ type Options struct {
 	RemoveTrusted  string
 	IntrusionLogs  string
 	HashFiles      string
+	BrowserHistory string
 	Signals        <-chan os.Signal
 	Context        context.Context
 }
@@ -82,6 +83,9 @@ func ValidateNonInteractive(opts *Options, moduleFilter string) error {
 	}
 	if ModuleEnabled(NewFiles().Name(), moduleFilter) && opts.HashFiles == "" {
 		missing = append(missing, "-hash-files (yes, no)")
+	}
+	if ModuleEnabled(NewBrowserHistory().Name(), moduleFilter) && opts.BrowserHistory == "" {
+		missing = append(missing, "-browser-history (yes, no)")
 	}
 
 	if len(missing) == 0 {

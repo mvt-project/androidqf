@@ -187,12 +187,26 @@ func (a *Acquisition) Complete() error {
 // entry. Encrypted acquisitions use encrypted temporary storage so plaintext is
 // never staged on disk.
 func (a *Acquisition) PullToZipStaged(remotePath, zipPath string) error {
+	return a.pullToZipStaged(remotePath, zipPath, false)
+}
+
+// PullRootToZipStaged validates a complete root-readable device pull before
+// creating its ZIP entry.
+func (a *Acquisition) PullRootToZipStaged(remotePath, zipPath string) error {
+	return a.pullToZipStaged(remotePath, zipPath, true)
+}
+
+func (a *Acquisition) pullToZipStaged(remotePath, zipPath string, root bool) error {
 	if err := a.validateStreamingMode(); err != nil {
 		return err
 	}
 
+	pull := a.StreamingPuller.PullToWriter
+	if root {
+		pull = a.StreamingPuller.PullRootToWriter
+	}
 	return a.stageStreamToZip(zipPath, func(writer io.Writer) error {
-		return a.StreamingPuller.PullToWriter(remotePath, writer)
+		return pull(remotePath, writer)
 	})
 }
 
