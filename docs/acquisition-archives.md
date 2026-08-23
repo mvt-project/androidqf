@@ -25,7 +25,7 @@ The archive contains the collected module outputs documented in the main
 
 | Entry | Purpose |
 |---|---|
-| `acquisition.json` | Acquisition UUID, timestamps, androidqf version and device information. |
+| `acquisition.json` | Acquisition UUID, timestamps, androidqf version, device information, and per-module outcomes. |
 | `adb_host_key.pub` | Public half of the ADB host key available to androidqf during the acquisition. |
 | `command.log` | Debug-level command and acquisition log, when log output was produced. |
 | `hashes.csv` | SHA-256 integrity records for preceding plaintext archive entries. |
@@ -42,20 +42,24 @@ The file does not contain a hash record for itself.
 
 ## Streaming and failed pulls
 
-Module output is written to the archive as it is collected. Data that can be
-produced reliably as one stream, such as a backup or bug report, is streamed
-directly into its ZIP entry.
-
-Files that may disappear or fail partway through an ADB pull are staged and
-validated before androidqf creates their ZIP entries. Consequently, a failed
-pull does not leave an empty or partial entry that appears valid in
-`hashes.csv`.
+Module output is written to the archive as it is collected. Streams produced
+by external ADB commands, including backups, bug reports, and device-file
+transfers, are staged and validated before androidqf creates their ZIP entries.
+Consequently, a command that fails after producing some output does not leave
+an empty or partial entry that appears valid in `hashes.csv`.
 
 Archive completion writes `acquisition.json`, `command.log` and `hashes.csv`,
 then closes the ZIP and, when enabled, the age encryption stream. A failure in
 any of these operations is reported as a failed acquisition; androidqf does not
 print the acquisition-success message for an archive that could not be
 finalized.
+
+`acquisition.json` includes a `module_results` list with the status, start and
+completion timestamps, and any error for each selected module. Status is
+`completed`, `partial` when some requested evidence could not be collected, or
+`failed`. If a module is partial or fails, androidqf still finalizes the archive
+so successfully collected evidence remains available, but exits unsuccessfully
+and clearly reports that the acquisition contains incomplete modules.
 
 ## Encrypted acquisitions
 
@@ -125,8 +129,8 @@ not added to the archive.
 
 ## Operational considerations
 
-- Keep sufficient free space for the output archive and, when staging is
-  required, one additional copy of the largest staged file.
+- Keep sufficient free space for the output archive and one additional staged
+  copy of the largest device file, backup, or bug report.
 - Treat a finalization error as a failed acquisition. The output may be
   incomplete or unreadable and should not be treated as finalized evidence.
 - Preserve the age identity separately from the acquisition host when the

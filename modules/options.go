@@ -6,9 +6,15 @@
 package modules
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 )
+
+var ErrAcquisitionInterrupted = errors.New("acquisition interrupted")
+var ErrPartialCollection = errors.New("partial collection")
 
 // Options carries per-run module configuration. An empty string field means
 // no answer was provided on the command line, so the module prompts
@@ -23,6 +29,22 @@ type Options struct {
 	HashFiles      string
 	BrowserHistory string
 	MagiskModules  string
+	Signals        <-chan os.Signal
+	Context        context.Context
+}
+
+func (o *Options) ContextOrBackground() context.Context {
+	if o == nil || o.Context == nil {
+		return context.Background()
+	}
+	return o.Context
+}
+
+func partialCollectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", ErrPartialCollection, err)
 }
 
 func ModuleEnabled(name, filter string) bool {
@@ -39,12 +61,11 @@ func moduleExists(name string) bool {
 }
 
 func ValidateNonInteractive(opts *Options, moduleFilter string) error {
-	if opts == nil || !opts.NonInteractive {
-		return nil
-	}
-
 	if moduleFilter != "" && !moduleExists(moduleFilter) {
 		return fmt.Errorf("unknown -module value %q, use -list to see available modules", moduleFilter)
+	}
+	if opts == nil || !opts.NonInteractive {
+		return nil
 	}
 
 	var missing []string
@@ -84,5 +105,22 @@ func resolveOption(opts *Options, value, flagUsage string, prompt func() (string
 	if opts.NonInteractive {
 		return "", fmt.Errorf("-non-interactive is set but %s was not provided", flagUsage)
 	}
-	return prompt()
+
+	type promptResult struct {
+		value string
+		err   error
+	}
+	result := make(chan promptResult, 1)
+	go func() {
+		value, err := prompt()
+		result <- promptResult{value: value, err: err}
+	}()
+
+	ctx := opts.ContextOrBackground()
+	select {
+	case <-ctx.Done():
+		return "", fmt.Errorf("%w: %v", ErrAcquisitionInterrupted, ctx.Err())
+	case resolved := <-result:
+		return resolved.value, resolved.err
+	}
 }

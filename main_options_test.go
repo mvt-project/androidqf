@@ -41,10 +41,12 @@ func TestBuildOptionsInvalidValueFails(t *testing.T) {
 	}
 }
 
-func TestBuildOptionsNonInteractiveUnknownModuleFails(t *testing.T) {
-	_, err := buildOptions(false, true, "", "", "", "", "", "", "", "typo")
-	if err == nil || !strings.Contains(err.Error(), "unknown -module value") {
-		t.Fatalf("err = %v, want unknown -module error", err)
+func TestBuildOptionsUnknownModuleFails(t *testing.T) {
+	for _, nonInteractive := range []bool{false, true} {
+		_, err := buildOptions(false, nonInteractive, "", "", "", "", "", "", "", "typo")
+		if err == nil || !strings.Contains(err.Error(), "unknown -module value") {
+			t.Fatalf("nonInteractive=%v: err = %v, want unknown -module error", nonInteractive, err)
+		}
 	}
 }
 

@@ -22,7 +22,7 @@ This project uses [GoReleaser](https://goreleaser.com/) for automated builds and
 
 1. Install GoReleaser:
    ```bash
-   go install github.com/goreleaser/goreleaser@latest
+   go install github.com/goreleaser/goreleaser@v2.17.1
    ```
 
 2. Run a snapshot build (no publishing):
@@ -34,7 +34,7 @@ This will create binaries for all platforms in the `dist/` directory, including 
 
 ### Building with Make (Legacy)
 
-You can still use the traditional Makefile approach. You will need Go 1.23+ installed, along with `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
+You can still use the traditional Makefile approach. You will need Go 1.26.5+ installed, along with `make`, `git`, `unzip` and `curl`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
 
 First build the `collector` module:
 
@@ -111,7 +111,7 @@ The following data can be extracted:
 | A full backup or backup of SMS and MMS messages. | :white_check_mark: | `backup.ab` |
 | The output of the getprop shell command, providing build information and configuration parameters. | |  `getprop.txt` |
 | All system settings | | `settings_*.txt` |
-| The output of the ps shell command, providing a list of all running processes. | | `processes.txt` |
+| The output of the ps shell command, providing a list of all running processes. | | `processes.json` when the collector is available, otherwise `processes.txt` |
 | The list of system's services. | | `services.txt` |
 | A copy of all the logs from the system. | | `logs/`, `logcat.txt` |
 | The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
@@ -126,7 +126,11 @@ The following data can be extracted:
 Every acquisition also contains `acquisition.json`, `command.log` when log output
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
-pulls are not committed as archive entries. See [Acquisition
+transfers are not committed as archive entries. `acquisition.json` records the
+status (`completed`, `partial`, or `failed`), timing, and error (if any) for
+every module that ran. A finalized
+partial acquisition exits unsuccessfully instead of printing the normal
+completion message. See [Acquisition
 archives](docs/acquisition-archives.md) for details.
 
 ### About optional data collection
