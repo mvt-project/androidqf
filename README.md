@@ -22,7 +22,7 @@ This project uses [GoReleaser](https://goreleaser.com/) for automated builds and
 
 1. Install GoReleaser:
    ```bash
-   go install github.com/goreleaser/goreleaser@v2.17.1
+   go install github.com/goreleaser/goreleaser/v2@v2.17.1
    ```
 
 2. Run a snapshot build (no publishing):
