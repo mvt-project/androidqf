@@ -122,6 +122,14 @@ The following data can be extracted:
 | A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
+| Existing bugreports and companion files from `/bugreports/`, collected before generating a new report. | | `bugreports/` |
+
+Existing bugreport collection is limited to files accessible through `/bugreports/`
+using the ADB shell's permissions. It follows that directory's symlink, but not
+symlinks inside it. Exported copies in shared storage and vendor-specific locations
+are not searched. Android may already have deleted older reports under its
+retention policy, so an empty or missing directory does not mean no reports were
+ever generated. Existing files are copied without deleting them from the device.
 
 Every acquisition also contains `acquisition.json`, `command.log` when log output
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
