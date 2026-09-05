@@ -119,9 +119,17 @@ The following data can be extracted:
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
 | Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
+| Files in `/system/etc/init.d`, when existing root access is available. | | `init_scripts/*` |
 | A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
+
+The `init_scripts` module checks for existing root access using `su` before
+accessing `/system/etc/init.d`. It collects regular files recursively, including
+hidden files, into `init_scripts/` while preserving their relative paths. Scripts
+are never executed, and symlinks within the directory are not followed. Devices
+without working root access or without this directory are skipped. Use
+`-module init_scripts` to collect only these files.
 
 Every acquisition also contains `acquisition.json`, `command.log` when log output
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
