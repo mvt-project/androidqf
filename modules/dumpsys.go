@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Dumpsys struct {
-	StoragePath string
-}
+type Dumpsys struct{}
 
 func NewDumpsys() *Dumpsys {
 	return &Dumpsys{}
@@ -24,12 +22,7 @@ func (d *Dumpsys) Name() string {
 	return "dumpsys"
 }
 
-func (d *Dumpsys) InitStorage(storagePath string) error {
-	d.StoragePath = storagePath
-	return nil
-}
-
-func (d *Dumpsys) Run(acq *acquisition.Acquisition, fast bool) error {
+func (d *Dumpsys) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting device diagnostic information. This might take a while...")
 
 	out, err := adb.Client.Shell("dumpsys")

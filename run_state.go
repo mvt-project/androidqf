@@ -19,15 +19,17 @@ import (
 )
 
 type runningExtraction struct {
-	Serial      string    `json:"serial"`
-	PID         int       `json:"pid"`
-	Started     time.Time `json:"started"`
-	StoragePath string    `json:"storage_path,omitempty"`
+	Serial       string    `json:"serial"`
+	PID          int       `json:"pid"`
+	ProcessToken string    `json:"process_token"`
+	Started      time.Time `json:"started"`
+	StoragePath  string    `json:"storage_path,omitempty"`
 }
 
 var (
 	runningStateDir = defaultRunningStateDir
 	processExists   = defaultProcessExists
+	processToken    = defaultProcessToken
 )
 
 func defaultRunningStateDir() string {
@@ -49,23 +51,45 @@ func registerRunningExtraction(serial, storagePath string) (func(), error) {
 	}
 
 	stateDir := runningStateDir()
-	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(stateDir, 0o700); err != nil {
 		return nil, err
 	}
 
 	state := runningExtraction{
-		Serial:      serial,
-		PID:         os.Getpid(),
-		Started:     time.Now().UTC(),
-		StoragePath: storagePath,
+		Serial:       serial,
+		PID:          os.Getpid(),
+		ProcessToken: processToken(os.Getpid()),
+		Started:      time.Now().UTC(),
+		StoragePath:  storagePath,
 	}
-	statePath := filepath.Join(stateDir, runningExtractionFileName(state.PID, state.Serial))
 
 	data, err := json.MarshalIndent(state, "", " ")
 	if err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(statePath, data, 0o644); err != nil {
+	tempFile, err := os.CreateTemp(stateDir, runningExtractionFileName(state.PID, state.Serial)+"-*.tmp")
+	if err != nil {
+		return nil, err
+	}
+	tempPath := tempFile.Name()
+	cleanupTemp := func() {
+		_ = tempFile.Close()
+		_ = os.Remove(tempPath)
+	}
+	if _, err := tempFile.Write(data); err != nil {
+		cleanupTemp()
+		return nil, err
+	}
+	if err := tempFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return nil, err
+	}
+	statePath := strings.TrimSuffix(tempPath, ".tmp") + ".json"
+	if err := os.Rename(tempPath, statePath); err != nil {
+		_ = os.Remove(tempPath)
 		return nil, err
 	}
 
@@ -100,7 +124,7 @@ func activeRunningExtractionsBySerial() map[string]runningExtraction {
 			continue
 		}
 
-		if !processExists(state.PID) {
+		if !processExists(state.PID) || state.ProcessToken == "" || processToken(state.PID) != state.ProcessToken {
 			_ = os.Remove(statePath)
 			continue
 		}
@@ -109,6 +133,42 @@ func activeRunningExtractionsBySerial() map[string]runningExtraction {
 	}
 
 	return result
+}
+
+func defaultProcessToken(pid int) string {
+	if pid <= 0 {
+		return ""
+	}
+	if runtime.GOOS == "windows" {
+		command := fmt.Sprintf("(Get-Process -Id %d).StartTime.ToUniversalTime().Ticks", pid)
+		out, err := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if runtime.GOOS == "linux" {
+		data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+		if err != nil {
+			return ""
+		}
+		stat := string(data)
+		close := strings.LastIndex(stat, ")")
+		if close < 0 {
+			return ""
+		}
+		fields := strings.Fields(stat[close+1:])
+		if len(fields) <= 19 {
+			return ""
+		}
+		return fields[19]
+	}
+
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "lstart=").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func defaultProcessExists(pid int) bool {

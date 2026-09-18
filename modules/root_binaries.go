@@ -13,9 +13,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type RootBinaries struct {
-	StoragePath string
-}
+type RootBinaries struct{}
 
 func NewRootBinaries() *RootBinaries {
 	return &RootBinaries{}
@@ -25,12 +23,7 @@ func (r *RootBinaries) Name() string {
 	return "root_binaries"
 }
 
-func (r *RootBinaries) InitStorage(storagePath string) error {
-	r.StoragePath = storagePath
-	return nil
-}
-
-func (r *RootBinaries) Run(acq *acquisition.Acquisition, fast bool) error {
+func (r *RootBinaries) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Checking for traces of rooting")
 	root_binaries := []string{
 		"su",

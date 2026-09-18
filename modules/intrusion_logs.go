@@ -7,11 +7,10 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,8 +26,6 @@ const (
 )
 
 type IL struct {
-	StoragePath string
-	ILPath      string
 	DirOnDevice string
 }
 
@@ -42,28 +39,24 @@ func (m *IL) Name() string {
 	return "intrusion_logs"
 }
 
-func (m *IL) InitStorage(storagePath string) error {
-	m.StoragePath = storagePath
-	m.ILPath = filepath.Join(storagePath, "intrusion_logs")
-
-	// Only create directory in traditional mode
-	if storagePath != "" {
-		err := os.Mkdir(m.ILPath, 0o755)
-		if err != nil && !os.IsExist(err) {
-			return fmt.Errorf("failed to create Intrusion Logging folder: %v", err)
-		}
+func ParseIntrusionLogsOption(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "yes":
+		return acquireIL, nil
+	case "no":
+		return skipIL, nil
 	}
-
-	return nil
+	return "", fmt.Errorf("invalid -intrusion-logs value %q (valid values: yes, no)", value)
 }
 
-func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
+func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
+	var collectionErr error
+
 	// Check whether the device supports AAPM.
 	compatible, err := m.isAAPMCompatibleDevice()
 	if err != nil {
-		// Don't break acquisition if the check fails, just log and skip.
 		log.Debugf("Failed to check AAPM compatibility: %v", err)
-		return nil
+		return partialCollectionError(fmt.Errorf("failed to check AAPM compatibility: %w", err))
 	}
 
 	// TODO: Investigate whether IL data could exist on a non-compatible device
@@ -75,13 +68,15 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	}
 
 	// Ask user first
-	log.Info("Would you like to download Intrusion Logs from the device?")
-	promptIL := promptui.Select{
-		Label: "Intrusion Logs",
-		Items: []string{acquireIL, skipIL},
-	}
-
-	_, ILOption, err := promptIL.Run()
+	ILOption, err := resolveOption(opts, opts.IntrusionLogs, "-intrusion-logs (yes, no)", func() (string, error) {
+		log.Info("Would you like to download Intrusion Logs from the device?")
+		promptIL := promptui.Select{
+			Label: "Intrusion Logs",
+			Items: []string{acquireIL, skipIL},
+		}
+		_, selection, err := promptIL.Run()
+		return selection, err
+	})
 	if err != nil {
 		return fmt.Errorf("failed to make selection for IL option: %v", err)
 	}
@@ -99,6 +94,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	aapmEnabled, err := m.isAAPMEnabled()
 	if err != nil {
 		log.Debugf("Failed to check AAPM enabled state: %v", err)
+		collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to check AAPM enabled state: %w", err))
 		aapmEnabled = false
 	}
 
@@ -107,13 +103,14 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		before, err := m.listDirSet(m.DirOnDevice)
 
 		if err != nil {
-			log.Errorf("IL: failed to list %s: %v", m.DirOnDevice, err)
-			return nil
+			log.Errorf("IL: failed to completely list %s before requesting new logs: %v", m.DirOnDevice, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to list %s before requesting new logs: %w", m.DirOnDevice, err))
 		}
 
 		// Start the Activity to prompt the user to download a new Intrusion Log
 		if err := adb.Client.IL(); err != nil {
 			log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
+			collectionErr = errors.Join(collectionErr, err)
 			// Still allow pulling existing files if user wants; continue anyway.
 		}
 
@@ -121,15 +118,14 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
 
 		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
-		// Watch directory (Ctrl+C cancels watch but continues acquisition)
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-
 		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
-		watchErr := m.waitForNewFiles(ctx, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		watchErr := m.waitForNewFiles(opts.ContextOrBackground(), opts.Signals, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+		if errors.Is(watchErr, ErrAcquisitionInterrupted) {
+			return watchErr
+		}
 		if watchErr != nil {
-			// If user Ctrl+C, context is canceled and acquisition continues
 			log.Info("Stopped waiting, continuing with acquisition...")
+			collectionErr = errors.Join(collectionErr, watchErr)
 		}
 	} else {
 		log.Debug("AAPM is disabled, skipping activity launch and new file watcher (pulling existing files only).")
@@ -138,22 +134,20 @@ func (m *IL) Run(acq *acquisition.Acquisition, fast bool) error {
 	// Pull all files (old + new)
 	files, err := adb.Client.ListFiles(m.DirOnDevice, true)
 	if err != nil {
-		log.Errorf("IL: failed to list files for pull in %s: %v", m.DirOnDevice, err)
-		return nil
+		collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to list files for pull in %s: %w", m.DirOnDevice, err))
 	}
 	if len(files) == 0 {
 		log.Info("No files found in " + m.DirOnDevice)
-		return nil
+		return partialCollectionError(collectionErr)
 	}
 
 	if err := m.pullAll(acq, files); err != nil {
 		log.Errorf("IL: failed pulling IL files: %v", err)
-		// continue acquisition
-		return nil
+		collectionErr = errors.Join(collectionErr, err)
 	}
 	log.Infof("Downloaded %d Instrusion Logging files from the phone.", len(files))
 	log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
-	return nil
+	return partialCollectionError(collectionErr)
 }
 
 func (m *IL) isAAPMCompatibleDevice() (bool, error) {
@@ -193,20 +187,18 @@ func (m *IL) isAAPMEnabled() (bool, error) {
 
 func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
 	files, err := adb.Client.ListFiles(dir, true)
-	if err != nil {
-		return nil, err
-	}
 	log.Debugf("IL: Polling found %d intrusion logging files on device at '%s'", len(files), dir)
 	set := make(map[string]struct{}, len(files))
 	for _, f := range files {
 		set[f] = struct{}{}
 	}
-	return set, nil
+	return set, err
 }
 
 // Watch for new files until Ctrl+C or timeout.
 func (m *IL) waitForNewFiles(
 	ctx context.Context,
+	signals <-chan os.Signal,
 	dir string,
 	before map[string]struct{},
 	pollEvery time.Duration,
@@ -221,9 +213,14 @@ func (m *IL) waitForNewFiles(
 	for {
 		select {
 		case <-ctx.Done():
-			// Ctrl+C => continue acquisition (non-fatal)
-			log.Info("Ctrl+C detected. Continuing acquisition...")
-			return nil
+			return fmt.Errorf("%w: %v", ErrAcquisitionInterrupted, ctx.Err())
+
+		case received := <-signals:
+			if received == os.Interrupt {
+				log.Info("Ctrl+C detected. Continuing acquisition...")
+				return nil
+			}
+			return fmt.Errorf("%w: received %s", ErrAcquisitionInterrupted, received)
 
 		case <-timeout.C:
 			log.Info("Finished waiting for intrusion logs (15 minute timeout reached).")
@@ -250,19 +247,7 @@ func (m *IL) waitForNewFiles(
 }
 
 func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
-	streaming := acq.StreamingMode && acq.EncryptedWriter != nil
-	var localRoot *os.Root
-	var puller *acquisition.StreamingPuller
-	if !streaming {
-		var err error
-		localRoot, err = os.OpenRoot(m.ILPath)
-		if err != nil {
-			return fmt.Errorf("failed to open intrusion logs output root: %v", err)
-		}
-		defer localRoot.Close()
-		puller = acquisition.NewStreamingPuller(adb.Client.ExePath, adb.Client.Serial, 100)
-	}
-
+	var collectionErr error
 	for _, file := range deviceFiles {
 		if file == m.DirOnDevice {
 			continue
@@ -271,32 +256,20 @@ func (m *IL) pullAll(acq *acquisition.Acquisition, deviceFiles []string) error {
 		rel, err := relativeDeviceChild(m.DirOnDevice, file)
 		if err != nil {
 			log.Errorf("Skipping IL file with unsafe path %s: %v\n", file, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", file, err))
 			continue
 		}
 
-		if streaming {
-			zipPath := path.Join("intrusion_logs", rel)
+		zipPath := path.Join("intrusion_logs", rel)
 
-			writer, err := acq.EncryptedWriter.CreateFile(zipPath)
-			if err != nil {
-				log.Errorf("Failed to create zip entry for IL file %s: %v\n", file, err)
-				continue
-			}
-
-			err = acq.StreamingPuller.PullToWriter(file, writer)
-			if err != nil {
-				log.Errorf("Failed to stream IL file %s: %v\n", file, err)
-				continue
-			}
-
-			log.Debugf("Streamed IL file %s directly to encrypted archive as %s", file, zipPath)
-		} else {
-			if err := streamDeviceChildToRoot(localRoot, puller, rel, file); err != nil {
-				log.Errorf("Failed to pull IL file %s: %v\n", file, err)
-				continue
-			}
+		if err := acq.PullToZipStaged(file, zipPath); err != nil {
+			log.Errorf("Failed to stage IL file %s for archive: %v\n", file, err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", file, err))
+			continue
 		}
+
+		log.Debugf("Staged IL file %s and added it to archive as %s", file, zipPath)
 	}
 
-	return nil
+	return collectionErr
 }

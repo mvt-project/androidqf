@@ -18,6 +18,8 @@ import (
 	"github.com/mvt-project/androidqf/assets"
 )
 
+var createCollectorTemp = os.CreateTemp
+
 type Collector struct {
 	ExePath      string
 	Installed    bool
@@ -45,16 +47,16 @@ type FileInfo struct {
 }
 
 type ProcessInfo struct {
-	Pid              uint32   `json:"pid"`
-	Uid              uint32   `json:"uid"`
-	Ppid             uint32   `json:"ppid"`
-	Pgroup           uint32   `json:"pgroup"`
-	Psid             uint32   `json:"psid"`
+	Pid              int      `json:"pid"`
+	Uid              int      `json:"uid"`
+	Ppid             int      `json:"ppid"`
+	Pgroup           int      `json:"pgroup"`
+	Psid             int      `json:"psid"`
 	Filename         string   `json:"filename"`
-	Priority         uint32   `json:"priority"`
+	Priority         int      `json:"priority"`
 	State            string   `json:"state"`
-	UserTime         uint32   `json:"user_time"`
-	KernelTime       uint32   `json:"kernel_time"`
+	UserTime         int64    `json:"user_time"`
+	KernelTime       int64    `json:"kernel_time"`
 	Path             string   `json:"path"`
 	Context          string   `json:"context"`
 	PreviousContext  string   `json:"previous_context"`
@@ -86,29 +88,22 @@ func (c *Collector) isInstalled() bool {
 
 // Clean the phone.
 func (c *Collector) Clean() error {
-	_, err := c.Adb.Shell("rm", c.ExePath)
+	_, err := c.Adb.Shell("rm", QuoteRemoteShellArg(c.ExePath))
 	return err
 }
 
 // Install the collector.
 func (c *Collector) Install() error {
 	if c.isInstalled() {
-		_, err := c.Adb.Shell("rm", c.ExePath)
+		_, err := c.Adb.Shell("rm", QuoteRemoteShellArg(c.ExePath))
 		if err != nil {
 			return err
 		}
 	}
 
-	collectorName := ""
-	switch {
-	case strings.HasPrefix(c.Architecture, "armeabi-v"):
-		collectorName = "collector_arm"
-	case strings.HasPrefix(c.Architecture, "armeabi-v7"):
-		collectorName = "collector_arm"
-	case strings.HasPrefix(c.Architecture, "arm64-v8"):
-		collectorName = "collector_arm64"
-	default:
-		return fmt.Errorf("unsupported architecture for collector: %s", c.Architecture)
+	collectorName, err := collectorNameForArchitecture(c.Architecture)
+	if err != nil {
+		return err
 	}
 
 	log.Debugf("Deploying collector binary '%s' for architecture '%s'.", collectorName, c.Architecture)
@@ -118,7 +113,7 @@ func (c *Collector) Install() error {
 		return errors.New("couldn't find the collector binary")
 	}
 
-	collectorTemp, _ := os.CreateTemp("", "collector_")
+	collectorTemp, err := createCollectorTemp("", "collector_")
 	if err != nil {
 		return err
 	}
@@ -129,12 +124,15 @@ func (c *Collector) Install() error {
 		collectorTemp.Close()
 		return err
 	}
+	if err := collectorTemp.Close(); err != nil {
+		return err
+	}
 
 	_, err = c.Adb.Push(collectorTemp.Name(), c.ExePath)
 	if err != nil {
 		return err
 	}
-	_, err = c.Adb.Shell("chmod", "+x", c.ExePath)
+	_, err = c.Adb.Shell("chmod", "+x", QuoteRemoteShellArg(c.ExePath))
 	if err != nil {
 		return err
 	}
@@ -142,10 +140,22 @@ func (c *Collector) Install() error {
 	return nil
 }
 
+func collectorNameForArchitecture(architecture string) (string, error) {
+	switch {
+	case strings.HasPrefix(architecture, "armeabi-v"):
+		return "collector_arm", nil
+	case strings.HasPrefix(architecture, "arm64-v8"):
+		return "collector_arm64", nil
+	case strings.HasPrefix(architecture, "x86_64"):
+		return "collector_amd64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture for collector: %s", architecture)
+	}
+}
+
 // List files on the phone at the given path (no hash).
 func (c *Collector) Find(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	var file FileInfo
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
@@ -154,15 +164,19 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", path)
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "find", QuoteRemoteShellArg(path))
 	if err != nil {
 		return results, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		err = json.Unmarshal([]byte(line), &file)
-		if err == nil {
-			results = append(results, file)
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		var file FileInfo
+		if err := json.Unmarshal([]byte(line), &file); err != nil {
+			return results, fmt.Errorf("failed to parse collector file record: %w", err)
+		}
+		results = append(results, file)
 	}
 
 	return results, nil
@@ -171,7 +185,6 @@ func (c *Collector) Find(path string) ([]FileInfo, error) {
 // List files with their hash on the phone at the given path.
 func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 	var results []FileInfo
-	var file FileInfo
 	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
@@ -180,15 +193,19 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "find", "-H", path)
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "find", "-H", QuoteRemoteShellArg(path))
 	if err != nil {
 		return results, err
 	}
 	for _, line := range strings.Split(out, "\n") {
-		err = json.Unmarshal([]byte(line), &file)
-		if err == nil {
-			results = append(results, file)
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		var file FileInfo
+		if err := json.Unmarshal([]byte(line), &file); err != nil {
+			return results, fmt.Errorf("failed to parse collector file record: %w", err)
+		}
+		results = append(results, file)
 	}
 
 	return results, nil
@@ -197,7 +214,7 @@ func (c *Collector) FindHash(path string) ([]FileInfo, error) {
 func (c *Collector) Processes() ([]ProcessInfo, error) {
 	var results []ProcessInfo
 
-	if c.isInstalled() {
+	if !c.isInstalled() {
 		err := c.Install()
 		if err != nil {
 			log.Debugf("Impossible to install collector: %v", err)
@@ -205,7 +222,7 @@ func (c *Collector) Processes() ([]ProcessInfo, error) {
 		}
 	}
 
-	out, err := c.Adb.Shell(c.ExePath, "ps")
+	out, err := c.Adb.Shell(QuoteRemoteShellArg(c.ExePath), "ps")
 	if err != nil {
 		return results, err
 	}

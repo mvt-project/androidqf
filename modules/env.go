@@ -12,9 +12,7 @@ import (
 	"github.com/mvt-project/androidqf/log"
 )
 
-type Environment struct {
-	StoragePath string
-}
+type Environment struct{}
 
 func NewEnvironment() *Environment {
 	return &Environment{}
@@ -24,12 +22,7 @@ func (e *Environment) Name() string {
 	return "environment"
 }
 
-func (e *Environment) InitStorage(storagePath string) error {
-	e.StoragePath = storagePath
-	return nil
-}
-
-func (e *Environment) Run(acq *acquisition.Acquisition, fast bool) error {
+func (e *Environment) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting environment...")
 
 	out, err := adb.Client.Shell("env")

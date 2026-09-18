@@ -6,16 +6,21 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/i582/cfmt/cmd/cfmt"
 	"github.com/manifoldco/promptui"
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
+	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 	"github.com/mvt-project/androidqf/modules"
 	"github.com/mvt-project/androidqf/utils"
@@ -118,6 +123,171 @@ func resolveADBSerial(serial string, devices []adb.DeviceInfo, selectDevice func
 	return selectedSerial, true, err
 }
 
+func errorOnDeviceSelection([]deviceMenuItem) (string, error) {
+	return "", fmt.Errorf("multiple devices detected, use -serial to select one")
+}
+
+func waitForConnectionRetry(signals <-chan os.Signal, delay time.Duration) os.Signal {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case received := <-signals:
+		return received
+	case <-timer.C:
+		return nil
+	}
+}
+
+func abortBeforeAcquisition(received os.Signal) {
+	cleanupBeforeAcquisition()
+	message := "Interrupted before acquisition started."
+	if received != nil {
+		message = fmt.Sprintf("Interrupted before acquisition started: %s", received)
+	}
+	log.Fatal(message)
+}
+
+func cleanupBeforeAcquisition() {
+	if adb.Client != nil {
+		_, _ = adb.Client.KillServer()
+	}
+	_ = assets.CleanAssets()
+}
+
+func fatalBeforeAcquisition(v ...any) {
+	cleanupBeforeAcquisition()
+	log.Fatal(v...)
+}
+
+func pendingSignal(signals <-chan os.Signal) os.Signal {
+	select {
+	case received := <-signals:
+		return received
+	default:
+		return nil
+	}
+}
+
+func runModule(mod modules.Module, acq *acquisition.Acquisition, opts *modules.Options, signals <-chan os.Signal) (error, bool) {
+	if mod == nil {
+		return fmt.Errorf("module cannot be nil"), false
+	}
+	if opts == nil {
+		return fmt.Errorf("module options cannot be nil"), false
+	}
+
+	moduleCtx, cancel := context.WithCancel(context.Background())
+	moduleSignals := make(chan os.Signal, 1)
+	opts.Context = moduleCtx
+	opts.Signals = moduleSignals
+	if adb.Client != nil {
+		adb.Client.SetContext(moduleCtx)
+	}
+	if acq != nil && acq.StreamingPuller != nil {
+		acq.StreamingPuller.SetContext(moduleCtx)
+	}
+	defer func() {
+		cancel()
+		opts.Context = nil
+		opts.Signals = nil
+		if adb.Client != nil {
+			adb.Client.SetContext(context.Background())
+		}
+		if acq != nil && acq.StreamingPuller != nil {
+			acq.StreamingPuller.SetContext(context.Background())
+		}
+	}()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- mod.Run(acq, opts)
+	}()
+
+	intrusionWaitSkipped := false
+	for {
+		select {
+		case err := <-done:
+			return err, false
+		case received, ok := <-signals:
+			if !ok {
+				signals = nil
+				continue
+			}
+			if received == nil {
+				continue
+			}
+			if received == os.Interrupt && mod.Name() == modules.NewIL().Name() && !intrusionWaitSkipped {
+				moduleSignals <- received
+				intrusionWaitSkipped = true
+				continue
+			}
+
+			log.Warningf("Received %s; canceling module %s before finalizing the partial acquisition.", received, mod.Name())
+			cancel()
+			moduleErr := <-done
+			interruptErr := fmt.Errorf("%w: received %s", modules.ErrAcquisitionInterrupted, received)
+			return errors.Join(moduleErr, interruptErr), true
+		}
+	}
+}
+
+func moduleResultStatus(err error) string {
+	if err == nil {
+		return "completed"
+	}
+	if errors.Is(err, modules.ErrAcquisitionInterrupted) {
+		return "failed"
+	}
+	if errors.Is(err, modules.ErrPartialCollection) {
+		return "partial"
+	}
+	return "failed"
+}
+
+func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, browserHistory, magiskModules, moduleFilter string) (*modules.Options, error) {
+	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
+	var err error
+	if backup != "" {
+		if opts.Backup, err = modules.ParseBackupOption(backup); err != nil {
+			return nil, err
+		}
+	}
+	if download != "" {
+		if opts.Download, err = modules.ParseDownloadOption(download); err != nil {
+			return nil, err
+		}
+	}
+	if removeTrusted != "" {
+		if opts.RemoveTrusted, err = modules.ParseRemoveTrustedOption(removeTrusted); err != nil {
+			return nil, err
+		}
+	}
+	if intrusionLogs != "" {
+		if opts.IntrusionLogs, err = modules.ParseIntrusionLogsOption(intrusionLogs); err != nil {
+			return nil, err
+		}
+	}
+	if hashFiles != "" {
+		if opts.HashFiles, err = modules.ParseHashFilesOption(hashFiles); err != nil {
+			return nil, err
+		}
+	}
+	if browserHistory != "" {
+		if opts.BrowserHistory, err = modules.ParseBrowserHistoryOption(browserHistory); err != nil {
+			return nil, err
+		}
+	}
+	if magiskModules != "" {
+		if opts.MagiskModules, err = modules.ParseMagiskModulesOption(magiskModules); err != nil {
+			return nil, err
+		}
+	}
+	if err = modules.ValidateNonInteractive(opts, moduleFilter); err != nil {
+		return nil, err
+	}
+	return opts, nil
+}
+
 func main() {
 	var err error
 	var verbose bool
@@ -128,12 +298,20 @@ func main() {
 	var output_folder string
 	var serial string
 	var tcpAddr string
+	var backupFlag string
+	var downloadFlag string
+	var removeTrustedFlag string
+	var intrusionLogsFlag string
+	var hashFilesFlag string
+	var browserHistoryFlag string
+	var magiskModulesFlag string
+	var nonInteractive bool
 
 	// Command line options
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
 	flag.BoolVar(&verbose, "v", false, "Verbose mode")
 	flag.BoolVar(&fast, "fast", false, "Fast mode")
-	flag.BoolVar(&verbose, "f", false, "Fast mode")
+	flag.BoolVar(&fast, "f", false, "Fast mode")
 	flag.BoolVar(&list_modules, "list", false, "List modules and exit")
 	flag.BoolVar(&list_modules, "l", false, "List modules and exit")
 	flag.StringVar(&module, "module", "", "Only execute a specific module")
@@ -144,6 +322,20 @@ func main() {
 	flag.StringVar(&serial, "s", "", "Phone serial number")
 	flag.StringVar(&tcpAddr, "connect", "", "Connect to device over network using ip:port")
 	flag.StringVar(&tcpAddr, "c", "", "Connect to device over network using ip:port")
+	flag.StringVar(&backupFlag, "backup", "", "Answer the backup prompt: sms, all or none (sms/all still require a tap on the device to authorize)")
+	flag.StringVar(&backupFlag, "b", "", "Answer the backup prompt: sms, all or none (sms/all still require a tap on the device to authorize)")
+	flag.StringVar(&downloadFlag, "download", "", "Answer the APK download prompt: all, non-system or none")
+	flag.StringVar(&downloadFlag, "d", "", "Answer the APK download prompt: all, non-system or none")
+	flag.StringVar(&removeTrustedFlag, "remove-trusted", "", "Answer the trusted-APK removal prompt: yes or no (ignored with -download none)")
+	flag.StringVar(&removeTrustedFlag, "r", "", "Answer the trusted-APK removal prompt: yes or no (ignored with -download none)")
+	flag.StringVar(&intrusionLogsFlag, "intrusion-logs", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
+	flag.StringVar(&intrusionLogsFlag, "i", "", "Answer the Intrusion Logs prompt: yes or no (yes still requires taps on the device to download new logs)")
+	flag.StringVar(&hashFilesFlag, "hash-files", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
+	flag.StringVar(&hashFilesFlag, "H", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
+	flag.StringVar(&browserHistoryFlag, "browser-history", "", "Collect supported browser History databases when existing root access is available: yes or no")
+	flag.StringVar(&magiskModulesFlag, "magisk-modules", "", "Collect installed Magisk module metadata when existing root access is available: yes or no")
+	flag.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
+	flag.BoolVar(&nonInteractive, "n", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
 
 	flag.Parse()
@@ -165,9 +357,23 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Debug("Starting androidqf")
-	adb.Client, err = adb.New()
+	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, browserHistoryFlag, magiskModulesFlag, module)
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	setupCtx, stopSetupSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSetupSignals()
+
+	log.Debug("Starting androidqf")
+	adb.Client, err = adb.NewWithContext(setupCtx)
+	if err != nil {
+		if setupCtx.Err() != nil {
+			abortBeforeAcquisition(pendingSignal(signals))
+		}
 		log.Fatal("Impossible to initialize ADB: ", err)
 	}
 
@@ -186,17 +392,30 @@ func main() {
 	}
 	specificDeviceRequested := serial != ""
 
+	selectDevice := selectADBDeviceFromMenu
+	if nonInteractive {
+		selectDevice = errorOnDeviceSelection
+	}
+
 	// Initialization
 	for {
 		if serial == "" {
 			devices, err := adb.Client.DeviceInfos()
 			if err != nil {
+				if nonInteractive {
+					fatalBeforeAcquisition("Error listing ADB devices: ", err)
+				}
 				log.Error(fmt.Sprintf("Error listing ADB devices: %s", err))
 			} else {
-				serial, _, err = resolveADBSerial(serial, devices, selectADBDeviceFromMenu, activeRunningExtractionsBySerial())
+				serial, _, err = resolveADBSerial(serial, devices, selectDevice, activeRunningExtractionsBySerial())
 				if err != nil {
+					if nonInteractive {
+						fatalBeforeAcquisition("Error selecting ADB device: ", err)
+					}
 					log.Error(fmt.Sprintf("Error selecting ADB device: %s", err))
-					time.Sleep(5 * time.Second)
+					if received := waitForConnectionRetry(signals, 5*time.Second); received != nil {
+						abortBeforeAcquisition(received)
+					}
 					continue
 				}
 			}
@@ -204,6 +423,9 @@ func main() {
 
 		serial, err = adb.Client.SetSerial(serial)
 		if err != nil {
+			if nonInteractive {
+				fatalBeforeAcquisition("Error trying to connect over ADB: ", err)
+			}
 			log.Error(fmt.Sprintf("Error trying to connect over ADB: %s", err))
 			if !specificDeviceRequested {
 				serial = ""
@@ -214,15 +436,35 @@ func main() {
 				break
 			}
 			log.Debug(err)
+			if nonInteractive {
+				fatalBeforeAcquisition("Unable to get device state: ", err)
+			}
 			log.Error("Unable to get device state. Please make sure it is connected and authorized. Trying again in 5 seconds...")
 			if !specificDeviceRequested {
 				serial = ""
 			}
 		}
-		time.Sleep(5 * time.Second)
+		if received := waitForConnectionRetry(signals, 5*time.Second); received != nil {
+			abortBeforeAcquisition(received)
+		}
 	}
 
-	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, "")
+	if setupCtx.Err() != nil {
+		abortBeforeAcquisition(pendingSignal(signals))
+	}
+	acq, err := acquisition.New(output_folder)
+	if err != nil {
+		if setupCtx.Err() != nil {
+			abortBeforeAcquisition(pendingSignal(signals))
+		}
+		log.Debug(err)
+		log.FatalExc("Impossible to initialise the acquisition", err)
+	}
+	stopSetupSignals()
+	adb.Client.SetContext(context.Background())
+	acq.StreamingPuller.SetContext(context.Background())
+
+	releaseRunning, err := registerRunningExtraction(adb.Client.Serial, acq.StoragePath)
 	if err != nil {
 		log.Warningf("Unable to record running extraction state: %v", err)
 		releaseRunning = func() {}
@@ -234,64 +476,74 @@ func main() {
 		}
 	}()
 
-	acq, err := acquisition.New(output_folder)
-	if err != nil {
-		log.Debug(err)
-		log.FatalExc("Impossible to initialise the acquisition", err)
-	}
-
 	// Start acquisitions
-	log.Info(fmt.Sprintf("Started new acquisition in %s", acq.StoragePath))
+	log.Info(fmt.Sprintf("Started new acquisition archive in %s", acq.StoragePath))
 
 	mods := modules.List()
+	incompleteModules := 0
+	interrupted := false
+	select {
+	case received := <-signals:
+		log.Warningf("Received %s; finalizing without running acquisition modules.", received)
+		interrupted = true
+	default:
+	}
 	for _, mod := range mods {
-		if (module != "") && (module != mod.Name()) {
+		if interrupted {
+			break
+		}
+		if !modules.ModuleEnabled(mod.Name(), module) {
 			continue
 		}
-		err = mod.InitStorage(acq.StoragePath)
-		if err != nil {
-			log.Infof(
-				"ERROR: failed to initialize storage for module %s: %v",
-				mod.Name(),
-				err,
-			)
+		select {
+		case received := <-signals:
+			log.Warningf("Received %s; finalizing before module %s.", received, mod.Name())
+			interrupted = true
 			continue
+		default:
 		}
 
-		err = mod.Run(acq, fast)
+		moduleStarted := time.Now().UTC()
+		err, interrupted = runModule(mod, acq, opts, signals)
+		result := acquisition.ModuleResult{
+			Name:      mod.Name(),
+			Status:    moduleResultStatus(err),
+			Started:   moduleStarted,
+			Completed: time.Now().UTC(),
+		}
 		if err != nil {
-			log.Infof("ERROR: failed to run module %s: %v", mod.Name(), err)
+			result.Error = err.Error()
+			incompleteModules++
+			log.Infof("ERROR: module %s completed with status %s: %v", mod.Name(), result.Status, err)
+		}
+		acq.ModuleResults = append(acq.ModuleResults, result)
+
+		if errors.Is(err, modules.ErrAcquisitionInterrupted) {
+			interrupted = true
+		}
+		if interrupted {
+			break
 		}
 	}
 
-	if acq.StreamingMode {
-		// In streaming mode, all data is already encrypted in the zip stream
-		log.Info("Finalizing encrypted acquisition...")
-	} else {
-		// Traditional mode: hash files, then encrypt if key exists
-		err = acq.HashFiles()
-		if err != nil {
-			log.ErrorExc("Failed to generate list of file hashes", err)
-			return
-		}
-
-		err = acq.StoreInfo()
-		if err != nil {
-			log.ErrorExc("Failed to store acquisition info", err)
-			return
-		}
-
-		err = acq.StoreSecurely()
-		if err != nil {
-			log.ErrorExc("Something failed while encrypting the acquisition", err)
-			log.Warning("WARNING: The secure storage of the acquisition folder failed! The data is unencrypted!")
-		}
+	log.Info("Finalizing acquisition archive...")
+	if err := acq.Complete(); err != nil {
+		releaseRunning()
+		runningReleased = true
+		log.FatalExc("Failed to finalize acquisition archive", err)
 	}
-
-	acq.Complete()
 	releaseRunning()
 	runningReleased = true
+	if interrupted {
+		log.Fatal("Acquisition was interrupted and finalized as partial.")
+	}
+	if incompleteModules > 0 {
+		log.Fatalf("Acquisition finalized with %d incomplete module(s). Review acquisition.json and command.log for details.", incompleteModules)
+	}
 	log.Info("Acquisition completed.")
 
-	systemPause()
+	if !nonInteractive {
+		signal.Stop(signals)
+		systemPause()
+	}
 }
