@@ -6,6 +6,7 @@
 package adb
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,7 @@ type Collector struct {
 	Installed    bool
 	Adb          *ADB
 	Architecture string
+	SHA256       string `json:"sha256,omitempty"`
 }
 
 type FileInfo struct {
@@ -94,6 +96,7 @@ func (c *Collector) Clean() error {
 
 // Install the collector.
 func (c *Collector) Install() error {
+	c.SHA256 = ""
 	if c.isInstalled() {
 		_, err := c.Adb.Shell("rm", QuoteRemoteShellArg(c.ExePath))
 		if err != nil {
@@ -137,6 +140,8 @@ func (c *Collector) Install() error {
 		return err
 	}
 
+	// Record the selected binary supplied by AndroidQF, not a later read from the device.
+	c.SHA256 = fmt.Sprintf("%x", sha256.Sum256(collectorBinary))
 	return nil
 }
 
