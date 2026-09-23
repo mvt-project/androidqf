@@ -128,7 +128,10 @@ was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
 transfers are not committed as archive entries. `acquisition.json` records the
 status (`completed`, `partial`, or `failed`), timing, and error (if any) for
-every module that ran. A finalized
+every module that ran. When the collector is deployed, `collector.sha256` is the
+SHA-256 of the selected collector bytes (embedded in standard builds). It can be
+compared with the optional on-device hash for the collector path in `files.json`;
+it does not itself verify the device copy. A finalized
 partial acquisition exits unsuccessfully instead of printing the normal
 completion message. See [Acquisition
 archives](docs/acquisition-archives.md) for details.
