@@ -49,6 +49,18 @@ func fakeADB() {
 		if os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL") == "1" {
 			os.Exit(1)
 		}
+	case "push":
+		if os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_FAIL") == "1" {
+			os.Exit(1)
+		}
+		copyPath := os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_COPY")
+		if len(os.Args) < 4 || copyPath == "" {
+			os.Exit(2)
+		}
+		data, err := os.ReadFile(os.Args[2])
+		if err != nil || os.WriteFile(copyPath, data, 0o600) != nil {
+			os.Exit(2)
+		}
 	default:
 		os.Exit(2)
 	}
