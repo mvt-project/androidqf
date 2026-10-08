@@ -8,12 +8,13 @@ RUN apk add --no-cache ca-certificates gcompat libgcc wget \
         amd64|arm64) ;; \
         *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac \
-    && wget -O /usr/local/bin/androidqf \
+    && cd /usr/local/bin \
+    && wget -O "androidqf_linux_${TARGETARCH}_${VERSION}" \
         "https://github.com/mvt-project/androidqf/releases/download/v${VERSION}/androidqf_linux_${TARGETARCH}_${VERSION}" \
     && wget -O /tmp/checksums.txt \
         "https://github.com/mvt-project/androidqf/releases/download/v${VERSION}/checksums.txt" \
-    && cd /usr/local/bin \
     && grep "  androidqf_linux_${TARGETARCH}_${VERSION}$" /tmp/checksums.txt | sha256sum -c - \
+    && mv "androidqf_linux_${TARGETARCH}_${VERSION}" androidqf \
     && rm /tmp/checksums.txt \
     && chmod +x /usr/local/bin/androidqf
 

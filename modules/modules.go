@@ -30,6 +30,7 @@ func List() []Module {
 		NewFiles(),
 		NewBrowserHistory(),
 		NewMagiskModules(),
+		NewInitScripts(),
 		NewSettings(),
 		NewSELinux(),
 		NewEnvironment(),

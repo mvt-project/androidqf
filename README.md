@@ -120,9 +120,25 @@ The following data can be extracted:
 | APEX inventory and complete factory and installed APEX containers for offline analysis. | | `apex/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
 | Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
+| Files in `/system/etc/init.d`, when existing root access is available. | | `init_scripts/*` |
 | A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
+| Existing bugreports and companion files from `/bugreports/`, collected before generating a new report. | | `bugreports/` |
+
+Existing bugreport collection is limited to files accessible through `/bugreports/`
+using the ADB shell's permissions. It follows that directory's symlink, but not
+symlinks inside it. Exported copies in shared storage and vendor-specific locations
+are not searched. Android may already have deleted older reports under its
+retention policy, so an empty or missing directory does not mean no reports were
+ever generated. Existing files are copied without deleting them from the device.
+
+The `init_scripts` module checks for existing root access using `su` before
+accessing `/system/etc/init.d`. It collects regular files recursively, including
+hidden files, into `init_scripts/` while preserving their relative paths. Scripts
+are never executed, and symlinks within the directory are not followed. Devices
+without working root access or without this directory are skipped. Use
+`-module init_scripts` to collect only these files.
 
 The `apex` module collects complete `.apex` and `.capex` files and the device's
 APEX inventory. This preserves signing certificates, public keys and signatures
@@ -138,7 +154,10 @@ was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
 transfers are not committed as archive entries. `acquisition.json` records the
 status (`completed`, `partial`, or `failed`), timing, and error (if any) for
-every module that ran. A finalized
+every module that ran. When the collector is deployed, `collector.sha256` is the
+SHA-256 of the selected collector bytes (embedded in standard builds). It can be
+compared with the optional on-device hash for the collector path in `files.json`;
+it does not itself verify the device copy. A finalized
 partial acquisition exits unsuccessfully instead of printing the normal
 completion message. See [Acquisition
 archives](docs/acquisition-archives.md) for details.
@@ -167,6 +186,28 @@ These options refers to data collected from the device by running the `adb backu
 | No backup | `adb backup` is not run |
 
 ### Downloading copies of apps
+
+The packages module enumerates Android users with `pm list users`, then queries
+package UIDs, installation state, enabled state and APK paths with an explicit
+`--user` argument. The device's foreground user is left active; AndroidQF does
+not start, unlock or switch users. Packages shared by several users have one
+record per user in `packages.json`, identified by `user_id`. The `installed`
+field distinguishes installed apps from historical records returned by `-u`;
+it is omitted if installation state could not be queried.
+
+`package_users.json` records the enumerated user IDs, names, flags, running
+state and package inventory outcomes. An inaccessible user is reported and
+does not discard other users' results. If user enumeration fails, AndroidQF
+tries the explicitly identified current user and reports the missing coverage
+as a partial acquisition. Package-state booleans may be incomplete when a
+user's `inventory_status` is `partial`; consult its `error` field.
+
+The APK download choice applies across the accessible users. Each downloaded
+file's `local_name` identifies its archive entry, including when two users
+share an APK. Collecting package metadata or APKs does not grant access to a
+secondary user's app-private data or emulated storage. Access depends on the
+Android version and device policy, so an empty or partial collection must not
+be interpreted as evidence that a profile contains no apps.
 
 ```
 Would you like to download copies of all apps or only non-system ones?
