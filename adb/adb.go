@@ -242,7 +242,7 @@ func (a *ADB) RootShell(command string) (string, error) {
 	if strings.TrimSpace(command) == "" {
 		return "", fmt.Errorf("root shell command cannot be empty")
 	}
-	return a.Shell("su", "-c", command)
+	return a.Shell("su", "-c", QuoteRemoteShellArg(command))
 }
 
 // HasRoot reports whether su can execute commands as UID 0.
