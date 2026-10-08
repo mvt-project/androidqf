@@ -45,13 +45,15 @@ shell)
     sh -c "$command"
   fi ;;
 exec-out)
-  case "$*" in
-    *fresh.zip*) printf 'fresh report' ;;
-    *failed.zip*) printf 'truncated'; exit 1 ;;
-    *)
-      shift
-      command=$(printf '%s' "$*" | sed "s|/bugreports|$BUGREPORT_TEST_DIR/bugreports|g")
-      sh -c "$command" ;;
+  shift
+  [ "$1" = cat ] || exit 2
+  shift
+  [ "$1" = -- ] && shift
+  case "$1" in
+    /fresh.zip) printf 'fresh report' ;;
+    /bugreports/failed.zip) printf 'truncated'; exit 1 ;;
+    /bugreports/*) cat -- "$BUGREPORT_TEST_DIR/bugreports/${1#/bugreports/}" ;;
+    *) exit 2 ;;
   esac ;;
 *) exit 1 ;;
 esac
@@ -95,7 +97,10 @@ esac
 				ZipWriter: writer, StreamingMode: true,
 				StreamingPuller: acquisition.NewStreamingPuller(fakeADB, "", 1),
 			}
-			err = NewBugreport().Run(acq, &Options{})
+			// Exercise collection order and partial failures through a staged
+			// fixture pull; the production path uses ADB sync, whose protocol
+			// failures are covered in adb/sync_test.go and real AVD scenarios.
+			err = NewBugreport().run(acq, acq.PullToZipStaged)
 			switch scenario {
 			case "listing-failed", "pull-failed", "unsafe-path":
 				if !errors.Is(err, ErrPartialCollection) {

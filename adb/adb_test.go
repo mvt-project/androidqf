@@ -2,6 +2,7 @@ package adb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,10 @@ func TestMain(m *testing.M) {
 func fakeADB() {
 	if len(os.Args) < 2 {
 		os.Exit(2)
+	}
+	if fixture := os.Getenv("ANDROIDQF_FAKE_PACKAGE_FIXTURE"); fixture != "" {
+		fakePackageADB(fixture)
+		return
 	}
 
 	switch os.Args[1] {
@@ -49,8 +54,52 @@ func fakeADB() {
 		if os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL") == "1" {
 			os.Exit(1)
 		}
+	case "push":
+		if os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_FAIL") == "1" {
+			os.Exit(1)
+		}
+		copyPath := os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_COPY")
+		if len(os.Args) < 4 || copyPath == "" {
+			os.Exit(2)
+		}
+		data, err := os.ReadFile(os.Args[2])
+		if err != nil || os.WriteFile(copyPath, data, 0o600) != nil {
+			os.Exit(2)
+		}
 	default:
 		os.Exit(2)
+	}
+}
+
+func fakePackageADB(fixture string) {
+	data, err := os.ReadFile(fixture)
+	if err != nil {
+		os.Exit(2)
+	}
+	var replies map[string]struct {
+		Output string
+		Fail   bool
+	}
+	if json.Unmarshal(data, &replies) != nil {
+		os.Exit(2)
+	}
+	command := strings.Join(os.Args[1:], " ")
+	if logFile := os.Getenv("ANDROIDQF_FAKE_PACKAGE_CALLS"); logFile != "" {
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			os.Exit(2)
+		}
+		fmt.Fprintln(file, command)
+		file.Close()
+	}
+	reply, found := replies[command]
+	if !found {
+		fmt.Printf("unexpected command: %s", command)
+		os.Exit(2)
+	}
+	fmt.Print(reply.Output)
+	if reply.Fail {
+		os.Exit(1)
 	}
 }
 

@@ -27,9 +27,13 @@ func (b *Bugreport) Name() string {
 }
 
 func (b *Bugreport) Run(acq *acquisition.Acquisition, opts *Options) error {
+	return b.run(acq, acq.SyncPullToZipStaged)
+}
+
+func (b *Bugreport) run(acq *acquisition.Acquisition, pull func(string, string) error) error {
 	// Preserve existing reports before generating another report, which can
 	// trigger Android's retention cleanup.
-	collectionErr := collectExistingBugreports(acq)
+	collectionErr := collectExistingBugreports(pull)
 	if collectionErr != nil {
 		log.Warningf("Failed to collect some existing bugreports: %v", collectionErr)
 	}
@@ -48,7 +52,7 @@ func (b *Bugreport) Run(acq *acquisition.Acquisition, opts *Options) error {
 	return partialCollectionError(collectionErr)
 }
 
-func collectExistingBugreports(acq *acquisition.Acquisition) error {
+func collectExistingBugreports(pull func(string, string) error) error {
 	log.Info("Collecting existing files from /bugreports/...")
 	// cd follows the /bugreports symlink without following symlinks inside it.
 	// NUL delimiters preserve filenames containing spaces or newlines. A missing
@@ -69,7 +73,7 @@ func collectExistingBugreports(acq *acquisition.Acquisition) error {
 			collectionErr = errors.Join(collectionErr, err)
 			continue
 		}
-		if err := acq.PullToZipStaged(remotePath, path.Join("bugreports", rel)); err != nil {
+		if err := pull(remotePath, path.Join("bugreports", rel)); err != nil {
 			collectionErr = errors.Join(collectionErr, fmt.Errorf("collecting %s: %w", remotePath, err))
 		}
 	}

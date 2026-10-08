@@ -174,7 +174,8 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	args := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(remotePath)}
+	// exec-out escapes its arguments; shell quoting here becomes part of the filename.
+	args := []string{"exec-out", "cat", "--", remotePath}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
@@ -210,7 +211,7 @@ func (sp *StreamingPuller) pullToWriter(remotePath string, writer io.Writer, roo
 		return fmt.Errorf("writer cannot be nil")
 	}
 
-	args := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(remotePath)}
+	args := []string{"exec-out", "cat", "--", remotePath}
 	if root {
 		args = []string{"exec-out", "su", "-c", "cat -- " + adb.QuoteRemoteShellArg(remotePath)}
 	}
@@ -406,7 +407,7 @@ func (sp *StreamingPuller) BugreportToBuffer() (*StreamingBuffer, error) {
 	// Stream the bugreport file to buffer
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	streamArgs := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(filename)}
+	streamArgs := []string{"exec-out", "cat", "--", filename}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
@@ -437,7 +438,7 @@ func (sp *StreamingPuller) BugreportToWriter(writer io.Writer) error {
 	defer sp.cleanupDeviceFile(filename)
 
 	// Stream the bugreport file to writer
-	streamArgs := []string{"exec-out", "cat", adb.QuoteRemoteShellArg(filename)}
+	streamArgs := []string{"exec-out", "cat", "--", filename}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
