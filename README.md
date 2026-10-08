@@ -117,6 +117,7 @@ The following data can be extracted:
 | The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
 | A list of all packages installed and related distribution files. | |  `packages.json` |
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
+| APEX inventory and complete factory and installed APEX containers for offline analysis. | | `apex/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
 | Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
 | Files in `/system/etc/init.d`, when existing root access is available. | | `init_scripts/*` |
@@ -138,6 +139,15 @@ hidden files, into `init_scripts/` while preserving their relative paths. Script
 are never executed, and symlinks within the directory are not followed. Devices
 without working root access or without this directory are skipped. Use
 `-module init_scripts` to collect only these files.
+
+The `apex` module collects complete `.apex` and `.capex` files and the device's
+APEX inventory. This preserves signing certificates, public keys and signatures
+for later analysis in MVT. AndroidQF does not verify APEX signatures, compare keys
+against known test keys, or assess vulnerability. Collection runs independently
+of the APK download and trusted-certificate removal options, and can substantially
+increase archive size and acquisition time. Use `-module apex` to collect only
+APEX evidence. See [APEX evidence](docs/apex-evidence.md) for the output format,
+root access and collection limitations.
 
 Every acquisition also contains `acquisition.json`, `command.log` when log output
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each

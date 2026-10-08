@@ -21,6 +21,7 @@ func List() []Module {
 		NewBackup(),
 		NewIL(),
 		NewPackages(),
+		NewApex(),
 		NewGetProp(),
 		NewDumpsys(),
 		NewProcesses(),
