@@ -37,6 +37,7 @@ func TestParsePackageListRejectsMalformedPackageRecords(t *testing.T) {
 		"package:org.example",
 		"package:org.example unexpected uid:10123",
 		"package:org.example installer=com.android.vending uid:not-a-number",
+		"package:org.example installer=null uid:10123\nSecurityException: user access denied",
 	} {
 		if _, err := parsePackageList(line, true); err == nil {
 			t.Fatalf("parsePackageList(%q) error = nil", line)
