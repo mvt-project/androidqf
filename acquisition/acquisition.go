@@ -210,6 +210,24 @@ func (a *Acquisition) pullToZipStaged(remotePath, zipPath string, root bool) err
 	})
 }
 
+// SyncPullToZipStaged retrieves a device file through ADB's sync service and
+// adds it to the acquisition archive only after the complete pull succeeds.
+func (a *Acquisition) SyncPullToZipStaged(remotePath, zipPath string) error {
+	if err := a.validateStreamingMode(); err != nil {
+		return err
+	}
+	if adb.Client == nil {
+		return fmt.Errorf("ADB client cannot be nil")
+	}
+	if remotePath == "" {
+		return fmt.Errorf("remote path cannot be empty")
+	}
+
+	return a.stageStreamToZip(zipPath, func(writer io.Writer) error {
+		return adb.Client.SyncPullToWriter(remotePath, writer)
+	})
+}
+
 // stageStreamToZip completes and validates a producer before creating its ZIP
 // entry. Encrypted acquisitions use authenticated encrypted temporary storage.
 func (a *Acquisition) stageStreamToZip(zipPath string, produce func(io.Writer) error) error {

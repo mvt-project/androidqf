@@ -114,13 +114,17 @@ func (p *Packages) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting information on installed apps. This might take a while...")
 	var collectionErr error
 
-	packages, err := adb.Client.GetPackages(opts.Fast)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve list of installed packages: %v", err)
+	packages, users, inventoryErr := adb.Client.GetPackagesWithUsers(opts.Fast)
+	collectionErr = errors.Join(collectionErr, inventoryErr)
+	if err := saveDataToAcquisition(acq, "package_users.json", &users); err != nil {
+		return errors.Join(collectionErr, err)
+	}
+	if inventoryErr != nil {
+		log.Warningf("Package inventory is incomplete: %v", inventoryErr)
 	}
 
 	log.Infof(
-		"Found a total of %d installed packages",
+		"Found a total of %d per-user package records",
 		len(packages),
 	)
 
@@ -159,6 +163,9 @@ func (p *Packages) Run(acq *acquisition.Acquisition, opts *Options) error {
 
 		usedZipPaths := make(map[string]struct{})
 		for ip := 0; ip < len(packages); ip++ {
+			if packages[ip].Installed != nil && !*packages[ip].Installed {
+				continue
+			}
 			// If we the user did not request to download all packages and if
 			// the package is marked as system, we skip it.
 			if download != apkAll && packages[ip].System {
@@ -208,6 +215,7 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 					return nil
 				}
 				log.Debugf("Streamed %s directly to archive as %s", packageFile.Path, zipPath)
+				packageFile.LocalName = zipPath
 				return nil
 			}
 
@@ -221,6 +229,7 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 				return nil
 			}
 			log.Debugf("Streamed %s directly to archive as %s", packageFile.Path, zipPath)
+			packageFile.LocalName = zipPath
 			return nil
 		}
 		packageFile.Error = fmt.Sprintf("Failed to pull APK: %v", err)
@@ -244,6 +253,7 @@ func (p *Packages) processAPKStreaming(packageName string, packageFile *adb.Pack
 	}
 
 	log.Debugf("Streamed %s directly to archive as %s", packageFile.Path, zipPath)
+	packageFile.LocalName = zipPath
 	return nil
 }
 
