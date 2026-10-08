@@ -7,6 +7,7 @@ package acquisition
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -14,8 +15,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/minio/sio"
+	"github.com/mvt-project/androidqf/adb"
 )
 
 var ErrStreamingBufferMemoryLimit = errors.New("streaming buffer memory limit exceeded")
@@ -76,6 +79,8 @@ type StreamingPuller struct {
 	adbPath string
 	serial  string
 	maxMem  int64
+	ctxMu   sync.RWMutex
+	ctx     context.Context
 }
 
 // EncryptedTempFile is a DARE-encrypted temporary file used to validate a
@@ -137,7 +142,28 @@ func NewStreamingPuller(adbPath, serial string, maxMemoryMB int) *StreamingPulle
 		adbPath: adbPath,
 		serial:  serial,
 		maxMem:  int64(maxMemoryMB) * 1024 * 1024,
+		ctx:     context.Background(),
 	}
+}
+
+// SetContext changes the context used by subsequent streaming ADB commands.
+func (sp *StreamingPuller) SetContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sp.ctxMu.Lock()
+	sp.ctx = ctx
+	sp.ctxMu.Unlock()
+}
+
+func (sp *StreamingPuller) command(args ...string) *exec.Cmd {
+	sp.ctxMu.RLock()
+	ctx := sp.ctx
+	sp.ctxMu.RUnlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return exec.CommandContext(ctx, sp.adbPath, args...)
 }
 
 // PullToBuffer pulls a file from device directly into memory buffer
@@ -148,12 +174,13 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	args := []string{"exec-out", "cat", remotePath}
+	// exec-out escapes its arguments; shell quoting here becomes part of the filename.
+	args := []string{"exec-out", "cat", "--", remotePath}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -166,6 +193,17 @@ func (sp *StreamingPuller) PullToBuffer(remotePath string) (*StreamingBuffer, er
 
 // PullToWriter pulls a file from device and streams it directly to a writer
 func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) error {
+	return sp.pullToWriter(remotePath, writer, false)
+}
+
+// PullRootToWriter pulls a file that is only readable as root and streams it
+// directly to a writer. It requires an already-functional su binary and never
+// attempts to alter the device's root state.
+func (sp *StreamingPuller) PullRootToWriter(remotePath string, writer io.Writer) error {
+	return sp.pullToWriter(remotePath, writer, true)
+}
+
+func (sp *StreamingPuller) pullToWriter(remotePath string, writer io.Writer, root bool) error {
 	if remotePath == "" {
 		return fmt.Errorf("remote path cannot be empty")
 	}
@@ -173,12 +211,15 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 		return fmt.Errorf("writer cannot be nil")
 	}
 
-	args := []string{"exec-out", "cat", remotePath}
+	args := []string{"exec-out", "cat", "--", remotePath}
+	if root {
+		args = []string{"exec-out", "su", "-c", "cat -- " + adb.QuoteRemoteShellArg(remotePath)}
+	}
 	if sp.serial != "" {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -192,13 +233,27 @@ func (sp *StreamingPuller) PullToWriter(remotePath string, writer io.Writer) err
 // PullToTempFile pulls a file from the device into a temporary file and
 // returns its path. The caller is responsible for removing the file.
 func (sp *StreamingPuller) PullToTempFile(remotePath string) (string, error) {
+	return sp.pullToTempFile(remotePath, false)
+}
+
+// PullRootToTempFile stages a root-readable device file in a host temporary
+// file. The caller is responsible for removing the returned path.
+func (sp *StreamingPuller) PullRootToTempFile(remotePath string) (string, error) {
+	return sp.pullToTempFile(remotePath, true)
+}
+
+func (sp *StreamingPuller) pullToTempFile(remotePath string, root bool) (string, error) {
 	tempFile, err := os.CreateTemp("", "androidqf-pull-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
 	tempPath := tempFile.Name()
 
-	if err := sp.PullToWriter(remotePath, tempFile); err != nil {
+	pull := sp.PullToWriter
+	if root {
+		pull = sp.PullRootToWriter
+	}
+	if err := pull(remotePath, tempFile); err != nil {
 		_ = tempFile.Close()
 		_ = os.Remove(tempPath)
 		return "", fmt.Errorf("failed to pull to temporary file: %w", err)
@@ -220,6 +275,17 @@ func (sp *StreamingPuller) PullToEncryptedTempFile(remotePath string) (*Encrypte
 	}
 	return createEncryptedTempFile(func(writer io.Writer) error {
 		return sp.PullToWriter(remotePath, writer)
+	})
+}
+
+// PullRootToEncryptedTempFile stages a root-readable device file encrypted on
+// the host. Plaintext is never written to host storage.
+func (sp *StreamingPuller) PullRootToEncryptedTempFile(remotePath string) (*EncryptedTempFile, error) {
+	if remotePath == "" {
+		return nil, fmt.Errorf("remote path cannot be empty")
+	}
+	return createEncryptedTempFile(func(writer io.Writer) error {
+		return sp.PullRootToWriter(remotePath, writer)
 	})
 }
 
@@ -292,7 +358,7 @@ func (sp *StreamingPuller) BackupToBuffer(arg string) (*StreamingBuffer, error) 
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = buffer
 
 	err := cmd.Run()
@@ -317,7 +383,7 @@ func (sp *StreamingPuller) BackupToWriter(arg string, writer io.Writer) error {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	cmd.Stdout = writer
 
 	err := cmd.Run()
@@ -341,12 +407,12 @@ func (sp *StreamingPuller) BugreportToBuffer() (*StreamingBuffer, error) {
 	// Stream the bugreport file to buffer
 	buffer := NewStreamingBuffer(int(sp.maxMem / (1024 * 1024)))
 
-	streamArgs := []string{"exec-out", "cat", filename}
+	streamArgs := []string{"exec-out", "cat", "--", filename}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
 
-	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd := sp.command(streamArgs...)
 	streamCmd.Stdout = buffer
 
 	err = streamCmd.Run()
@@ -372,12 +438,12 @@ func (sp *StreamingPuller) BugreportToWriter(writer io.Writer) error {
 	defer sp.cleanupDeviceFile(filename)
 
 	// Stream the bugreport file to writer
-	streamArgs := []string{"exec-out", "cat", filename}
+	streamArgs := []string{"exec-out", "cat", "--", filename}
 	if sp.serial != "" {
 		streamArgs = append([]string{"-s", sp.serial}, streamArgs...)
 	}
 
-	streamCmd := exec.Command(sp.adbPath, streamArgs...)
+	streamCmd := sp.command(streamArgs...)
 	streamCmd.Stdout = writer
 
 	err = streamCmd.Run()
@@ -395,7 +461,7 @@ func (sp *StreamingPuller) generateBugreport() (string, error) {
 		args = append([]string{"-s", sp.serial}, args...)
 	}
 
-	cmd := exec.Command(sp.adbPath, args...)
+	cmd := sp.command(args...)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to generate bugreport with bugreportz: %v", err)
@@ -418,7 +484,7 @@ func (sp *StreamingPuller) cleanupDeviceFile(filename string) {
 		return
 	}
 
-	cleanupArgs := []string{"shell", "rm", filename}
+	cleanupArgs := []string{"shell", "rm", adb.QuoteRemoteShellArg(filename)}
 	if sp.serial != "" {
 		cleanupArgs = append([]string{"-s", sp.serial}, cleanupArgs...)
 	}

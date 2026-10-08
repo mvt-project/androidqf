@@ -22,7 +22,7 @@ This project uses [GoReleaser](https://goreleaser.com/) for automated builds and
 
 1. Install GoReleaser:
    ```bash
-   go install github.com/goreleaser/goreleaser@latest
+   go install github.com/goreleaser/goreleaser/v2@v2.17.1
    ```
 
 2. Run a snapshot build (no publishing):
@@ -34,7 +34,7 @@ This will create binaries for all platforms in the `dist/` directory, including 
 
 ### Building with Make (Legacy)
 
-You can still use the traditional Makefile approach. You will need Go 1.23+ installed, along with `make`, `git`, `unzip` and `wget`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
+You can still use the traditional Makefile approach. You will need Go 1.26.5+ installed, along with `make`, `git`, `unzip` and `curl`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
 
 First build the `collector` module:
 
@@ -111,21 +111,29 @@ The following data can be extracted:
 | A full backup or backup of SMS and MMS messages. | :white_check_mark: | `backup.ab` |
 | The output of the getprop shell command, providing build information and configuration parameters. | |  `getprop.txt` |
 | All system settings | | `settings_*.txt` |
-| The output of the ps shell command, providing a list of all running processes. | | `processes.txt` |
+| The output of the ps shell command, providing a list of all running processes. | | `processes.json` when the collector is available, otherwise `processes.txt` |
 | The list of system's services. | | `services.txt` |
 | A copy of all the logs from the system. | | `logs/`, `logcat.txt` |
 | The output of the dumpsys shell command, providing diagnostic information about the device. | | `dumpsys.txt` |
 | A list of all packages installed and related distribution files. | |  `packages.json` |
 | Copy of all installed APKs or of only those not marked as system apps. | ✅ | `apks/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
-| A list of files on the system. | | `files.json` |
+| Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
+| A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
 | A bug report containing system and app-specific logs, with no private data included. | | `bugreport.zip` |
 
 Every acquisition also contains `acquisition.json`, `command.log` when log output
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
-pulls are not committed as archive entries. See [Acquisition
+transfers are not committed as archive entries. `acquisition.json` records the
+status (`completed`, `partial`, or `failed`), timing, and error (if any) for
+every module that ran. When the collector is deployed, `collector.sha256` is the
+SHA-256 of the selected collector bytes (embedded in standard builds). It can be
+compared with the optional on-device hash for the collector path in `files.json`;
+it does not itself verify the device copy. A finalized
+partial acquisition exits unsuccessfully instead of printing the normal
+completion message. See [Acquisition
 archives](docs/acquisition-archives.md) for details.
 
 ### About optional data collection
@@ -152,6 +160,28 @@ These options refers to data collected from the device by running the `adb backu
 | No backup | `adb backup` is not run |
 
 ### Downloading copies of apps
+
+The packages module enumerates Android users with `pm list users`, then queries
+package UIDs, installation state, enabled state and APK paths with an explicit
+`--user` argument. The device's foreground user is left active; AndroidQF does
+not start, unlock or switch users. Packages shared by several users have one
+record per user in `packages.json`, identified by `user_id`. The `installed`
+field distinguishes installed apps from historical records returned by `-u`;
+it is omitted if installation state could not be queried.
+
+`package_users.json` records the enumerated user IDs, names, flags, running
+state and package inventory outcomes. An inaccessible user is reported and
+does not discard other users' results. If user enumeration fails, AndroidQF
+tries the explicitly identified current user and reports the missing coverage
+as a partial acquisition. Package-state booleans may be incomplete when a
+user's `inventory_status` is `partial`; consult its `error` field.
+
+The APK download choice applies across the accessible users. Each downloaded
+file's `local_name` identifies its archive entry, including when two users
+share an APK. Collecting package metadata or APKs does not grant access to a
+secondary user's app-private data or emulated storage. Access depends on the
+Android version and device policy, so an empty or partial collection must not
+be interpreted as evidence that a profile contains no apps.
 
 ```
 Would you like to download copies of all apps or only non-system ones?
@@ -200,6 +230,49 @@ Would you like to take the Intrusion Logs of the device?
 | Yes | Intrusion Logs will be retrieved from the phone. |
 | No | Intrusion Logs acquisition is skipped. |
 
+### Hashing files on the device
+
+```
+Would you like to hash files on the device? This is resource-intensive and may cause the collector to stop on some devices.
+
+? Hash files:
+  ▸ No
+    Yes
+```
+
+Selecting `Yes` adds MD5, SHA-1, SHA-256 and SHA-512 hashes to the entries in
+`files.json` where hashing is supported. This performs the hashing on the
+device and can take a long time or cause the collector to stop on devices with
+limited resources. The default `No` option only collects file metadata.
+
+### Browser history
+
+AndroidQF can optionally collect Chromium `History` databases from supported
+browsers when the device already provides working root access through `su`.
+AndroidQF does not root the device, stop browser processes, or copy the files
+through shared storage. The default `No` option skips this collection.
+
+When enabled, AndroidQF streams each database and any present `-wal` and `-shm`
+sidecars directly to host-side staging before adding them under
+`browser_history/` in the acquisition. A `browser_history/manifest.json` file
+records the browser, package, profile, original device path, and archive path.
+The currently supported packages are Chrome, Brave, Microsoft Edge, and
+Samsung Internet.
+
+### Magisk modules
+
+AndroidQF can optionally collect metadata for modules installed under
+`/data/adb/modules` when the device already provides working root access
+through `su`. AndroidQF does not attempt to root the device. The default `No`
+option skips this collection.
+
+When enabled, AndroidQF records each module directory and the presence of the
+Magisk `disable`, `remove`, and `update` state files. It also streams each
+available `module.prop` directly to host-side staging before adding it under
+`magisk_modules/` in the acquisition. The accompanying manifest records
+whether property and state collection completed, so an unavailable artifact is
+not silently treated as an enabled module.
+
 ### Unattended acquisitions
 
 Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
@@ -210,11 +283,14 @@ Every prompt can be answered ahead of time with a command-line flag. A flag that
 | `-download` / `-d` | `all`, `non-system`, `none` | [Downloading copies of apps](#downloading-copies-of-apps) |
 | `-remove-trusted` / `-r` | `yes`, `no` | [Removing apps signed with a trusted certificate](#removing-apps-signed-with-a-trusted-certificate), ignored with `-download none` |
 | `-intrusion-logs` / `-i` | `yes`, `no` | [Intrusion Logs](#intrusion-logs) |
+| `-hash-files` / `-H` | `yes`, `no` | [Hashing files on the device](#hashing-files-on-the-device) |
+| `-browser-history` | `yes`, `no` | [Browser history](#browser-history) |
+| `-magisk-modules` | `yes`, `no` | [Magisk modules](#magisk-modules) |
 
 With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
 
 ```bash
-androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -non-interactive
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -magisk-modules no -non-interactive
 ```
 
 > [!NOTE]
@@ -230,7 +306,7 @@ Ideally you should have the drive fully encrypted, but that might not always be 
 
 Alternatively, androidqf allows to encrypt each acquisition with a provided [age](https://age-encryption.org) public key. Preferably, this public key belongs to a keypair for which the end-user does not possess, or at least carry, the private key. In this way, the end-user would not be able to decrypt the acquired data even under duress.
 
-androidqf streams each acquisition into a zip archive. If you place a file called `key.txt` in the current working directory, androidqf will encrypt the zip stream with age and write `<UUID>.zip.age`; otherwise, it writes an unencrypted `<UUID>.zip`. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
+androidqf streams each acquisition into a zip archive. If you place a file called `key.txt` in the current working directory, androidqf will encrypt the zip stream with age and write `<UUID>.zip.age`; otherwise, it writes an unencrypted `<UUID>.zip`. Put one age recipient per line in `key.txt`; each recipient can decrypt the resulting acquisition. Empty lines and lines beginning with `#` are ignored. androidqf also checks for `key.txt` in the same folder as the executable; if both files exist, the current working directory takes precedence.
 
 Encrypted acquisitions do not create a plaintext acquisition archive. Device
 files that must be validated before they are added to an encrypted archive are

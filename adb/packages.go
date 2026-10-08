@@ -7,12 +7,10 @@ package adb
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
 	"github.com/avast/apkverifier"
-	"github.com/mvt-project/androidqf/log"
 )
 
 type PackageFile struct {
@@ -30,6 +28,8 @@ type PackageFile struct {
 }
 
 type Package struct {
+	UserID     int           `json:"user_id"`
+	Installed  *bool         `json:"installed,omitempty"`
 	Name       string        `json:"name"`
 	Files      []PackageFile `json:"files"`
 	Installer  string        `json:"installer"`
@@ -37,21 +37,36 @@ type Package struct {
 	Disabled   bool          `json:"disabled"`
 	System     bool          `json:"system"`
 	ThirdParty bool          `json:"third_party"`
+	FilesError string        `json:"files_error,omitempty"`
 }
 
-func (a *ADB) getPackageFiles(packageName string, fast bool) []PackageFile {
-	out, err := a.Shell("pm", "path", packageName)
+type packageListAttempt struct {
+	args          []string
+	withInstaller bool
+}
+
+type packageListEntry struct {
+	name      string
+	installer string
+	uid       int
+}
+
+func (a *ADB) getPackageFiles(packageName string, userID int, fast bool) ([]PackageFile, error) {
+	out, err := a.Shell("pm", "path", "--user", strconv.Itoa(userID), QuoteRemoteShellArg(packageName))
 	if err != nil {
-		log.Errorf("Failed to get file paths for package %s: %v: %s", packageName, err, out)
-		return []PackageFile{}
+		return []PackageFile{}, fmt.Errorf("failed to get file paths: %w: %s", err, out)
 	}
 
 	packageFiles := []PackageFile{}
 	for _, line := range strings.Split(out, "\n") {
-		packagePath := strings.TrimPrefix(strings.TrimSpace(line), "package:")
-		if packagePath == "" {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
+		if !strings.HasPrefix(line, "package:/") {
+			return []PackageFile{}, fmt.Errorf("unrecognized APK path output %q", line)
+		}
+		packagePath := strings.TrimPrefix(line, "package:")
 
 		packageFile := PackageFile{
 			Path: packagePath,
@@ -60,19 +75,20 @@ func (a *ADB) getPackageFiles(packageName string, fast bool) []PackageFile {
 		if !fast {
 			// Not sure if this is useful or not considering packages may
 			// be downloaded later on
-			md5Out, err := a.Shell("md5sum", packagePath)
+			quotedPackagePath := QuoteRemoteShellArg(packagePath)
+			md5Out, err := a.Shell("md5sum", quotedPackagePath)
 			if err == nil {
 				packageFile.MD5 = strings.SplitN(md5Out, " ", 2)[0]
 			}
-			sha1Out, err := a.Shell("sha1sum", packagePath)
+			sha1Out, err := a.Shell("sha1sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA1 = strings.SplitN(sha1Out, " ", 2)[0]
 			}
-			sha256Out, err := a.Shell("sha256sum", packagePath)
+			sha256Out, err := a.Shell("sha256sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA256 = strings.SplitN(sha256Out, " ", 2)[0]
 			}
-			sha512Out, err := a.Shell("sha512sum", packagePath)
+			sha512Out, err := a.Shell("sha512sum", quotedPackagePath)
 			if err == nil {
 				packageFile.SHA512 = strings.SplitN(sha512Out, " ", 2)[0]
 			}
@@ -80,101 +96,73 @@ func (a *ADB) getPackageFiles(packageName string, fast bool) []PackageFile {
 
 		packageFiles = append(packageFiles, packageFile)
 	}
+	if len(packageFiles) == 0 {
+		return packageFiles, fmt.Errorf("no APK paths returned for user %d", userID)
+	}
 
-	return packageFiles
+	return packageFiles, nil
 }
 
-// GetPackages returns the list of installed package names.
+// GetPackages returns per-user package records, including retained uninstalled
+// records. A non-nil error can accompany successfully collected users.
 func (a *ADB) GetPackages(fast bool) ([]Package, error) {
-	withInstaller := true
-	out, err := a.Shell("pm", "list", "packages", "-U", "-u", "-i")
-	if err != nil {
-		// Some phones do not support -i option
-		out, err = a.Shell("pm", "list", "packages", "-U", "-u")
-		if err != nil {
-			// old Samsung throw errors when trying to access installed packages of other users
-			out, err = a.Shell("pm", "list", "packages", "-U", "-u", "-i", "--user 0")
-			if err != nil {
-				return []Package{}, fmt.Errorf("failed to launch `pm list packages` command: %v",
-					err)
-			}
-		}
-		withInstaller = false
-	}
+	packages, _, err := a.GetPackagesWithUsers(fast)
+	return packages, err
+}
 
-	packages := []Package{}
-	var installer string
-	var uid int
+func parsePackageList(out string, withInstaller bool) ([]packageListEntry, error) {
+	var entries []packageListEntry
 	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
 		fields := strings.Fields(line)
-		packageName := strings.TrimPrefix(strings.TrimSpace(fields[0]), "package:")
+		if len(fields) == 0 || !strings.HasPrefix(fields[0], "package:") {
+			return nil, fmt.Errorf("unrecognized package-list output %q", line)
+		}
+
+		expectedFields := 2
+		uidIndex := 1
 		if withInstaller {
-			installer = strings.TrimPrefix(strings.TrimSpace(fields[1]), "installer=")
-			uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[2]), "uid:"))
-		} else {
-			uid, _ = strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(fields[1]), "uid:"))
-			installer = ""
+			expectedFields = 3
+			uidIndex = 2
+		}
+		if len(fields) < expectedFields {
+			return nil, fmt.Errorf("malformed package-list output %q", line)
 		}
 
-		if packageName == "" {
-			continue
+		entry := packageListEntry{name: strings.TrimPrefix(fields[0], "package:")}
+		if entry.name == "" {
+			return nil, fmt.Errorf("malformed package-list output %q", line)
 		}
-
-		newPackage := Package{
-			Name:       packageName,
-			Installer:  installer,
-			UID:        uid,
-			Disabled:   false,
-			System:     false,
-			ThirdParty: false,
-			Files:      a.getPackageFiles(packageName, fast),
-		}
-
-		packages = append(packages, newPackage)
-	}
-
-	cmds := []map[string]string{
-		{"field": "Disabled", "arg": "-d"},
-		{"field": "System", "arg": "-s"},
-		{"field": "ThirdParty", "arg": "-3"},
-	}
-	for _, cmd := range cmds {
-		out, err = a.Shell("pm", "list", "packages", cmd["arg"])
-		if err != nil && out == "" {
-			log.Infof("Failed to get packages filtered by `%s`: %v: %s\n",
-				cmd["arg"], err, out)
-			continue
-		}
-
-		for _, line := range strings.Split(out, "\n") {
-			packageName := strings.TrimPrefix(strings.TrimSpace(line), "package:")
-			if packageName == "" {
-				continue
+		if withInstaller {
+			if !strings.HasPrefix(fields[1], "installer=") {
+				return nil, fmt.Errorf("malformed installer field in %q", line)
 			}
-
-			for pIndex, p := range packages {
-				if p.Name != packageName {
-					continue
-				}
-
-				elems := reflect.ValueOf(&p).Elem()
-				for i := 0; i < elems.NumField(); i++ {
-					fieldName := elems.Type().Field(i).Name
-					if fieldName == cmd["field"] {
-						reflect.ValueOf(&packages[pIndex]).Elem().FieldByName(fieldName).SetBool(true)
-					}
-				}
-			}
+			entry.installer = strings.TrimPrefix(fields[1], "installer=")
 		}
+		if !strings.HasPrefix(fields[uidIndex], "uid:") {
+			return nil, fmt.Errorf("malformed UID field in %q", line)
+		}
+		uid, err := strconv.Atoi(strings.TrimPrefix(fields[uidIndex], "uid:"))
+		if err != nil {
+			return nil, fmt.Errorf("malformed UID field in %q: %w", line, err)
+		}
+		entry.uid = uid
+		entries = append(entries, entry)
 	}
-
-	return packages, nil
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("package-list output contained no package records")
+	}
+	return entries, nil
 }
 
 // GetPackagePaths returns a list of file paths associated with the provided
 // package name.
 func (a *ADB) GetPackagePaths(packageName string) ([]string, error) {
-	out, err := a.Shell("pm", "path", packageName)
+	out, err := a.Shell("pm", "path", QuoteRemoteShellArg(packageName))
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to launch `pm path` command: %v",
 			err)

@@ -138,6 +138,132 @@ func TestNewStreamingZipWriterUsesCurrentWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestNewStreamingZipWriterUsesRestrictivePermissions(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "output")
+
+	ezw, err := NewStreamingZipWriter("test-acquisition", outputDir)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
+	}
+
+	dirInfo, err := os.Stat(outputDir)
+	if err != nil {
+		t.Fatalf("Stat(output directory) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got&0o077 != 0 {
+		t.Fatalf("output directory permissions = %o, want no group or world permissions", got)
+	}
+
+	fileInfo, err := os.Stat(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("Stat(output file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("output file permissions during acquisition = %o, want 600", got)
+	}
+
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	fileInfo, err = os.Stat(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("Stat(closed output file) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o400 {
+		t.Fatalf("closed output file permissions = %o, want 400", got)
+	}
+}
+
+func TestNewStreamingZipWriterDoesNotOverwriteExistingOutput(t *testing.T) {
+	outputDir := t.TempDir()
+	outputPath := filepath.Join(outputDir, "test-acquisition.zip")
+	original := []byte("existing evidence")
+	if err := os.WriteFile(outputPath, original, 0o600); err != nil {
+		t.Fatalf("WriteFile(existing output) error = %v", err)
+	}
+
+	if _, err := NewStreamingZipWriter("test-acquisition", outputDir); err == nil {
+		t.Fatal("NewStreamingZipWriter() returned nil error for existing output")
+	}
+
+	got, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(existing output) error = %v", err)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("existing output content = %q, want %q", got, original)
+	}
+}
+
+func TestNewStreamingZipWriterEncryptsForEveryRecipient(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+
+	var identities []*age.X25519Identity
+	var recipientFile strings.Builder
+	recipientFile.WriteString("# Acquisition recipients\n\n")
+	for range 2 {
+		identity, err := age.GenerateX25519Identity()
+		if err != nil {
+			t.Fatalf("GenerateX25519Identity() error = %v", err)
+		}
+		identities = append(identities, identity)
+		recipientFile.WriteString(identity.Recipient().String())
+		recipientFile.WriteByte('\n')
+	}
+	if err := os.WriteFile(
+		filepath.Join(cwd, keyFileName),
+		[]byte(recipientFile.String()),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(key.txt) error = %v", err)
+	}
+
+	ezw, err := NewStreamingZipWriter("test-acquisition", cwd)
+	if err != nil {
+		t.Fatalf("NewStreamingZipWriter() error = %v", err)
+	}
+	if err := ezw.CreateFileFromString("evidence.txt", "collected evidence"); err != nil {
+		t.Fatalf("CreateFileFromString() error = %v", err)
+	}
+	if err := ezw.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	encrypted, err := os.ReadFile(ezw.GetOutputPath())
+	if err != nil {
+		t.Fatalf("ReadFile(encrypted archive) error = %v", err)
+	}
+	for i, identity := range identities {
+		decrypted, err := age.Decrypt(bytes.NewReader(encrypted), identity)
+		if err != nil {
+			t.Fatalf("age.Decrypt() for recipient %d error = %v", i+1, err)
+		}
+		archive, err := io.ReadAll(decrypted)
+		if err != nil {
+			t.Fatalf("ReadAll(decrypted archive) for recipient %d error = %v", i+1, err)
+		}
+
+		reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+		if err != nil {
+			t.Fatalf("zip.NewReader() for recipient %d error = %v", i+1, err)
+		}
+		entry, err := reader.File[0].Open()
+		if err != nil {
+			t.Fatalf("Open(evidence.txt) for recipient %d error = %v", i+1, err)
+		}
+		content, err := io.ReadAll(entry)
+		entry.Close()
+		if err != nil {
+			t.Fatalf("ReadAll(evidence.txt) for recipient %d error = %v", i+1, err)
+		}
+		if string(content) != "collected evidence" {
+			t.Fatalf("evidence.txt for recipient %d = %q", i+1, content)
+		}
+	}
+}
+
 func TestValidateZipEntryName(t *testing.T) {
 	tests := []struct {
 		name    string

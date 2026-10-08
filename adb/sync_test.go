@@ -2,6 +2,7 @@ package adb
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,7 +11,50 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestSyncPullToWriterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	requested := make(chan struct{})
+	address := startFakeADBServer(t, func(conn net.Conn) error {
+		if err := expectHostRequest(conn, "host:transport-any"); err != nil {
+			return err
+		}
+		if err := expectHostRequest(conn, "sync:"); err != nil {
+			return err
+		}
+		if err := expectSyncRequest(conn, "RECV", "/policy"); err != nil {
+			return err
+		}
+		close(requested)
+		var data [1]byte
+		_, err := conn.Read(data[:])
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	})
+	client := &ADB{serverAddress: address}
+	client.SetContext(ctx)
+	done := make(chan error, 1)
+	go func() { done <- client.SyncPullToWriter("/policy", io.Discard) }()
+	select {
+	case <-requested:
+	case <-time.After(5 * time.Second):
+		t.Fatal("sync request did not reach server")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("SyncPullToWriter() = %v, want cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("sync transfer did not stop after cancellation")
+	}
+}
 
 func TestSyncPullToWriter(t *testing.T) {
 	address := startFakeADBServer(t, func(conn net.Conn) error {

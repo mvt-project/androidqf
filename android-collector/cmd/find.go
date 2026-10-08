@@ -7,8 +7,10 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -50,6 +52,7 @@ type Job struct {
 }
 
 var hashOption bool
+var outputMu sync.Mutex
 
 func getMimeType(buf []byte) (string, error) {
 	kind, err := filetype.Match(buf)
@@ -97,26 +100,32 @@ func processFile(filePath string, fileInfo os.FileInfo, getHash bool) FileInfo {
 	}
 
 	if getHash {
-		// no hash for /proc/
-		if strings.HasPrefix(filePath, "/proc/") || strings.HasPrefix(filePath, "/sys/") || strings.HasPrefix(filePath, "/system/") {
+		// Avoid pseudo-files whose reads can block or have side effects.
+		if isPathWithin(filePath, "/proc") || isPathWithin(filePath, "/sys") {
 			return f
 		}
 
 		file, err := os.Open(filePath)
 		if err != nil {
+			f.Error = err.Error()
 			return f
 		}
 		defer file.Close()
 
-		buf := make([]byte, f.Size)
-		_, err = file.Read(buf)
-		if err != nil {
+		header := make([]byte, 512)
+		headerSize, err := io.ReadFull(file, header)
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			f.Error = err.Error()
 			return f
 		}
 
-		mimeType, err := getMimeType(buf)
+		mimeType, err := getMimeType(header[:headerSize])
 		if err == nil {
 			f.MimeType = mimeType
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			f.Error = err.Error()
+			return f
 		}
 
 		hashes := []hash.Hash{
@@ -126,8 +135,17 @@ func processFile(filePath string, fileInfo os.FileInfo, getHash bool) FileInfo {
 			sha512.New(),
 		}
 
-		for _, h := range hashes {
-			h.Write(buf)
+		writers := make([]io.Writer, len(hashes))
+		for i, h := range hashes {
+			writers[i] = h
+		}
+		bytesRead, err := io.Copy(io.MultiWriter(writers...), file)
+		if err != nil {
+			f.Error = err.Error()
+			return f
+		}
+		if bytesRead != f.Size {
+			f.Error = fmt.Sprintf("file size changed during hashing: expected %d bytes, read %d", f.Size, bytesRead)
 		}
 
 		f.MD5 = hex.EncodeToString(hashes[0].Sum(nil))
@@ -140,6 +158,12 @@ func processFile(filePath string, fileInfo os.FileInfo, getHash bool) FileInfo {
 	return f
 }
 
+func isPathWithin(filePath, root string) bool {
+	cleanPath := filepath.Clean(filePath)
+	cleanRoot := filepath.Clean(root)
+	return cleanPath == cleanRoot || strings.HasPrefix(cleanPath, cleanRoot+string(filepath.Separator))
+}
+
 func worker(jobChan chan Job, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -149,7 +173,9 @@ func worker(jobChan chan Job, wg *sync.WaitGroup) {
 		if err != nil {
 			continue
 		}
+		outputMu.Lock()
 		fmt.Println(string(jsonData))
+		outputMu.Unlock()
 	}
 }
 

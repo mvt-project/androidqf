@@ -5,6 +5,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/mvt-project/androidqf/acquisition"
@@ -24,6 +25,7 @@ func (s *Settings) Name() string {
 
 func (s *Settings) Run(acq *acquisition.Acquisition, opts *Options) error {
 	log.Info("Collecting device settings...")
+	var collectionErr error
 
 	for _, namespace := range []string{"system", "secure", "global"} {
 		out, err := adb.Client.Shell(fmt.Sprintf("cmd settings list %s", namespace))
@@ -34,8 +36,9 @@ func (s *Settings) Run(acq *acquisition.Acquisition, opts *Options) error {
 		err = saveStringToAcquisition(acq, fmt.Sprintf("settings_%s.txt", namespace), out)
 		if err != nil {
 			log.Errorf("Impossible to save settings: %v", err)
+			collectionErr = errors.Join(collectionErr, fmt.Errorf("%s: %w", namespace, err))
 		}
 	}
 
-	return nil
+	return partialCollectionError(collectionErr)
 }

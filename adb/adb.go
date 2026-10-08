@@ -6,6 +6,7 @@
 package adb
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -14,9 +15,11 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	saveSlice "github.com/botherder/go-savetime/slice"
+	"github.com/mvt-project/androidqf/assets"
 	"github.com/mvt-project/androidqf/log"
 )
 
@@ -24,6 +27,8 @@ type ADB struct {
 	ExePath       string
 	Serial        string
 	serverAddress string
+	ctxMu         sync.RWMutex
+	ctx           context.Context
 }
 
 type DeviceInfo struct {
@@ -44,7 +49,14 @@ const (
 
 // New returns a new ADB instance.
 func New() (*ADB, error) {
+	return NewWithContext(context.Background())
+}
+
+// NewWithContext returns a new ADB instance whose commands are canceled when
+// ctx is canceled.
+func NewWithContext(ctx context.Context) (*ADB, error) {
 	adb := ADB{}
+	adb.SetContext(ctx)
 	err := adb.findExe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find a usable adb executable: %v",
@@ -55,9 +67,31 @@ func New() (*ADB, error) {
 	// Confirm that we can call "adb devices" without errors
 	_, err = adb.Devices()
 	if err != nil {
+		_, _ = adb.KillServer()
+		_ = assets.CleanAssets()
 		return nil, err
 	}
 	return &adb, nil
+}
+
+// SetContext changes the context used by subsequent ADB commands.
+func (a *ADB) SetContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.ctxMu.Lock()
+	a.ctx = ctx
+	a.ctxMu.Unlock()
+}
+
+func (a *ADB) command(args ...string) *exec.Cmd {
+	a.ctxMu.RLock()
+	ctx := a.ctx
+	a.ctxMu.RUnlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return exec.CommandContext(ctx, a.ExePath, args...)
 }
 
 func (a *ADB) SetSerial(serial string) (string, error) {
@@ -91,7 +125,7 @@ func (a *ADB) SetSerial(serial string) (string, error) {
 // List existing devices
 func (a *ADB) Devices() ([]string, error) {
 	var devices []string
-	out, err := exec.Command(a.ExePath, "devices").Output()
+	out, err := a.command("devices").Output()
 	if err != nil {
 		return devices, fmt.Errorf("failed to use the adb executable: %v",
 			err)
@@ -111,7 +145,7 @@ func (a *ADB) Devices() ([]string, error) {
 
 func (a *ADB) DeviceInfos() ([]DeviceInfo, error) {
 	var devices []DeviceInfo
-	out, err := exec.Command(a.ExePath, "devices", "-l").Output()
+	out, err := a.command("devices", "-l").Output()
 	if err != nil {
 		return devices, fmt.Errorf("failed to use the adb executable: %v",
 			err)
@@ -163,12 +197,12 @@ func parseDeviceInfoLine(line string) (DeviceInfo, bool) {
 // Returns string and/or error
 func (a *ADB) Exec(args ...string) ([]byte, error) {
 	if a.Serial == "" {
-		return exec.Command(a.ExePath, args...).Output()
+		return a.command(args...).Output()
 	} else {
 		var params []string
 		params = append(params, "-s", a.Serial)
 		params = append(params, args...)
-		return exec.Command(a.ExePath, params...).Output()
+		return a.command(params...).Output()
 	}
 }
 
@@ -202,6 +236,54 @@ func (a *ADB) Shell(cmd ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// RootShell executes a command through an already-functional su binary. It
+// does not attempt to enable or install root access.
+func (a *ADB) RootShell(command string) (string, error) {
+	if strings.TrimSpace(command) == "" {
+		return "", fmt.Errorf("root shell command cannot be empty")
+	}
+	return a.Shell("su", "-c", command)
+}
+
+// HasRoot reports whether su can execute commands as UID 0.
+func (a *ADB) HasRoot() bool {
+	out, err := a.RootShell("id -u")
+	return err == nil && strings.TrimSpace(out) == "0"
+}
+
+// FileExistsAsRoot checks a fixed device path without exposing it to shell
+// expansion.
+func (a *ADB) FileExistsAsRoot(devicePath string) (bool, error) {
+	if devicePath == "" {
+		return false, fmt.Errorf("device path cannot be empty")
+	}
+	out, err := a.RootShell("if [ -f " + QuoteRemoteShellArg(devicePath) + " ]; then printf 1; else printf 0; fi")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "1", nil
+}
+
+// FileSizeAsRoot returns the size of a root-readable file without copying it.
+func (a *ADB) FileSizeAsRoot(devicePath string) (int64, error) {
+	if devicePath == "" {
+		return 0, fmt.Errorf("device path cannot be empty")
+	}
+	out, err := a.RootShell("wc -c < " + shellQuote(devicePath))
+	if err != nil {
+		return 0, err
+	}
+	size, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+	if err != nil || size < 0 {
+		return 0, fmt.Errorf("invalid file size %q", out)
+	}
+	return size, nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
 // Pull downloads a file from the device to a local path.
 func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 	out, err := a.Exec("pull", remotePath, localPath)
@@ -216,7 +298,7 @@ func (a *ADB) Pull(remotePath, localPath string) (string, error) {
 // writes it directly to writer. Unlike shell-based streaming, the sync service
 // can retrieve files such as /sys/fs/selinux/policy that are exposed to
 // `adb pull` but cannot be read from an ADB shell.
-func (a *ADB) SyncPullToWriter(remotePath string, writer io.Writer) error {
+func (a *ADB) SyncPullToWriter(remotePath string, writer io.Writer) (err error) {
 	if remotePath == "" {
 		return fmt.Errorf("remote path cannot be empty")
 	}
@@ -229,11 +311,25 @@ func (a *ADB) SyncPullToWriter(remotePath string, writer io.Writer) error {
 		serverAddress = defaultADBServerAddress
 	}
 
-	conn, err := net.DialTimeout("tcp", serverAddress, adbDialTimeout)
+	a.ctxMu.RLock()
+	ctx := a.ctx
+	a.ctxMu.RUnlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dialer := net.Dialer{Timeout: adbDialTimeout}
+	conn, err := dialer.DialContext(ctx, "tcp", serverAddress)
 	if err != nil {
 		return fmt.Errorf("failed to connect to ADB server: %w", err)
 	}
 	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+	defer func() {
+		if err != nil && ctx.Err() != nil {
+			err = errors.Join(err, ctx.Err())
+		}
+	}()
 
 	transport := "host:transport-any"
 	if a.Serial != "" {
@@ -388,7 +484,7 @@ func (a *ADB) Backup(outPath, arg string) error {
 	if a.Serial != "" {
 		args = append([]string{"-s", a.Serial}, args...)
 	}
-	cmd := exec.Command(a.ExePath, args...)
+	cmd := a.command(args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, string(output))
@@ -402,7 +498,7 @@ func (a *ADB) Bugreport(outPath string) error {
 	if a.Serial != "" {
 		args = append([]string{"-s", a.Serial}, args...)
 	}
-	cmd := exec.Command(a.ExePath, args...)
+	cmd := a.command(args...)
 	err := cmd.Run()
 	return err
 }
@@ -424,7 +520,7 @@ func (a *ADB) IL() error {
 
 // check if file exists
 func (a *ADB) FileExists(path string) (bool, error) {
-	out, err := a.Shell("[", "-f", path, "] || echo 1")
+	out, err := a.Shell("[", "-f", QuoteRemoteShellArg(path), "] || echo 1")
 	if err != nil {
 		return false, err
 	}
@@ -438,11 +534,11 @@ func (a *ADB) FileExists(path string) (bool, error) {
 func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 	var remoteFiles []string
 
-	// Quote remotePath so files with spaces on their name work
-	qPath := fmt.Sprintf("'%s'", remotePath)
+	// Quote remotePath so shell metacharacters remain part of the path.
+	qPath := QuoteRemoteShellArg(remotePath)
 
 	if recursive {
-		out, _ := a.Shell("find", qPath, "2>", "/dev/null")
+		out, err := a.Shell("find", qPath, "-type", "f", "2>", "/dev/null")
 		if out != "" {
 			tmpFiles := strings.Split(out, "\n")
 			for _, file := range tmpFiles {
@@ -452,8 +548,11 @@ func (a *ADB) ListFiles(remotePath string, recursive bool) ([]string, error) {
 				}
 			}
 		}
+		if err != nil {
+			return remoteFiles, err
+		}
 	} else {
-		out, err := a.Shell("ls", remotePath)
+		out, err := a.Shell("ls", qPath)
 		if err != nil {
 			return remoteFiles, err
 		}

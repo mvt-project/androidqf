@@ -1,10 +1,14 @@
 package adb
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -18,6 +22,10 @@ func TestMain(m *testing.M) {
 func fakeADB() {
 	if len(os.Args) < 2 {
 		os.Exit(2)
+	}
+	if fixture := os.Getenv("ANDROIDQF_FAKE_PACKAGE_FIXTURE"); fixture != "" {
+		fakePackageADB(fixture)
+		return
 	}
 
 	switch os.Args[1] {
@@ -33,8 +41,114 @@ func fakeADB() {
 				}
 			}
 		}
+	case "pubkey":
+		fmt.Println(os.Getenv("ANDROIDQF_FAKE_ADB_PUBLIC_KEY"))
+	case "wait":
+		_ = os.WriteFile(os.Getenv("ANDROIDQF_FAKE_ADB_MARKER"), []byte("started"), 0o600)
+		select {}
+	case "shell":
+		if os.Getenv("ANDROIDQF_FAKE_ADB_REQUIRE_TYPE_FILE") == "1" && !strings.Contains(strings.Join(os.Args[2:], " "), "-type f") {
+			os.Exit(2)
+		}
+		fmt.Print(os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_OUTPUT"))
+		if os.Getenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL") == "1" {
+			os.Exit(1)
+		}
+	case "push":
+		if os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_FAIL") == "1" {
+			os.Exit(1)
+		}
+		copyPath := os.Getenv("ANDROIDQF_FAKE_ADB_PUSH_COPY")
+		if len(os.Args) < 4 || copyPath == "" {
+			os.Exit(2)
+		}
+		data, err := os.ReadFile(os.Args[2])
+		if err != nil || os.WriteFile(copyPath, data, 0o600) != nil {
+			os.Exit(2)
+		}
 	default:
 		os.Exit(2)
+	}
+}
+
+func fakePackageADB(fixture string) {
+	data, err := os.ReadFile(fixture)
+	if err != nil {
+		os.Exit(2)
+	}
+	var replies map[string]struct {
+		Output string
+		Fail   bool
+	}
+	if json.Unmarshal(data, &replies) != nil {
+		os.Exit(2)
+	}
+	command := strings.Join(os.Args[1:], " ")
+	if logFile := os.Getenv("ANDROIDQF_FAKE_PACKAGE_CALLS"); logFile != "" {
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+		if err != nil {
+			os.Exit(2)
+		}
+		fmt.Fprintln(file, command)
+		file.Close()
+	}
+	reply, found := replies[command]
+	if !found {
+		fmt.Printf("unexpected command: %s", command)
+		os.Exit(2)
+	}
+	fmt.Print(reply.Output)
+	if reply.Fail {
+		os.Exit(1)
+	}
+}
+
+func TestExecCancelsActiveADBCommand(t *testing.T) {
+	client := newFakeADB(t, "")
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("ANDROIDQF_FAKE_ADB_MARKER", marker)
+	ctx, cancel := context.WithCancel(context.Background())
+	client.SetContext(ctx)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.Exec("wait")
+		done <- err
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("fake adb did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Exec() error = nil after cancellation")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Exec() did not stop after cancellation")
+	}
+}
+
+func TestListFilesReturnsPartialOutputAndError(t *testing.T) {
+	client := newFakeADB(t, "")
+	t.Setenv("ANDROIDQF_FAKE_ADB_REQUIRE_TYPE_FILE", "1")
+	t.Setenv("ANDROIDQF_FAKE_ADB_SHELL_OUTPUT", "/sdcard/one\n/sdcard/two\n")
+	t.Setenv("ANDROIDQF_FAKE_ADB_SHELL_FAIL", "1")
+
+	files, err := client.ListFiles("/sdcard", true)
+	if err == nil {
+		t.Fatal("ListFiles() error = nil")
+	}
+	if len(files) != 2 || files[0] != "/sdcard/one" || files[1] != "/sdcard/two" {
+		t.Fatalf("ListFiles() files = %v", files)
 	}
 }
 

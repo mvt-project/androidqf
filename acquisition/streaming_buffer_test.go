@@ -3,6 +3,7 @@ package acquisition
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStreamingBufferMemoryLimitError(t *testing.T) {
@@ -45,6 +47,53 @@ func TestPullToBufferPreservesMemoryLimitError(t *testing.T) {
 	_, err := puller.PullToBuffer("/data/app/large.apk")
 	if !errors.Is(err, ErrStreamingBufferMemoryLimit) {
 		t.Fatalf("PullToBuffer() error = %v, want ErrStreamingBufferMemoryLimit", err)
+	}
+}
+
+func TestPullToWriterCancelsActiveADBCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell script as a fake adb executable")
+	}
+
+	fakeADB := filepath.Join(t.TempDir(), "adb")
+	marker := filepath.Join(t.TempDir(), "started")
+	t.Setenv("ANDROIDQF_FAKE_ADB_MARKER", marker)
+	if err := os.WriteFile(fakeADB, []byte("#!/bin/sh\n: > \"$ANDROIDQF_FAKE_ADB_MARKER\"\nexec sleep 3600\n"), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake adb) error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	puller := NewStreamingPuller(fakeADB, "", 1)
+	puller.SetContext(ctx)
+	writer := new(bytes.Buffer)
+	done := make(chan error, 1)
+	go func() {
+		done <- puller.PullToWriter("/data/local/tmp/file", writer)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(marker); err == nil {
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("fake adb stopped before cancellation: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("fake adb did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("PullToWriter() error = nil after cancellation")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("PullToWriter() did not stop after cancellation")
 	}
 }
 
@@ -186,5 +235,34 @@ func TestPullToZipStagedDoesNotCreateEntryForFailedPull(t *testing.T) {
 		if strings.EqualFold(file.Name, "logs/proc/kmsg") {
 			t.Fatalf("archive contains entry for failed pull: %q", file.Name)
 		}
+	}
+}
+
+func TestPullRootToWriterUsesSuAndQuotesPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixture is Unix-specific")
+	}
+
+	fakeADB := filepath.Join(t.TempDir(), "adb")
+	script := `#!/bin/sh
+[ "$1" = "-s" ] || exit 2
+[ "$2" = "serial-1" ] || exit 2
+[ "$3" = "exec-out" ] || exit 2
+[ "$4" = "su" ] || exit 2
+[ "$5" = "-c" ] || exit 2
+[ "$6" = "cat -- '/data/data/example'\"'\"'s/History'" ] || exit 2
+printf 'history data'
+`
+	if err := os.WriteFile(fakeADB, []byte(script), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake adb) error = %v", err)
+	}
+
+	var output bytes.Buffer
+	puller := NewStreamingPuller(fakeADB, "serial-1", 1)
+	if err := puller.PullRootToWriter("/data/data/example's/History", &output); err != nil {
+		t.Fatalf("PullRootToWriter() error = %v", err)
+	}
+	if got := output.String(); got != "history data" {
+		t.Fatalf("output = %q, want history data", got)
 	}
 }

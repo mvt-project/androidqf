@@ -16,16 +16,17 @@ import (
 )
 
 func (a *ADB) findExe() error {
-	// TODO: only deploy assets when needed
+	adbPath, err := exec.LookPath("adb.exe")
+	if err == nil {
+		a.ExePath = adbPath
+		return nil
+	}
+
 	assetDir, err := assets.DeployAssets()
 	if err != nil {
 		return err
 	}
-
-	adbPath, err := exec.LookPath("adb.exe")
-	if err == nil {
-		a.ExePath = adbPath
-	} else if assetDir != "" {
+	if assetDir != "" {
 		a.ExePath = filepath.Join(assetDir, "adb.exe")
 	} else {
 		// Get path of the current directory

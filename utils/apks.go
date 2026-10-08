@@ -51,7 +51,8 @@ func ValidCertificates() []string {
 		"9e93b3336c767c3aba6fcc4deada9f179ee4a05b", // Candy Crush
 		"d67a8c3be07403744ef8827071a939d395dcb248", // Opera
 		"5af3c82bcdf98581f4bc98a5b86a41b30ed0c231", // Lenovo
-		"45989dc9ad8728c2aa9a82fa55503e34a8879374", // Signal
+		"45989dc9ad8728c2aa9a82fa55503e34a8879374", // Signal (legacy)
+		"5c6740091301285db5409fdcd1b90f1ac3ba2dcf", // Signal (Android 13+)
 		"47ff6ba97efaae9779356cbad5ba15233e8ddb3a", // Jitsi
 		"661952a06057ea00574a835fa4f888dd533d9f68", // TCL
 		"51478ee26ac2e3c9620a152659770c6c8ebdd1cb", // TCL

@@ -2,12 +2,28 @@ package main
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/mvt-project/androidqf/adb"
 )
+
+func TestWaitForConnectionRetryReturnsSignal(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	signals <- os.Interrupt
+
+	if got := waitForConnectionRetry(signals, time.Hour); got != os.Interrupt {
+		t.Fatalf("waitForConnectionRetry() = %v, want %v", got, os.Interrupt)
+	}
+}
+
+func TestWaitForConnectionRetryReturnsAfterDelay(t *testing.T) {
+	if got := waitForConnectionRetry(nil, time.Millisecond); got != nil {
+		t.Fatalf("waitForConnectionRetry() = %v, want nil", got)
+	}
+}
 
 func TestResolveADBSerialNoDevicesDoesNotPrompt(t *testing.T) {
 	called := false
