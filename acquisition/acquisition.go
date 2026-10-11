@@ -7,7 +7,6 @@ package acquisition
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,22 +25,24 @@ const streamingPullerMemoryLimitMB = 500
 
 // Acquisition is the main object containing all phone information
 type Acquisition struct {
-	UUID             string              `json:"uuid"`
-	AndroidQFVersion string              `json:"androidqf_version"`
-	ADBHostPublicKey string              `json:"adb_host_public_key,omitempty"`
-	StoragePath      string              `json:"storage_path"`
-	Started          time.Time           `json:"started"`
-	Completed        time.Time           `json:"completed"`
-	Collector        *adb.Collector      `json:"collector"`
-	TmpDir           string              `json:"tmp_dir"`
-	SdCard           string              `json:"sdcard"`
-	Cpu              string              `json:"cpu"`
-	closeLog         func()              `json:"-"`
-	ZipWriter        *StreamingZipWriter `json:"-"`
-	StreamingMode    bool                `json:"streaming_mode"`
-	StreamingPuller  *StreamingPuller    `json:"-"`
-	ModuleResults    []ModuleResult      `json:"module_results"`
-	logBuffer        *bytes.Buffer       `json:"-"`
+	HostUsernameRedacted bool                `json:"host_username_redacted,omitempty"`
+	RedactHostHome       string              `json:"-"`
+	UUID                 string              `json:"uuid"`
+	AndroidQFVersion     string              `json:"androidqf_version"`
+	ADBHostPublicKey     string              `json:"adb_host_public_key,omitempty"`
+	StoragePath          string              `json:"storage_path"`
+	Started              time.Time           `json:"started"`
+	Completed            time.Time           `json:"completed"`
+	Collector            *adb.Collector      `json:"collector"`
+	TmpDir               string              `json:"tmp_dir"`
+	SdCard               string              `json:"sdcard"`
+	Cpu                  string              `json:"cpu"`
+	closeLog             func()              `json:"-"`
+	ZipWriter            *StreamingZipWriter `json:"-"`
+	StreamingMode        bool                `json:"streaming_mode"`
+	StreamingPuller      *StreamingPuller    `json:"-"`
+	ModuleResults        []ModuleResult      `json:"module_results"`
+	logBuffer            *bytes.Buffer       `json:"-"`
 }
 
 type ModuleResult struct {
@@ -125,7 +126,7 @@ func (a *Acquisition) Complete() error {
 
 	if a.ZipWriter != nil {
 		if a.ADBHostPublicKey != "" {
-			err := a.ZipWriter.CreateFileFromString("adb_host_key.pub", a.ADBHostPublicKey+"\n")
+			err := a.ZipWriter.CreateFileFromString("adb_host_key.pub", a.archiveHostKey()+"\n")
 			if err != nil {
 				log.ErrorExc("Failed to store ADB host public key in archive", err)
 				completionErr = errors.Join(completionErr, fmt.Errorf("failed to store ADB host public key: %w", err))
@@ -133,7 +134,7 @@ func (a *Acquisition) Complete() error {
 		}
 
 		// Store acquisition info in the zip
-		info, err := json.MarshalIndent(a, "", " ")
+		info, err := a.archiveMetadata()
 		if err != nil {
 			log.Error("Failed to marshal acquisition info for archive")
 			completionErr = errors.Join(completionErr, fmt.Errorf("failed to marshal acquisition info: %w", err))
@@ -153,7 +154,7 @@ func (a *Acquisition) Complete() error {
 
 		// Write buffered command.log to archive
 		if a.logBuffer != nil && a.logBuffer.Len() > 0 {
-			err = a.ZipWriter.CreateFileFromBytes("command.log", a.logBuffer.Bytes())
+			err = a.ZipWriter.CreateFileFromBytes("command.log", a.archiveLog())
 			if err != nil {
 				log.ErrorExc("Failed to add command.log to archive", err)
 				completionErr = errors.Join(completionErr, fmt.Errorf("failed to add command.log: %w", err))
