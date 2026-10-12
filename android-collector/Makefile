@@ -9,8 +9,9 @@ UPX_COMPRESS ?= "0"
 check:
 	@echo "[lint] Running go vet"
 	go vet ./...
-	@echo "[lint] Running staticheck on codebase"
-	@staticcheck ./...
+	@echo "[lint] Running staticcheck on codebase"
+	$(MAKE) -C .. staticcheck
+	@../build/tools/staticcheck ./...
 
 fmt:
 	gofmt -w -s ./
