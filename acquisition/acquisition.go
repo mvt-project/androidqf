@@ -32,6 +32,7 @@ type Acquisition struct {
 	StoragePath      string              `json:"storage_path"`
 	Started          time.Time           `json:"started"`
 	Completed        time.Time           `json:"completed"`
+	DeviceClock      *DeviceClock        `json:"device_clock,omitempty"`
 	Collector        *adb.Collector      `json:"collector"`
 	TmpDir           string              `json:"tmp_dir"`
 	SdCard           string              `json:"sdcard"`
@@ -102,6 +103,12 @@ func New(path string) (*Acquisition, error) {
 		return nil, fmt.Errorf("failed to enable writer logging: %v", err)
 	}
 	acq.closeLog = closeLog
+
+	if clock, err := measureDeviceClock(adb.Client.Shell, time.Now); err != nil {
+		log.Warningf("Unable to measure device clock: %v", err)
+	} else {
+		acq.DeviceClock = clock
+	}
 
 	return &acq, nil
 }
