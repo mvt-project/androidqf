@@ -2,7 +2,7 @@ BUILD_FOLDER  = "$(shell pwd)/build"
 DIST_FOLDER = "$(shell pwd)/dist"
 ASSETS_FOLDER = "$(shell pwd)/assets"
 
-.PHONY: all
+.PHONY: all staticcheck
 default: all ;
 
 VERSION := $(shell git describe --always --long --dirty)
@@ -22,13 +22,16 @@ PLATFORMTOOLS_LINUX   = platform-tools-latest-linux.zip
 PLATFORMTOOLS_FOLDER  = /tmp/platform-tools
 PLATFORMTOOLS_DOWNLOAD_FOLDER = /tmp/platform-tools-downloads
 
-check:
+staticcheck:
+	go -C tools build -o ../build/tools/staticcheck honnef.co/go/tools/cmd/staticcheck
+
+check: staticcheck
 	@echo "[lint] Running go vet"
 	go vet ./...
 	cd android-collector && go vet ./...
 	@echo "[lint] Running staticcheck on codebase"
-	@staticcheck ./...
-	cd android-collector && staticcheck ./...
+	@$(BUILD_FOLDER)/tools/staticcheck ./...
+	cd android-collector && $(BUILD_FOLDER)/tools/staticcheck ./...
 
 vuln:
 	@echo "Running go vuln check"
