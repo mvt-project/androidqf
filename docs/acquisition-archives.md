@@ -40,6 +40,33 @@ same per-user ADB key.
 SHA-256 digest. The digest covers the plaintext, uncompressed entry content.
 The file does not contain a hash record for itself.
 
+## Device clock
+
+At acquisition startup, androidqf measures the device's UTC wall clock through
+ADB. A successful measurement appears as `device_clock` in `acquisition.json`:
+
+| Field | Meaning |
+|---|---|
+| `device_time` | Device timestamp returned by `date`, expressed in UTC. |
+| `host_before`, `host_after` | Host UTC timestamps immediately before and after the ADB request. |
+| `resolution_seconds` | Reported timestamp resolution: one nanosecond with `%N`, or one second with the fallback. This is format resolution, not guaranteed clock accuracy. |
+| `round_trip_seconds` | Elapsed host time for the request. |
+| `offset_seconds` | Estimated device time minus host time; positive means the device clock is ahead. |
+| `uncertainty_seconds` | Half the request duration plus half the timestamp resolution. |
+
+The offset compares the midpoint of the device timestamp's truncation interval
+with the midpoint of the host request interval. The uncertainty accounts for
+where the device read occurred within that request and for timestamp
+truncation. It assumes stable clocks during the request and does not measure
+the host clock's accuracy relative to an external time source.
+
+Devices without fractional-second support use a separately timed
+`date -u +%s` request. Failed commands or invalid timestamps produce a warning
+and leave `device_clock` absent; acquisition continues. A detected host clock
+adjustment invalidates the measurement. The observation describes the clocks
+at acquisition startup; androidqf does not apply it to evidence timestamps or
+assume that historical device timestamps have the same offset.
+
 ## Streaming and failed pulls
 
 Module output is written to the archive as it is collected. Streams produced
