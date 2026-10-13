@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildOptionsNoFlagsKeepsInteractiveDefaults(t *testing.T) {
-	opts, err := buildOptions(false, false, "", "", "", "", "", "", "", "")
+	opts, err := buildOptions(false, false, "", "", "", "", "", "", "", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestBuildOptionsInvalidValueFails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := buildOptions(false, false, tt.backup, tt.download, tt.removeTrusted, tt.intrusionLogs, tt.hashFiles, tt.browserHistory, tt.magiskModules, "")
+			_, err := buildOptions(false, false, tt.backup, tt.download, tt.removeTrusted, tt.intrusionLogs, tt.hashFiles, tt.browserHistory, tt.magiskModules, "", "")
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
 			}
@@ -43,7 +43,7 @@ func TestBuildOptionsInvalidValueFails(t *testing.T) {
 
 func TestBuildOptionsUnknownModuleFails(t *testing.T) {
 	for _, nonInteractive := range []bool{false, true} {
-		_, err := buildOptions(false, nonInteractive, "", "", "", "", "", "", "", "typo")
+		_, err := buildOptions(false, nonInteractive, "", "", "", "", "", "", "", "", "typo")
 		if err == nil || !strings.Contains(err.Error(), "unknown -module value") {
 			t.Fatalf("nonInteractive=%v: err = %v, want unknown -module error", nonInteractive, err)
 		}
@@ -51,21 +51,21 @@ func TestBuildOptionsUnknownModuleFails(t *testing.T) {
 }
 
 func TestBuildOptionsNonInteractiveMissingFlagsFails(t *testing.T) {
-	_, err := buildOptions(false, true, "", "", "", "", "", "", "", "")
+	_, err := buildOptions(false, true, "", "", "", "", "", "", "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "-non-interactive requires") {
 		t.Fatalf("err = %v, want missing flags error", err)
 	}
 }
 
 func TestBuildOptionsNonInteractiveModuleFilter(t *testing.T) {
-	_, err := buildOptions(false, true, "none", "", "", "", "", "", "", "backup")
+	_, err := buildOptions(false, true, "none", "", "", "", "", "", "", "", "backup")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestBuildOptionsFullInvocation(t *testing.T) {
-	opts, err := buildOptions(true, true, "sms", "all", "no", "no", "yes", "yes", "yes", "")
+	opts, err := buildOptions(true, true, "sms", "all", "no", "no", "yes", "yes", "yes", "yes", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,6 +84,7 @@ func TestBuildOptionsFullInvocation(t *testing.T) {
 		{opts.HashFiles, modules.ParseHashFilesOption, "yes"},
 		{opts.BrowserHistory, modules.ParseBrowserHistoryOption, "yes"},
 		{opts.MagiskModules, modules.ParseMagiskModulesOption, "yes"},
+		{opts.ModemDiagnostics, modules.ParseModemDiagnosticsOption, "yes"},
 	} {
 		want, err := check.parse(check.token)
 		if err != nil {
@@ -91,6 +92,25 @@ func TestBuildOptionsFullInvocation(t *testing.T) {
 		}
 		if check.got != want {
 			t.Fatalf("got %q, want %q", check.got, want)
+		}
+	}
+}
+
+func TestBuildOptionsModemDiagnostics(t *testing.T) {
+	for _, nonInteractive := range []bool{false, true} {
+		for _, value := range []string{"yes", "no", " YES ", " No "} {
+			opts, err := buildOptions(false, nonInteractive, "", "", "", "", "", "", "", value, "modem_diagnostics")
+			if err != nil {
+				t.Fatalf("nonInteractive=%v value=%q: %v", nonInteractive, value, err)
+			}
+			want, _ := modules.ParseModemDiagnosticsOption(value)
+			if opts.ModemDiagnostics != want {
+				t.Fatalf("ModemDiagnostics = %q, want %q", opts.ModemDiagnostics, want)
+			}
+		}
+		_, err := buildOptions(false, nonInteractive, "", "", "", "", "", "", "", "maybe", "modem_diagnostics")
+		if err == nil || !strings.Contains(err.Error(), "invalid -modem-diagnostics value") {
+			t.Fatalf("err = %v, want invalid option", err)
 		}
 	}
 }
