@@ -26,6 +26,9 @@ func List() []Module {
 		NewDumpsys(),
 		NewProcesses(),
 		NewServices(),
+		// Preserve existing modem logs before bugreport generation, which can
+		// invoke vendor logging/rotation services.
+		NewModemDiagnostics(),
 		NewBugreport(),
 		NewFiles(),
 		NewBrowserHistory(),

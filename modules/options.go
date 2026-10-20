@@ -20,17 +20,18 @@ var ErrPartialCollection = errors.New("partial collection")
 // no answer was provided on the command line, so the module prompts
 // interactively unless NonInteractive is set.
 type Options struct {
-	Fast           bool
-	NonInteractive bool
-	Backup         string
-	Download       string
-	RemoveTrusted  string
-	IntrusionLogs  string
-	HashFiles      string
-	BrowserHistory string
-	MagiskModules  string
-	Signals        <-chan os.Signal
-	Context        context.Context
+	Fast             bool
+	NonInteractive   bool
+	Backup           string
+	Download         string
+	RemoveTrusted    string
+	IntrusionLogs    string
+	HashFiles        string
+	BrowserHistory   string
+	MagiskModules    string
+	ModemDiagnostics string
+	Signals          <-chan os.Signal
+	Context          context.Context
 }
 
 func (o *Options) ContextOrBackground() context.Context {
@@ -90,6 +91,9 @@ func ValidateNonInteractive(opts *Options, moduleFilter string) error {
 	}
 	if ModuleEnabled(NewMagiskModules().Name(), moduleFilter) && opts.MagiskModules == "" {
 		missing = append(missing, "-magisk-modules (yes, no)")
+	}
+	if ModuleEnabled(NewModemDiagnostics().Name(), moduleFilter) && opts.ModemDiagnostics == "" {
+		missing = append(missing, "-modem-diagnostics (yes, no)")
 	}
 
 	if len(missing) == 0 {
