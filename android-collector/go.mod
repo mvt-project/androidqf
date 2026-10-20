@@ -1,6 +1,6 @@
 module github.com/mvt-project/androidqf/android-collector
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/h2non/filetype v1.1.3
