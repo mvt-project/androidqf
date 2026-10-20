@@ -1,6 +1,6 @@
 module github.com/mvt-project/androidqf
 
-go 1.27.2
+go 1.27.3
 
 require (
 	filippo.io/age v1.3.2
@@ -16,8 +16,8 @@ require (
 	filippo.io/hpke v0.4.0 // indirect
 	github.com/avast/apkparser v0.0.0-20260423123151-7fcaee440f68 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
-	github.com/gookit/color v1.6.1 // indirect
-	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/gookit/color v1.6.3 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
