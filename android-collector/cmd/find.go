@@ -101,7 +101,7 @@ func processFile(filePath string, fileInfo os.FileInfo, getHash bool) FileInfo {
 
 	if getHash {
 		// Avoid pseudo-files whose reads can block or have side effects.
-		if isPathWithin(filePath, "/proc") || isPathWithin(filePath, "/sys") {
+		if !fileInfo.Mode().IsRegular() || isPathWithin(filePath, "/proc") || isPathWithin(filePath, "/sys") || isPathWithin(filePath, "/dev") {
 			return f
 		}
 
