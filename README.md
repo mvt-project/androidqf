@@ -120,6 +120,7 @@ The following data can be extracted:
 | APEX inventory and complete factory and installed APEX containers for offline analysis. | | `apex/*` |
 | Intrusion Logging logs. Contains private data such as navigation history. | ✅ | `intrusion_logs/*` |
 | Installed Magisk module metadata and state markers, when existing root access is available. | ✅ | `magisk_modules/*` |
+| Existing modem diagnostic logs, using normal ADB access or existing root access where needed. | ✅ | `modem_diagnostics/*` |
 | Files in `/system/etc/init.d`, when existing root access is available. | | `init_scripts/*` |
 | A list of files on the system, optionally including on-device hashes. | :white_check_mark: | `files.json` |
 | A copy of the files available in temp folders. | | `tmp/*` |
@@ -299,6 +300,26 @@ available `module.prop` directly to host-side staging before adding it under
 whether property and state collection completed, so an unavailable artifact is
 not silently treated as an enabled module.
 
+### Modem diagnostics
+
+AndroidQF can optionally copy existing Qualcomm (`.qmdl`, `.qmdl2`, `.dlf`),
+Samsung/Shannon (`.sdm`) and HiSilicon (`.lpd`) diagnostic logs, including
+compressed copies. The interactive prompt defaults to `No`. Use
+`-modem-diagnostics yes` to opt in or `-modem-diagnostics no` to skip the prompt.
+
+Collection is read-only: AndroidQF does not start live captures, enable logging,
+switch USB modes, install tools, or root the phone. It tries ordinary ADB access
+first and uses an already-functional `su` only for inaccessible locations/files.
+These logs may be large and contain sensitive communications and location data.
+A manifest records source locations, access limitations and transfer failures.
+
+See [Modem diagnostics](docs/modem-diagnostics.md) for device/root requirements,
+searched paths, supported filenames and limitations. To collect only this data:
+
+```bash
+androidqf -serial <serial> -module modem_diagnostics -modem-diagnostics yes -non-interactive
+```
+
 ### Unattended acquisitions
 
 Every prompt can be answered ahead of time with a command-line flag. A flag that is not passed keeps prompting interactively as before.
@@ -312,11 +333,12 @@ Every prompt can be answered ahead of time with a command-line flag. A flag that
 | `-hash-files` / `-H` | `yes`, `no` | [Hashing files on the device](#hashing-files-on-the-device) |
 | `-browser-history` | `yes`, `no` | [Browser history](#browser-history) |
 | `-magisk-modules` | `yes`, `no` | [Magisk modules](#magisk-modules) |
+| `-modem-diagnostics` | `yes`, `no` | [Modem diagnostics](#modem-diagnostics) |
 
 With `-non-interactive` (`-n`), androidqf never prompts: it fails before the acquisition starts if one of the flags above is missing, fails if multiple devices are attached and no `-serial` is given, and skips the final "Press Enter to finish". A fully unattended run looks like this:
 
 ```bash
-androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -magisk-modules no -non-interactive
+androidqf -serial <serial> -backup none -download all -remove-trusted no -intrusion-logs no -hash-files no -browser-history no -magisk-modules no -modem-diagnostics no -non-interactive
 ```
 
 > [!NOTE]

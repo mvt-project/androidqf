@@ -244,7 +244,7 @@ func moduleResultStatus(err error) string {
 	return "failed"
 }
 
-func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, browserHistory, magiskModules, moduleFilter string) (*modules.Options, error) {
+func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, browserHistory, magiskModules, modemDiagnostics, moduleFilter string) (*modules.Options, error) {
 	opts := &modules.Options{Fast: fast, NonInteractive: nonInteractive}
 	var err error
 	if backup != "" {
@@ -282,6 +282,11 @@ func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, in
 			return nil, err
 		}
 	}
+	if modemDiagnostics != "" {
+		if opts.ModemDiagnostics, err = modules.ParseModemDiagnosticsOption(modemDiagnostics); err != nil {
+			return nil, err
+		}
+	}
 	if err = modules.ValidateNonInteractive(opts, moduleFilter); err != nil {
 		return nil, err
 	}
@@ -305,6 +310,7 @@ func main() {
 	var hashFilesFlag string
 	var browserHistoryFlag string
 	var magiskModulesFlag string
+	var modemDiagnosticsFlag string
 	var nonInteractive bool
 
 	// Command line options
@@ -334,6 +340,7 @@ func main() {
 	flag.StringVar(&hashFilesFlag, "H", "", "Answer the on-device file hashing prompt: yes or no (resource-intensive)")
 	flag.StringVar(&browserHistoryFlag, "browser-history", "", "Collect supported browser History databases when existing root access is available: yes or no")
 	flag.StringVar(&magiskModulesFlag, "magisk-modules", "", "Collect installed Magisk module metadata when existing root access is available: yes or no")
+	flag.StringVar(&modemDiagnosticsFlag, "modem-diagnostics", "", "Collect existing modem diagnostic logs without enabling logging; use existing root access if needed: yes or no")
 	flag.BoolVar(&nonInteractive, "non-interactive", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&nonInteractive, "n", false, "Never prompt: fail if a prompt would be reached without its flag and skip the final 'Press Enter'")
 	flag.BoolVar(&version_flag, "version", false, "Show version")
@@ -357,7 +364,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, browserHistoryFlag, magiskModulesFlag, module)
+	opts, err := buildOptions(fast, nonInteractive, backupFlag, downloadFlag, removeTrustedFlag, intrusionLogsFlag, hashFilesFlag, browserHistoryFlag, magiskModulesFlag, modemDiagnosticsFlag, module)
 	if err != nil {
 		log.Fatal(err)
 	}
