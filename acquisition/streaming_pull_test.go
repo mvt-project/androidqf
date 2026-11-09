@@ -14,6 +14,13 @@ import (
 // element as one remote argument, so reading the supplied path catches extra
 // quoting without requiring a device or a POSIX shell on the host.
 func TestMain(m *testing.M) {
+	if os.Getenv("ANDROIDQF_CLOCK_ADB_HELPER") == "1" {
+		if err := runClockADBHelper(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if os.Getenv("ANDROIDQF_STREAMING_ADB_HELPER") == "1" {
 		if err := runStreamingADBHelper(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
