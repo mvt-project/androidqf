@@ -1,8 +1,3 @@
-// androidqf - Android Quick Forensics
-// Copyright (c) 2021-2026 Claudio Guarnieri.
-// Use of this software is governed by the MVT License 1.1 that can be found at
-//   https://license.mvt.re/1.1/
-
 package modules
 
 import (
@@ -59,9 +54,6 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		return partialCollectionError(fmt.Errorf("failed to check AAPM compatibility: %w", err))
 	}
 
-	// TODO: Investigate whether IL data could exist on a non-compatible device
-	// (for example, restored or migrated from another device on the same Google account).
-	// If so, skipping here might miss existing data.
 	if !compatible {
 		log.Info("Device is not AAPM-compatible, skipping Intrusion Logging acquisition.")
 		return nil
@@ -81,16 +73,11 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		return fmt.Errorf("failed to make selection for IL option: %v", err)
 	}
 
-	// User declined so we continue acquisition normally
 	if ILOption == skipIL {
 		log.Info("Skipping Intrusion Logging extraction...")
 		return nil
 	}
 
-	// Check whether AAPM is enabled right now. If disabled, don't start the activity
-	// or wait for a new file just pull whatever is already present.
-	// We still proceed with acquisition because older IL files may remain on disk
-	// and should be collected with user consent.
 	aapmEnabled, err := m.isAAPMEnabled()
 	if err != nil {
 		log.Debugf("Failed to check AAPM enabled state: %v", err)
@@ -98,40 +85,37 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		aapmEnabled = false
 	}
 
+	before, err := m.listDirSet(m.DirOnDevice)
+	if err != nil {
+		log.Debugf("IL: failed to completely list %s before checking logs: %v", m.DirOnDevice, err)
+	}
+
 	if aapmEnabled {
-		// Snapshot of Intrusion Logs folder before triggering new log download
-		before, err := m.listDirSet(m.DirOnDevice)
+		if len(before) == 0 {
+			log.Info("AAPM is enabled but no existing intrusion logs are present (first-time enable). Skipping new log wait timer.")
+		} else {
+			if err := adb.Client.IL(); err != nil {
+				log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
+				collectionErr = errors.Join(collectionErr, err)
+			}
 
-		if err != nil {
-			log.Errorf("IL: failed to completely list %s before requesting new logs: %v", m.DirOnDevice, err)
-			collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to list %s before requesting new logs: %w", m.DirOnDevice, err))
-		}
+			log.Info("Launched the Intrusion Logging settings page.")
+			log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
 
-		// Start the Activity to prompt the user to download a new Intrusion Log
-		if err := adb.Client.IL(); err != nil {
-			log.Errorf("Failed to launch intrusion detection activity: %v\n", err)
-			collectionErr = errors.Join(collectionErr, err)
-			// Still allow pulling existing files if user wants; continue anyway.
-		}
-
-		log.Info("Launched the Intrusion Logging settings page.")
-		log.Info("On the device: scroll down, tap 'Access Logs', then press 'Download and Decrypt' for each listed device.\n")
-
-		log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
-		// Pulls every 2 seconds. Stops on Ctrl+C or after 15 minutes.
-		watchErr := m.waitForNewFiles(opts.ContextOrBackground(), opts.Signals, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
-		if errors.Is(watchErr, ErrAcquisitionInterrupted) {
-			return watchErr
-		}
-		if watchErr != nil {
-			log.Info("Stopped waiting, continuing with acquisition...")
-			collectionErr = errors.Join(collectionErr, watchErr)
+			log.Info("Waiting for intrusion logs to be written to device. (Ctrl+C to skip waiting and continue acquisition)...")
+			watchErr := m.waitForNewFiles(opts.ContextOrBackground(), opts.Signals, m.DirOnDevice, before, 2*time.Second, 15*time.Minute)
+			if errors.Is(watchErr, ErrAcquisitionInterrupted) {
+				return watchErr
+			}
+			if watchErr != nil {
+				log.Info("Stopped waiting, continuing with acquisition...")
+				collectionErr = errors.Join(collectionErr, watchErr)
+			}
 		}
 	} else {
 		log.Debug("AAPM is disabled, skipping activity launch and new file watcher (pulling existing files only).")
 	}
 
-	// Pull all files (old + new)
 	files, err := adb.Client.ListFiles(m.DirOnDevice, true)
 	if err != nil {
 		collectionErr = errors.Join(collectionErr, fmt.Errorf("failed to list files for pull in %s: %w", m.DirOnDevice, err))
@@ -145,43 +129,36 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 		log.Errorf("IL: failed pulling IL files: %v", err)
 		collectionErr = errors.Join(collectionErr, err)
 	}
-	log.Infof("Downloaded %d Instrusion Logging files from the phone.", len(files))
+	log.Infof("Downloaded %d Intrusion Logging files from the phone.", len(files))
 	log.Info("Intrusion Logging acquisition is completed; continuing with acquisition ...")
 	return partialCollectionError(collectionErr)
 }
 
 func (m *IL) isAAPMCompatibleDevice() (bool, error) {
-	// adb shell settings get secure advanced_protection_mode
 	out, err := adb.Client.Shell("settings", "get", "secure", "advanced_protection_mode")
 	if err != nil {
 		return false, err
 	}
 
 	val := strings.TrimSpace(out)
-	// If the key does not exist, Android prints "null". We infer this is not compatible.
 	if strings.EqualFold(val, "null") || val == "" {
 		return false, nil
 	}
 
-	// If it's compatible, it should be "0" or "1" (treat anything non-null as compatible)
-	return true, nil
+	return val == "1" || val == "true" || strings.EqualFold(val, "enabled"), nil
 }
 
 func (m *IL) isAAPMEnabled() (bool, error) {
-	// adb shell settings get secure advanced_protection_mode
 	out, err := adb.Client.Shell("settings", "get", "secure", "advanced_protection_mode")
 	if err != nil {
 		return false, err
 	}
 
 	val := strings.TrimSpace(out)
-
-	// If the key is missing Android returns "null"
 	if strings.EqualFold(val, "null") || val == "" {
 		return false, nil
 	}
 
-	// AAPM is enabled only when the value is exactly "1"
 	return val == "1", nil
 }
 
@@ -195,7 +172,6 @@ func (m *IL) listDirSet(dir string) (map[string]struct{}, error) {
 	return set, err
 }
 
-// Watch for new files until Ctrl+C or timeout.
 func (m *IL) waitForNewFiles(
 	ctx context.Context,
 	signals <-chan os.Signal,
@@ -205,9 +181,9 @@ func (m *IL) waitForNewFiles(
 	maxWait time.Duration,
 ) error {
 	ticker := time.NewTicker(pollEvery)
-	timeout := time.NewTimer(maxWait)
-
 	defer ticker.Stop()
+
+	timeout := time.NewTimer(maxWait)
 	defer timeout.Stop()
 
 	for {
@@ -239,7 +215,6 @@ func (m *IL) waitForNewFiles(
 						"Detected new file: %s.\nIf you finished downloading logs, press Ctrl+C to continue acquisition.",
 						f,
 					)
-					before[f] = struct{}{}
 				}
 			}
 		}
