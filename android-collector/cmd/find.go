@@ -13,7 +13,6 @@ import (
 	"io"
 	"log"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,6 +22,7 @@ import (
 	"time"
 
 	"github.com/h2non/filetype"
+	"github.com/mvt-project/androidqf/android-collector/internal/mimesniff"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/spf13/cobra"
 )
@@ -64,7 +64,7 @@ func getMimeType(buf []byte) (string, error) {
 		return kind.MIME.Value, nil
 	}
 
-	return http.DetectContentType(buf), nil
+	return mimesniff.DetectContentType(buf), nil
 }
 
 func init() {

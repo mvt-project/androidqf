@@ -353,3 +353,20 @@ Bear in mind, it is always possible that at least some portion of the unencrypte
 The purpose of androidqf is to facilitate the ***consensual forensic analysis*** of devices of those who might be targets of sophisticated mobile spyware attacks, especially members of civil society and marginalized communities. We do not want androidqf to enable privacy violations of non-consenting individuals. Therefore, the goal of this license is to prohibit the use of androidqf (and any other software licensed the same) for the purpose of *adversarial forensics*.
 
 In order to achieve this androidqf is released under [MVT License 1.1](https://license.mvt.re/1.1/), an adaptation of [Mozilla Public License v2.0](https://www.mozilla.org/MPL). This modified license includes a new clause 3.0, "Consensual Use Restriction" which permits the use of the licensed software (and any *"Larger Work"* derived from it) exclusively with the explicit consent of the person/s whose data is being extracted and/or analysed (*"Data Owner"*).
+
+### Optional host username redaction
+
+`-redact-host-username` replaces the acquisition computer's home-directory prefix
+with `[HOST_HOME]` in stored host paths and `command.log`, and removes the comment
+from the ADB host public key in both metadata and `adb_host_key.pub`. The key
+material is preserved. Redaction is disabled by default and recorded as
+`host_username_redacted` in `acquisition.json` when enabled.
+
+`hashes.csv` uses archive-relative filenames and hashes the final archived bytes,
+including redacted metadata and logs. Runtime paths and collected device files
+are unchanged. This option does not anonymize device evidence, usernames outside
+home-directory paths, or other host identifiers such as the ADB key itself.
+
+```sh
+androidqf -redact-host-username
+```

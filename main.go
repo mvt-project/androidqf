@@ -306,8 +306,10 @@ func main() {
 	var browserHistoryFlag string
 	var magiskModulesFlag string
 	var nonInteractive bool
+	var redactHostUsername bool
 
 	// Command line options
+	flag.BoolVar(&redactHostUsername, "redact-host-username", false, "Redact host home paths and ADB key comments in acquisition metadata and logs")
 	flag.BoolVar(&verbose, "verbose", false, "Verbose mode")
 	flag.BoolVar(&verbose, "v", false, "Verbose mode")
 	flag.BoolVar(&fast, "fast", false, "Fast mode")
@@ -452,6 +454,13 @@ func main() {
 	if setupCtx.Err() != nil {
 		abortBeforeAcquisition(pendingSignal(signals))
 	}
+	var hostHome string
+	if redactHostUsername {
+		hostHome, err = os.UserHomeDir()
+		if err != nil || hostHome == "" {
+			fatalBeforeAcquisition("Cannot determine host home directory for redaction: ", err)
+		}
+	}
 	acq, err := acquisition.New(output_folder)
 	if err != nil {
 		if setupCtx.Err() != nil {
@@ -460,6 +469,8 @@ func main() {
 		log.Debug(err)
 		log.FatalExc("Impossible to initialise the acquisition", err)
 	}
+	acq.HostUsernameRedacted = redactHostUsername
+	acq.RedactHostHome = hostHome
 	stopSetupSignals()
 	adb.Client.SetContext(context.Background())
 	acq.StreamingPuller.SetContext(context.Background())
