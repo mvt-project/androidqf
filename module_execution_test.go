@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/mvt-project/androidqf/acquisition"
 	"github.com/mvt-project/androidqf/adb"
@@ -109,5 +111,44 @@ func TestModuleResultStatusDistinguishesPartialCollection(t *testing.T) {
 	)
 	if got := moduleResultStatus(interruptedPartial); got != "failed" {
 		t.Fatalf("interrupted partial status = %q, want failed", got)
+	}
+}
+
+func TestPrintAcquisitionSummary(t *testing.T) {
+	acq := &acquisition.Acquisition{
+		Completed: time.Date(2026, 11, 20, 14, 3, 20, 123456789, time.UTC),
+		ModuleResults: []acquisition.ModuleResult{
+			{Name: "backup", Status: "skipped"},
+			{Name: "packages", Status: "completed"},
+			{Name: "apex", Status: "partial"},
+			{Name: "bugreport", Status: "failed"},
+		},
+	}
+	const header = "Acquisition finalized at 2026-11-20T14:03:20.123456789Z\n"
+	var out bytes.Buffer
+	printAcquisitionSummary(&out, acq)
+	if got, want := out.String(), header+"  backup: skipped\n  packages: completed\n  apex: partial\n  bugreport: failed\n"; got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+
+	acq.ModuleResults = nil
+	out.Reset()
+	printAcquisitionSummary(&out, acq)
+	if got, want := out.String(), header+"No modules ran.\n"; got != want {
+		t.Fatalf("empty summary = %q, want %q", got, want)
+	}
+}
+
+func TestDeclinedBackupStatus(t *testing.T) {
+	backup, err := modules.ParseBackupOption("none")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = modules.NewBackup().Run(&acquisition.Acquisition{}, &modules.Options{Backup: backup, NonInteractive: true})
+	if got := moduleResultStatus(err); got != "skipped" {
+		t.Fatalf("declined backup status = %q, want skipped", got)
+	}
+	if got := moduleResultStatus(errors.Join(err, modules.ErrAcquisitionInterrupted)); got != "failed" {
+		t.Fatalf("interrupted backup status = %q, want failed", got)
 	}
 }

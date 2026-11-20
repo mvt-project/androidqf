@@ -64,7 +64,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 	// If so, skipping here might miss existing data.
 	if !compatible {
 		log.Info("Device is not AAPM-compatible, skipping Intrusion Logging acquisition.")
-		return nil
+		return ErrModuleSkipped
 	}
 
 	// Ask user first
@@ -84,7 +84,7 @@ func (m *IL) Run(acq *acquisition.Acquisition, opts *Options) error {
 	// User declined so we continue acquisition normally
 	if ILOption == skipIL {
 		log.Info("Skipping Intrusion Logging extraction...")
-		return nil
+		return ErrModuleSkipped
 	}
 
 	// Check whether AAPM is enabled right now. If disabled, don't start the activity

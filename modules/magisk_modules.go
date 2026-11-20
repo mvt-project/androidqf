@@ -75,7 +75,7 @@ func (m *MagiskModules) Run(acq *acquisition.Acquisition, opts *Options) error {
 	}
 	if selection == skipMagiskModules {
 		log.Info("Skipping Magisk module extraction...")
-		return nil
+		return ErrModuleSkipped
 	}
 
 	manifest := magiskModulesManifest{
