@@ -26,7 +26,7 @@ func (i *InitScripts) Name() string { return "init_scripts" }
 func (i *InitScripts) Run(acq *acquisition.Acquisition, opts *Options) error {
 	if adb.Client == nil || !adb.Client.HasRoot() {
 		log.Info("Skipping init scripts: existing root access is unavailable.")
-		return nil
+		return ErrModuleSkipped
 	}
 
 	log.Info("Collecting init.d scripts...")

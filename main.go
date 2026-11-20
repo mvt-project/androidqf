@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -241,7 +242,21 @@ func moduleResultStatus(err error) string {
 	if errors.Is(err, modules.ErrPartialCollection) {
 		return "partial"
 	}
+	if errors.Is(err, modules.ErrModuleSkipped) {
+		return "skipped"
+	}
 	return "failed"
+}
+
+func printAcquisitionSummary(w io.Writer, acq *acquisition.Acquisition) {
+	fmt.Fprintf(w, "Acquisition finalized at %s\n", acq.Completed.Format(time.RFC3339Nano))
+	if len(acq.ModuleResults) == 0 {
+		fmt.Fprintln(w, "No modules ran.")
+		return
+	}
+	for _, result := range acq.ModuleResults {
+		fmt.Fprintf(w, "  %s: %s\n", result.Name, result.Status)
+	}
 }
 
 func buildOptions(fast, nonInteractive bool, backup, download, removeTrusted, intrusionLogs, hashFiles, browserHistory, magiskModules, moduleFilter string) (*modules.Options, error) {
@@ -511,7 +526,7 @@ func main() {
 			Started:   moduleStarted,
 			Completed: time.Now().UTC(),
 		}
-		if err != nil {
+		if err != nil && result.Status != "skipped" {
 			result.Error = err.Error()
 			incompleteModules++
 			log.Infof("ERROR: module %s completed with status %s: %v", mod.Name(), result.Status, err)
@@ -534,6 +549,7 @@ func main() {
 	}
 	releaseRunning()
 	runningReleased = true
+	printAcquisitionSummary(os.Stdout, acq)
 	if interrupted {
 		log.Fatal("Acquisition was interrupted and finalized as partial.")
 	}
