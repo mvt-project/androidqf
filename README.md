@@ -153,8 +153,10 @@ Every acquisition also contains `acquisition.json`, `command.log` when log outpu
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
 transfers are not committed as archive entries. `acquisition.json` records the
-status (`completed`, `partial`, or `failed`), timing, and error (if any) for
-every module that ran. When the collector is deployed, `collector.sha256` is the
+status (`completed`, `skipped`, `partial`, or `failed`), timing, and error (if any) for
+every module that ran. After finalizing the archive, AndroidQF prints its UTC
+completion time and the same module statuses to stdout, including on partial and
+interrupted runs. When the collector is deployed, `collector.sha256` is the
 SHA-256 of the selected collector bytes (embedded in standard builds). It can be
 compared with the optional on-device hash for the collector path in `files.json`;
 it does not itself verify the device copy. A finalized
