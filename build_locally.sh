@@ -12,7 +12,7 @@ echo ""
 # Check if goreleaser is installed
 if ! command -v goreleaser &> /dev/null; then
     echo "GoReleaser is not installed."
-    echo "Install it with: go install github.com/goreleaser/goreleaser/v2@v2.18.3"
+    echo "Install it with: go install github.com/goreleaser/goreleaser/v2@v2.20.3"
     echo "Or see: https://goreleaser.com/install/"
     exit 1
 fi
