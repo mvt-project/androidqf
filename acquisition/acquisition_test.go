@@ -29,8 +29,17 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 		ADBHostPublicKey: "AAAA-test-adb-public-key user@host",
 		StoragePath:      zipWriter.GetOutputPath(),
 		Started:          started,
-		ZipWriter:        zipWriter,
-		StreamingMode:    true,
+		DeviceClock: &DeviceClock{
+			DeviceTime:         started.Add(time.Minute),
+			HostBefore:         started,
+			HostAfter:          started.Add(200 * time.Millisecond),
+			ResolutionSeconds:  1,
+			RoundTripSeconds:   0.2,
+			OffsetSeconds:      60.4,
+			UncertaintySeconds: 0.6,
+		},
+		ZipWriter:     zipWriter,
+		StreamingMode: true,
 		ModuleResults: []ModuleResult{{
 			Name:      "files",
 			Status:    "failed",
@@ -66,6 +75,9 @@ func TestCompleteWritesMetadataToStreamingZip(t *testing.T) {
 	}
 	if stored.Completed.IsZero() {
 		t.Fatal("acquisition.json contains a zero completed timestamp")
+	}
+	if stored.DeviceClock == nil || *stored.DeviceClock != *acq.DeviceClock {
+		t.Fatalf("acquisition.json device clock = %+v, want %+v", stored.DeviceClock, acq.DeviceClock)
 	}
 	if len(stored.ModuleResults) != 1 || stored.ModuleResults[0].Status != "failed" || stored.ModuleResults[0].Error != "partial collection" {
 		t.Fatalf("module results = %+v", stored.ModuleResults)
