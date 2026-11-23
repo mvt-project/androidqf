@@ -63,7 +63,7 @@ func (b *Backup) Run(acq *acquisition.Acquisition, opts *Options) error {
 	case backupEverything:
 		arg = "-all"
 	case backupNothing:
-		return nil
+		return ErrModuleSkipped
 	}
 
 	log.Infof(
