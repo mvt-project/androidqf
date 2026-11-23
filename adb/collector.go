@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/mvt-project/androidqf/log"
@@ -69,7 +69,7 @@ type ProcessInfo struct {
 
 // Returns a new Collector instance.
 func (a *ADB) GetCollector(tmpDir string, arch string) (*Collector, error) {
-	c := Collector{ExePath: filepath.Join(tmpDir, "collector"), Adb: a, Architecture: arch}
+	c := Collector{ExePath: path.Join(tmpDir, "collector"), Adb: a, Architecture: arch}
 
 	err := c.Install()
 	if err != nil {

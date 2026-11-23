@@ -59,6 +59,9 @@ func TestGetCollectorRecordsSelectedBinaryHash(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetCollector() error = %v", err)
 			}
+			if want := "/data/local/tmp/collector"; collector.ExePath != want {
+				t.Fatalf("collector.ExePath = %q, want %q", collector.ExePath, want)
+			}
 			pushed, err := os.ReadFile(pushedPath)
 			if err != nil {
 				t.Fatalf("ReadFile(pushed collector) error = %v", err)
