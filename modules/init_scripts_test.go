@@ -62,7 +62,11 @@ esac
 			}
 			acq := &acquisition.Acquisition{ZipWriter: writer, StreamingMode: true, StreamingPuller: acquisition.NewStreamingPuller(fakeADB, "", 1)}
 			err = NewInitScripts().Run(acq, &Options{})
-			if tc.partial {
+			if tc.listing == "" {
+				if !errors.Is(err, ErrModuleSkipped) {
+					t.Fatalf("expected skipped module, got %v", err)
+				}
+			} else if tc.partial {
 				if !errors.Is(err, ErrPartialCollection) {
 					t.Fatalf("expected partial collection, got %v", err)
 				}
@@ -112,7 +116,7 @@ func TestInitScriptsWithoutADB(t *testing.T) {
 	oldClient := adb.Client
 	adb.Client = nil
 	defer func() { adb.Client = oldClient }()
-	if err := NewInitScripts().Run(nil, nil); err != nil {
-		t.Fatal(err)
+	if err := NewInitScripts().Run(nil, nil); !errors.Is(err, ErrModuleSkipped) {
+		t.Fatalf("expected skipped module, got %v", err)
 	}
 }

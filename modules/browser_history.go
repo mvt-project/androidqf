@@ -89,7 +89,7 @@ func (m *BrowserHistory) Run(acq *acquisition.Acquisition, opts *Options) error 
 	}
 	if selection == skipBrowserHistory {
 		log.Info("Skipping browser history extraction...")
-		return nil
+		return ErrModuleSkipped
 	}
 
 	manifest := browserHistoryManifest{

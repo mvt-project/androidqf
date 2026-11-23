@@ -93,7 +93,7 @@ func (m *ModemDiagnostics) Run(acq *acquisition.Acquisition, opts *Options) erro
 	}
 	if selection == skipModemDiagnostics {
 		log.Info("Skipping modem diagnostic logs...")
-		return nil
+		return ErrModuleSkipped
 	}
 	if selection != acquireModemDiagnostics {
 		return fmt.Errorf("invalid modem diagnostics selection %q", selection)

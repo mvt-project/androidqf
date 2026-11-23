@@ -1,6 +1,6 @@
 module github.com/mvt-project/androidqf/android-collector
 
-go 1.27.2
+go 1.27.4
 
 require (
 	github.com/h2non/filetype v1.1.3
@@ -13,7 +13,7 @@ require (
 	cyphar.com/go-pathrs v0.2.6 // indirect
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 )

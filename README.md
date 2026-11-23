@@ -22,7 +22,7 @@ This project uses [GoReleaser](https://goreleaser.com/) for automated builds and
 
 1. Install GoReleaser:
    ```bash
-   go install github.com/goreleaser/goreleaser/v2@v2.17.1
+   go install github.com/goreleaser/goreleaser/v2@v2.20.3
    ```
 
 2. Run a snapshot build (no publishing):
@@ -34,7 +34,7 @@ This will create binaries for all platforms in the `dist/` directory, including 
 
 ### Building with Make (Legacy)
 
-You can still use the traditional Makefile approach. You will need Go 1.26.5+ installed, along with `make`, `git`, `unzip` and `curl`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
+You can still use the traditional Makefile approach. You will need Go 1.27.4+ installed, along with `make`, `git`, `unzip` and `curl`. AndroidQF includes a cross-compiled `collector` which runs on the target device to more reliably extract forensically relevant information.
 
 First build the `collector` module:
 
@@ -154,8 +154,10 @@ Every acquisition also contains `acquisition.json`, `command.log` when log outpu
 was produced, and `hashes.csv`. The hash list records the SHA-256 digest of each
 preceding plaintext archive entry and does not include itself. Failed device
 transfers are not committed as archive entries. `acquisition.json` records the
-status (`completed`, `partial`, or `failed`), timing, and error (if any) for
-every module that ran. When the collector is deployed, `collector.sha256` is the
+status (`completed`, `skipped`, `partial`, or `failed`), timing, and error (if any) for
+every module that ran. After finalizing the archive, AndroidQF prints its UTC
+completion time and the same module statuses to stdout, including on partial and
+interrupted runs. When the collector is deployed, `collector.sha256` is the
 SHA-256 of the selected collector bytes (embedded in standard builds). It can be
 compared with the optional on-device hash for the collector path in `files.json`;
 it does not itself verify the device copy. A finalized

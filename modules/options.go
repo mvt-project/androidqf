@@ -16,6 +16,9 @@ import (
 var ErrAcquisitionInterrupted = errors.New("acquisition interrupted")
 var ErrPartialCollection = errors.New("partial collection")
 
+// ErrModuleSkipped indicates that the module intentionally bypassed collection.
+var ErrModuleSkipped = errors.New("module skipped")
+
 // Options carries per-run module configuration. An empty string field means
 // no answer was provided on the command line, so the module prompts
 // interactively unless NonInteractive is set.

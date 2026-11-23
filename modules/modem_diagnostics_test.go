@@ -170,8 +170,8 @@ func TestModemDiagnosticsOptOutDoesNotAccessDevice(t *testing.T) {
 	adb.Client = nil
 	t.Cleanup(func() { adb.Client = old })
 	for _, nonInteractive := range []bool{false, true} {
-		if err := NewModemDiagnostics().Run(nil, &Options{NonInteractive: nonInteractive, ModemDiagnostics: skipModemDiagnostics}); err != nil {
-			t.Fatal(err)
+		if err := NewModemDiagnostics().Run(nil, &Options{NonInteractive: nonInteractive, ModemDiagnostics: skipModemDiagnostics}); !errors.Is(err, ErrModuleSkipped) {
+			t.Fatalf("non-interactive=%t: got %v, want ErrModuleSkipped", nonInteractive, err)
 		}
 	}
 	err := NewModemDiagnostics().Run(nil, &Options{NonInteractive: true})
