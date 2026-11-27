@@ -7,6 +7,17 @@ on:
 
 permissions:
     contents: write
+    actions: read # SignPath fetches the unsigned workflow artifact
+
+env:
+    # The Windows executable is signed through SignPath once SIGNPATH_API_TOKEN
+    # is set; without it the release is built unsigned. Under release-signing an
+    # approver approves each request in SignPath while the job waits.
+    SIGN_WINDOWS: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+    # test-signing uses SignPath's self-signed test certificate and needs no
+    # approval. Switch to release-signing once SignPath Foundation has issued the
+    # release certificate.
+    SIGNPATH_POLICY: test-signing
 
 jobs:
     goreleaser:
@@ -32,11 +43,65 @@ jobs:
                   sudo apt-get update
                   sudo apt-get install -y gcc-mingw-w64-x86-64 wget unzip make
 
-            - name: Run GoReleaser
+            # GoReleaser only builds: the release is drafted below, after signing,
+            # so an unsigned Windows executable never reaches the release page.
+            - name: Build with GoReleaser
               uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
               with:
                   distribution: goreleaser
                   version: v2.20.3
-                  args: release --clean
+                  args: release --clean --skip=publish
+
+            # Binary-format archives only get their release names on upload, so
+            # copy them out under those names (internal_type 2 is UploadableBinary).
+            - name: Collect release files
+              run: |
+                  mkdir release
+                  jq -r '.[] | select(.internal_type == 2) | [.path, .name] | @tsv' dist/artifacts.json |
+                    while IFS=$'\t' read -r path name; do cp "$path" "release/$name"; done
+                  ls -l release
+
+            - name: Set the Windows executable aside for signing
+              if: env.SIGN_WINDOWS == 'true'
+              run: |
+                  # The version resource holds the tag's numbers (.goreleaser.yaml).
+                  v=${GITHUB_REF_NAME#v}
+                  echo "WINDOWS_VERSION=${v%%-*}" >> "$GITHUB_ENV"
+                  mkdir windows
+                  mv release/*_windows_*.exe windows/
+
+            - id: unsigned
+              if: env.SIGN_WINDOWS == 'true'
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: unsigned-windows
+                  retention-days: 1
+                  if-no-files-found: error
+                  path: windows/
+
+            - name: Sign for Windows
+              if: env.SIGN_WINDOWS == 'true'
+              uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+              with:
+                  api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+                  organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+                  project-slug: androidqf
+                  signing-policy-slug: ${{ env.SIGNPATH_POLICY }}
+                  artifact-configuration-slug: cli-v1
+                  github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+                  wait-for-completion-timeout-in-seconds: 10800
+                  output-artifact-directory: release
+                  parameters: |
+                      version: "${{ env.WINDOWS_VERSION }}"
+
+            - name: Draft release
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  (cd release && sha256sum -- * > checksums.txt)
+                  cp dist/CHANGELOG.md "$RUNNER_TEMP/notes.md"
+                  # SignPath Foundation requires the link on every release page.
+                  printf '\n[Code signing policy](https://github.com/%s/blob/HEAD/CODE_SIGNING.md)\n' "$GITHUB_REPOSITORY" >> "$RUNNER_TEMP/notes.md"
+                  pre=; [[ "$GITHUB_REF_NAME" != *-* ]] || pre=--prerelease
+                  gh release create "$GITHUB_REF_NAME" release/* --draft $pre --verify-tag \
+                    --title "androidqf ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md"

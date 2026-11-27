@@ -21,6 +21,10 @@ before:
         - ./scripts/download_platform_tools.sh linux
         - bash -c 'cd /tmp && unzip -o /tmp/platform-tools-downloads/platform-tools-latest-linux.zip'
         - cp /tmp/platform-tools/adb assets/adb_linux
+        # Windows version resource. SignPath signs only an executable whose
+        # product name and version match its artifact configuration, which
+        # takes the version as numbers only.
+        - go run github.com/tc-hib/go-winres@v0.3.3 simply --arch amd64 --manifest none --out rsrc --product-name androidqf --file-description androidqf --copyright "Copyright Amnesty International Security Lab" --product-version {{ .Major }}.{{ .Minor }}.{{ .Patch }} --file-version {{ .Major }}.{{ .Minor }}.{{ .Patch }}
 
 builds:
     - id: windows-amd64
@@ -105,7 +109,9 @@ upx:
   - # Compress binaries to make them smaller
     enabled: true
     compress: best
-    goos: [linux, windows]  # Mac universal binaries broken with UPX
+    # Not Windows: the executable is code-signed and keeps its version resource
+    # readable. Mac universal binaries are broken with UPX.
+    goos: [linux]
 
 
 # Archives disabled - we only want raw binaries
@@ -136,11 +142,3 @@ changelog:
             - "^build:"
             - Merge pull request
             - Merge branch
-
-release:
-    github:
-        owner: mvt-project
-        name: androidqf
-    draft: true
-    prerelease: auto
-    name_template: "{{.ProjectName}} {{.Version}}"
