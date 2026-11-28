@@ -50,6 +50,10 @@ func TestParseOptions(t *testing.T) {
 		{"magisk-modules yes", ParseMagiskModulesOption, "yes", acquireMagiskModules, ""},
 		{"magisk-modules no", ParseMagiskModulesOption, "no", skipMagiskModules, ""},
 		{"magisk-modules invalid", ParseMagiskModulesOption, "maybe", "", "invalid -magisk-modules value"},
+		{"modem-diagnostics yes", ParseModemDiagnosticsOption, "yes", acquireModemDiagnostics, ""},
+		{"modem-diagnostics no", ParseModemDiagnosticsOption, "no", skipModemDiagnostics, ""},
+		{"modem-diagnostics mixed case", ParseModemDiagnosticsOption, " YeS ", acquireModemDiagnostics, ""},
+		{"modem-diagnostics invalid", ParseModemDiagnosticsOption, "maybe", "", "invalid -modem-diagnostics value"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -172,7 +176,7 @@ func TestValidateNonInteractive(t *testing.T) {
 			"nothing set",
 			&Options{NonInteractive: true},
 			"",
-			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules", "-modem-diagnostics"},
 			[]string{"-remove-trusted"},
 		},
 		{
@@ -184,7 +188,7 @@ func TestValidateNonInteractive(t *testing.T) {
 		},
 		{
 			"download none skips remove-trusted",
-			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes, BrowserHistory: skipBrowserHistory, MagiskModules: skipMagiskModules},
+			&Options{NonInteractive: true, Backup: backupNothing, Download: apkNone, IntrusionLogs: skipIL, HashFiles: skipHashes, BrowserHistory: skipBrowserHistory, MagiskModules: skipMagiskModules, ModemDiagnostics: skipModemDiagnostics},
 			"",
 			nil,
 			nil,
@@ -194,7 +198,7 @@ func TestValidateNonInteractive(t *testing.T) {
 			&Options{NonInteractive: true},
 			"backup",
 			[]string{"-backup"},
-			[]string{"-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules"},
+			[]string{"-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules", "-modem-diagnostics"},
 		},
 		{
 			"files module requires hash choice",
@@ -226,8 +230,29 @@ func TestValidateNonInteractive(t *testing.T) {
 		},
 		{
 			"all set",
-			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles, BrowserHistory: acquireBrowserHistory, MagiskModules: acquireMagiskModules},
+			&Options{NonInteractive: true, Backup: backupOnlySMS, Download: apkAll, RemoveTrusted: apkKeepAll, IntrusionLogs: skipIL, HashFiles: hashFiles, BrowserHistory: acquireBrowserHistory, MagiskModules: acquireMagiskModules, ModemDiagnostics: acquireModemDiagnostics},
 			"",
+			nil,
+			nil,
+		},
+		{
+			"modem diagnostics requires choice",
+			&Options{NonInteractive: true},
+			"modem_diagnostics",
+			[]string{"-modem-diagnostics"},
+			[]string{"-backup", "-download", "-intrusion-logs", "-hash-files", "-browser-history", "-magisk-modules"},
+		},
+		{
+			"modem diagnostics accepts opt out",
+			&Options{NonInteractive: true, ModemDiagnostics: skipModemDiagnostics},
+			"modem_diagnostics",
+			nil,
+			nil,
+		},
+		{
+			"modem diagnostics accepts opt in",
+			&Options{NonInteractive: true, ModemDiagnostics: acquireModemDiagnostics},
+			"modem_diagnostics",
 			nil,
 			nil,
 		},
